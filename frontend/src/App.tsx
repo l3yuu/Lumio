@@ -232,9 +232,9 @@ function App() {
     };
   }, [view]);
 
-  // Lock window scroll on dashboard view
+  // Lock window scroll on dashboard and auth views
   useEffect(() => {
-    if (view === 'dashboard') {
+    if (view === 'dashboard' || view === 'auth') {
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
     } else {
@@ -325,7 +325,7 @@ function App() {
   return (
     MAINTENANCE_MODE
       ? <MaintenancePage onReload={() => window.location.reload()} />
-      : <div className={`flex flex-col ${view === 'dashboard' ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
+      : <div className={`flex flex-col ${view === 'dashboard' ? 'h-screen overflow-hidden' : view === 'auth' ? 'h-screen' : 'pt-14.5 min-h-screen'}`}>
         {view !== 'auth' && (
           <Navbar
             user={user}
@@ -348,7 +348,7 @@ function App() {
         <main
           className={
             view === 'auth'
-              ? "flex-1 flex flex-col"
+              ? "max-w-full w-full p-0 flex-1 flex flex-col overflow-hidden"
               : view === 'docs'
                 ? "flex-1"
                 : view === 'dashboard'

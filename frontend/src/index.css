@@ -86,6 +86,12 @@
 }
 
 @layer base {
+  :root {
+    --text-secondary: var(--color-ink-muted);
+    --border: var(--color-line);
+    --bg-card: var(--color-card);
+  }
+
   * {
     margin: 0;
     padding: 0;
@@ -116,6 +122,52 @@
   button {
     cursor: pointer;
   }
+}
+
+/* ── Minimalist Scrollbar ─────────────────────────────────────────── */
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 0.3s ease;
+}
+*:hover {
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
+
+/* Webkit (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+  transition: background 0.3s ease;
+}
+*:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22) !important;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Light mode adjustments */
+[data-theme="light"] *:hover {
+  scrollbar-color: rgba(0, 0, 0, 0.12) transparent;
+}
+[data-theme="light"] *:hover::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+}
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.22) !important;
 }
 
 [data-theme="light"] {

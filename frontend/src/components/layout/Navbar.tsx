@@ -36,21 +36,23 @@ export const Navbar: React.FC<NavbarProps> = ({
   onToggleSidebar,
 }) => {
   return (
-    <nav className="navbar sticky top-0 z-50 w-full border-b border-line bg-app/85 backdrop-blur-xl">
-      <div className={`max-w-[1200px] w-full mx-auto py-3 px-8 flex justify-between items-center ${user ? 'max-w-full px-6' : ''}`}>
+    <nav className="navbar fixed top-0 left-0 right-0 z-50 w-full border-b border-line bg-app/85 backdrop-blur-xl">
+      <div className={`max-w-[1200px] w-full mx-auto py-3 px-8 flex justify-between items-center ${user && view === 'dashboard' ? 'max-w-full pl-0 pr-6' : user ? 'max-w-full px-6' : ''}`}>
         <div className="flex items-center">
-          {view === 'dashboard' && user && (
-            <button
-              onClick={onToggleSidebar}
-              aria-label="Toggle Sidebar"
-              className="inline-flex bg-transparent border-0 cursor-pointer p-2 items-center justify-center text-ink-muted rounded-full mr-3 ml-[-0.5rem] transition-all duration-150 hover:text-ink hover:bg-glass"
-            >
-              <Menu size={20} />
-            </button>
-          )}
+          {view === 'dashboard' && user ? (
+            <div className="flex items-center justify-center shrink-0 w-[72px]">
+              <button
+                onClick={onToggleSidebar}
+                aria-label="Toggle Sidebar"
+                className="inline-flex bg-transparent border-0 cursor-pointer p-2 items-center justify-center text-ink-muted rounded-full transition-all duration-150 hover:text-ink hover:bg-glass"
+              >
+                <Menu size={20} />
+              </button>
+            </div>
+          ) : null}
           <button
             onClick={() => { setView(user ? 'dashboard' : 'landing'); setActiveQuizModule(null); setSelectedGroupId(null); setMobileMenuOpen(false); }}
-            className="flex items-center gap-2 no-underline text-ink text-xl font-bold tracking-[-0.03em] bg-transparent border-0 cursor-pointer p-0 leading-none"
+            className={`flex items-center gap-2 no-underline text-ink text-xl font-bold tracking-[-0.03em] bg-transparent border-0 cursor-pointer p-0 leading-none ${view === 'dashboard' && user ? 'ml-3' : ''}`}
           >
             <span>Lumio</span>
           </button>
@@ -61,7 +63,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <li>
               <button
                 onClick={() => { setView('landing'); setActiveQuizModule(null); }}
-                className={`text-ink-inverse no-underline font-medium text-sm transition-colors duration-150 bg-transparent border-0 cursor-pointer py-2 px-3 flex items-center hover:!text-primary ${view === 'landing' ? '!text-primary' : ''}`}
+                className={`text-ink no-underline font-medium text-sm transition-colors duration-150 bg-transparent border-0 cursor-pointer py-2 px-3 flex items-center hover:!text-primary ${view === 'landing' ? '!text-primary' : ''}`}
               >
                 Home
               </button>
@@ -69,7 +71,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <li>
               <button
                 onClick={() => { setView('how-it-works'); setActiveQuizModule(null); }}
-                className={`text-ink-inverse no-underline font-medium text-sm transition-colors duration-150 bg-transparent border-0 cursor-pointer py-2 px-3 flex items-center hover:!text-primary ${view === 'how-it-works' ? '!text-primary' : ''}`}
+                className={`text-ink no-underline font-medium text-sm transition-colors duration-150 bg-transparent border-0 cursor-pointer py-2 px-3 flex items-center hover:!text-primary ${view === 'how-it-works' ? '!text-primary' : ''}`}
               >
                 How it Works
               </button>
@@ -77,7 +79,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <li className="relative inline-block group">
               <button
                 onClick={() => { setView('tools'); setActiveQuizModule(null); }}
-                className={`flex items-center gap-1 bg-transparent border-0 cursor-pointer py-2 px-3 font-medium text-[0.95rem] text-ink-muted transition-colors duration-200 hover:text-ink group-hover:text-ink ${['tools', 'flashcards', 'essay-grader', 'condenser'].includes(view) ? '!text-primary' : ''}`}
+                className={`flex items-center gap-1 bg-transparent border-0 cursor-pointer py-2 px-3 font-medium text-[0.95rem] text-ink transition-colors duration-200 hover:!text-primary group-hover:!text-primary ${['tools', 'flashcards', 'essay-grader', 'condenser'].includes(view) ? '!text-primary' : ''}`}
               >
                 Study Tools
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="transition-transform duration-200 group-hover:rotate-180"><polyline points="6 9 12 15 18 9"></polyline></svg>
@@ -118,7 +120,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <li>
               <button
                 onClick={() => { setView('docs'); setActiveQuizModule(null); }}
-                className={`text-ink-inverse no-underline font-medium text-sm transition-colors duration-150 bg-transparent border-0 cursor-pointer py-2 px-3 flex items-center hover:!text-primary ${view === 'docs' ? '!text-primary' : ''}`}
+                className={`text-ink no-underline font-medium text-sm transition-colors duration-150 bg-transparent border-0 cursor-pointer py-2 px-3 flex items-center hover:!text-primary ${view === 'docs' ? '!text-primary' : ''}`}
               >
                 Docs
               </button>
@@ -126,7 +128,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <li>
               <button
                 onClick={() => { setView('pricing'); setActiveQuizModule(null); }}
-                className={`text-ink-inverse no-underline font-medium text-sm transition-colors duration-150 bg-transparent border-0 cursor-pointer py-2 px-3 flex items-center hover:!text-primary ${view === 'pricing' ? '!text-primary' : ''}`}
+                className={`text-ink no-underline font-medium text-sm transition-colors duration-150 bg-transparent border-0 cursor-pointer py-2 px-3 flex items-center hover:!text-primary ${view === 'pricing' ? '!text-primary' : ''}`}
               >
                 Pricing
               </button>

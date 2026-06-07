@@ -69,14 +69,14 @@ export const MockQuizWidget: React.FC = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="absolute inset-0 bg-black/85 backdrop-blur-md flex justify-center items-center z-[100] p-6"
+              className="absolute inset-0 bg-app/95 backdrop-blur-md flex justify-center items-center z-[100] p-6"
             >
               <motion.div
                 initial={{ opacity: 0, scale: 0.92, y: 10 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.92, y: 10 }}
                 transition={{ type: "spring", damping: 25, stiffness: 350, delay: 0.05 }}
-                className="text-center max-w-[320px] w-full"
+                className="text-center max-w-[320px] w-full bg-card border border-line rounded-2xl p-6 shadow-lg"
               >
                 <div className="flex flex-col items-center gap-4">
                   {authMockOptionSelected === 1 ? (
@@ -95,7 +95,7 @@ export const MockQuizWidget: React.FC = () => {
                     </>
                   )}
 
-                  <p className="text-ink-muted leading-relaxed text-[0.85rem] mb-5">
+                  <p className="text-ink leading-relaxed text-[0.85rem] mb-5">
                     {[
                       "Incorrect. Chloroplasts convert sunlight energy into sugars via photosynthesis, mostly found in plants.",
                       "Correct! Mitochondria acts as the cell's battery, manufacturing ATP molecules to fuel biological activities.",

@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { MockQuizWidget } from '../../components/marketing/MockQuizWidget';
-import { MockFlashcardWidget } from '../../components/marketing/MockFlashcardWidget';
+import { motion, AnimatePresence } from 'framer-motion';
 import type { View, AuthTab, User } from '../../types';
 
 interface AuthViewProps {
@@ -35,23 +34,39 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
   };
 
   return (
-    <div className="flex flex-row-reverse h-full w-full bg-app overflow-hidden">
-      <div className="flex-1 flex items-center justify-center p-6 sm:p-8 md:p-12 bg-app h-full overflow-y-auto">
-        <div className="w-full max-w-[400px] flex flex-col">
+    <div className="flex flex-row-reverse h-screen w-full bg-app">
+      {/* Right side: form */}
+      <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-8 md:p-12 bg-app overflow-y-auto">
+        <motion.div 
+          className="w-full max-w-105 flex flex-col"
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+        >
           <button
             onClick={() => setView('landing')}
-            className="bg-transparent border-0 cursor-pointer p-0 mb-12"
+            className="bg-transparent border-0 cursor-pointer p-0 mb-12 self-start"
           >
-            <span>Lumio</span>
+            <span className="text-xl font-bold tracking-[-0.03em] text-ink">Lumio</span>
           </button>
 
-          <div className="mb-8">
-            <h1 className="text-[2rem] font-bold tracking-[-0.03em] text-ink mb-2">
-              {authTab === 'login' ? 'Welcome back' : 'Get started'}
-            </h1>
-            <p className="text-ink-muted text-[0.95rem]">
-              {authTab === 'login' ? 'Sign in to your account' : 'Create your student account'}
-            </p>
+          <div className="mb-8 overflow-hidden">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={authTab}
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -5 }}
+                transition={{ duration: 0.2 }}
+              >
+                <h1 className="text-[2rem] font-bold tracking-[-0.03em] text-ink mb-2">
+                  {authTab === 'login' ? 'Welcome back' : 'Get started'}
+                </h1>
+                <p className="text-ink-muted text-[0.95rem]">
+                  {authTab === 'login' ? 'Sign in to your account' : 'Create your student account'}
+                </p>
+              </motion.div>
+            </AnimatePresence>
           </div>
 
           <button
@@ -80,20 +95,30 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
             <span className="px-4">or</span>
           </div>
 
-          <form onSubmit={handleAuthSubmit} className="flex flex-col gap-5">
-            {authTab === 'signup' && (
-              <div className="flex flex-col gap-[0.35rem] mb-5">
-                <label className="block text-[0.85rem] font-medium mb-1.5 text-ink-muted">Full Name</label>
-                <input
-                  type="text"
-                  placeholder="John Doe"
-                  className="w-full bg-input border border-line rounded-md p-3 text-ink text-[0.9rem] outline-none focus:border-primary"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  required
-                />
-              </div>
-            )}
+          <form onSubmit={handleAuthSubmit} className="flex flex-col">
+            <AnimatePresence initial={false}>
+              {authTab === 'signup' && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0, marginBottom: 0 }}
+                  animate={{ height: 'auto', opacity: 1, marginBottom: 20 }}
+                  exit={{ height: 0, opacity: 0, marginBottom: 0 }}
+                  transition={{ duration: 0.25, ease: 'easeInOut' }}
+                  className="overflow-hidden"
+                >
+                  <div className="flex flex-col gap-[0.35rem]">
+                    <label className="block text-[0.85rem] font-medium mb-1.5 text-ink-muted">Full Name</label>
+                    <input
+                      type="text"
+                      placeholder="John Doe"
+                      className="w-full bg-input border border-line rounded-md p-3 text-ink text-[0.9rem] outline-none focus:border-primary"
+                      value={formName}
+                      onChange={(e) => setFormName(e.target.value)}
+                      required
+                    />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             <div className="flex flex-col gap-[0.35rem] mb-5">
               <label className="block text-[0.85rem] font-medium mb-1.5 text-ink-muted">Email address</label>
@@ -124,7 +149,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
               />
             </div>
 
-            <button type="submit" className="inline-flex items-center justify-center w-full gap-2 text-sm p-[0.85rem] rounded-md font-bold transition-all duration-150 border border-transparent no-underline cursor-pointer bg-primary text-ink-on-primary border-primary hover:bg-primary-hover hover:border-primary-hover mt-2">
+            <button type="submit" className="inline-flex items-center justify-center w-full gap-2 text-sm p-[0.85rem] rounded-md font-bold transition-all duration-150 border border-transparent no-underline cursor-pointer bg-primary text-ink-on-primary hover:bg-primary-hover hover:border-primary-hover mt-2">
               {authTab === 'login' ? 'Sign in' : 'Sign up'}
             </button>
           </form>
@@ -136,62 +161,52 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
               <>Already have an account? <button onClick={() => setAuthTab('login')} className="bg-transparent border-0 text-primary font-medium cursor-pointer p-0">Sign in</button></>
             )}
           </div>
-        </div>
+        </motion.div>
       </div>
 
-      <div className="flex-1 flex items-center justify-center p-6 sm:p-8 md:p-10 bg-card border-r border-line relative overflow-hidden h-full max-md:hidden">
-        <div className="max-w-[520px] w-full h-full flex flex-col justify-center gap-5">
+      {/* Left side: brand panel */}
+      <div className="flex-1 flex items-center justify-center p-10 bg-card border-r border-line relative overflow-hidden max-md:hidden">
+        {/* Decorative background circles */}
+        <div className="absolute -top-20 -left-20 w-75 h-75 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-15 -right-15 w-62.5 h-62.5 rounded-full bg-primary/8 blur-3xl pointer-events-none" />
+
+        <motion.div 
+          className="max-w-95 w-full flex flex-col items-start text-left gap-8"
+          initial={{ opacity: 0, x: -15 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+        >
+          {/* Logo mark */}
+          <div className="w-12 h-12 rounded-xl bg-primary/15 flex items-center justify-center">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <path d="M12 3L4 7V12C4 16.42 7.42 20.57 12 21C16.58 20.57 20 16.42 20 12V7L12 3Z" fill="currentColor" className="text-primary" opacity="0.8"/>
+              <path d="M9 12L11 14L15 10" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+
           <div>
-            <h2 className="text-[1.75rem] font-bold tracking-[-0.02em] text-ink mb-3">Experience Lumio</h2>
-            <p className="text-ink-muted text-[0.95rem] leading-snug mb-10">
+            <h2 className="text-[2rem] font-bold tracking-[-0.02em] text-ink mb-4 leading-tight">
+              Experience Lumio
+            </h2>
+            <p className="text-ink-muted text-[1rem] leading-relaxed">
               Test-drive our study simulator right here. Upload materials and immediately trigger automated quizzes, spaced repetition cards, and live group challenges.
             </p>
           </div>
 
-          <div className="relative mb-6 bg-app border border-line rounded-xl overflow-hidden">
-            <div className="flex items-center justify-between py-3 px-4 border-b border-line bg-black/10">
-              <div className="flex gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-danger"></span>
-                <span className="w-2.5 h-2.5 rounded-full bg-warning"></span>
-                <span className="w-2.5 h-2.5 rounded-full bg-success"></span>
+          {/* Feature pills */}
+          <div className="flex flex-col gap-3 w-full">
+            {[
+              { emoji: '⚡', label: 'Automated Quizzes' },
+              { emoji: '🃏', label: 'Spaced Repetition Cards' },
+              { emoji: '👥', label: 'Live Group Challenges' },
+            ].map((f) => (
+              <div key={f.label} className="flex items-center gap-3 bg-app/60 border border-line rounded-lg px-4 py-3">
+                <span className="text-lg">{f.emoji}</span>
+                <span className="text-sm font-medium text-ink">{f.label}</span>
               </div>
-              <div className="text-[0.8rem] text-ink-muted font-medium">Cellular Biology 101 - Quiz</div>
-            </div>
-            <div className="p-6">
-              <MockQuizWidget />
-            </div>
+            ))}
           </div>
-
-          <div className="grid grid-cols-2 gap-6">
-            <MockFlashcardWidget />
-
-            <div className="bg-app border border-line rounded-xl p-5 flex flex-col justify-between h-[180px] transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-md">
-              <div className="flex justify-between text-xs text-ink-muted mb-2">
-                <span>Study Lobby</span>
-                <span className="text-success flex items-center gap-1 font-semibold">
-                  <span className="w-1.5 h-1.5 rounded-full bg-success inline-block"></span>
-                  Live Sync
-                </span>
-              </div>
-              <div className="flex flex-col gap-2 flex-1 justify-center">
-                <div className="flex items-center gap-2">
-                  <div className="w-[22px] h-[22px] rounded-full bg-success flex items-center justify-center text-[0.7rem] font-bold text-ink-on-primary">S</div>
-                  <div className="flex flex-col">
-                    <span className="text-xs text-ink font-semibold">Sarah (Sarah Miller)</span>
-                    <span className="text-[0.65rem] text-ink-muted">Quiz accuracy: 90%</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-[22px] h-[22px] rounded-full bg-blue flex items-center justify-center text-[0.7rem] font-bold text-white">A</div>
-                  <div className="flex flex-col">
-                    <span className="text-xs text-ink font-semibold">Alex Rivera</span>
-                    <span className="text-[0.65rem] text-ink-muted">Condensing Syllabus...</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        </motion.div>
       </div>
     </div>
   );

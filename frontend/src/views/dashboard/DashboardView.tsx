@@ -529,47 +529,78 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     ? modules
     : modules.filter(m => m.subject === selectedSubject);
 
+  const getSidebarBtnClass = (isActive: boolean) => {
+    return `group flex items-center border-0 bg-transparent text-left cursor-pointer transition-all duration-150 rounded-lg no-underline font-semibold text-[0.95rem] max-md:w-auto max-md:whitespace-nowrap max-md:py-2.5 max-md:px-4 max-md:shrink-0 max-md:justify-center max-md:text-[0.85rem]
+      ${isCollapsed 
+        ? 'md:w-14 md:h-12 md:py-0 md:px-0 md:justify-center md:gap-0' 
+        : `w-full py-3 px-3 hover:bg-glass ${isActive ? 'text-primary bg-primary-soft' : 'text-ink-muted hover:text-primary hover:bg-glass'}`
+      }`;
+  };
+
+  const getSidebarIconWrapperClass = (isActive: boolean) => {
+    return `flex items-center justify-center transition-all duration-150 shrink-0 [&_svg]:shrink-0
+      ${isCollapsed 
+        ? `w-14 h-8 rounded-full ${isActive ? 'bg-primary-soft text-primary' : 'text-ink-muted group-hover:bg-glass-strong group-hover:text-primary'}` 
+        : `${isActive ? 'text-primary' : 'text-ink-muted group-hover:text-primary'}`
+      }`;
+  };
+
   return (
-    <div className={`grid md:grid-cols-[220px_1fr] max-md:grid-cols-1 max-md:grid-rows-[auto_1fr] h-[calc(100vh-58px)] overflow-hidden transition-[grid-template-columns] duration-300 ${isCollapsed ? 'md:grid-cols-[72px_1fr]' : ''}`}>
-      <aside className={`flex md:flex-col max-md:flex-row md:gap-1 max-md:gap-2 h-full max-md:h-auto bg-card max-md:bg-app border-line md:border-r max-md:border-r-0 md:border-b-0 max-md:border-b md:py-6 max-md:py-3 md:px-3 max-md:px-4 overflow-hidden md:box-border max-md:overflow-x-auto transition-all duration-300 scrollbar-none ${isCollapsed ? 'md:py-6 md:px-2 md:items-stretch' : ''}`}>
-        <div className={`px-2 pb-6 mb-6 border-b border-line max-h-25ity-100 overflow-hidden transition-all duration-300 max-md:hidden ${isCollapsed ? 'md:max-h-0 md:mb-0 md:p-0 md:opacity-0 md:border-b-0' : ''}`}>
+    <div className={`grid max-md:grid-cols-1 max-md:grid-rows-[auto_1fr] h-[calc(100vh-58px)] overflow-hidden transition-[grid-template-columns] duration-300 ${isCollapsed ? 'md:grid-cols-[72px_1fr]' : 'md:grid-cols-[220px_1fr]'}`}>
+      <aside className={`flex md:flex-col max-md:flex-row md:gap-1 max-md:gap-2 h-full max-md:h-auto bg-card max-md:bg-app border-line md:border-r max-md:border-r-0 md:border-b-0 max-md:border-b md:py-6 max-md:py-3 md:px-3 max-md:px-4 overflow-hidden md:box-border max-md:overflow-x-auto transition-all duration-300 scrollbar-none ${isCollapsed ? 'md:py-6 md:px-2 md:items-center md:gap-3' : ''}`}>
+        <div className={`px-2 pb-6 mb-6 border-b border-line max-h-24 opacity-100 overflow-hidden transition-all duration-300 max-md:hidden ${isCollapsed ? 'md:max-h-0 md:mb-0 md:p-0 md:opacity-0 md:border-b-0' : ''}`}>
           <span className="text-[0.8rem] text-ink-muted font-medium block mb-1">STUDENT ACCOUNT</span>
           <span className="text-[0.95rem] text-ink font-semibold block overflow-hidden text-ellipsis whitespace-nowrap">{user.email}</span>
         </div>
 
         <button
-          className={`flex items-center gap-3 py-3 px-2 rounded-lg text-ink-muted no-underline font-semibold text-[0.95rem] bg-transparent border-0 w-full text-left cursor-pointer transition-all duration-150 hover:text-primary hover:bg-glass max-md:w-auto max-md:whitespace-nowrap max-md:py-2.5 max-md:px-4 max-md:shrink-0 max-md:justify-center max-md:text-[0.85rem] [&_svg]:shrink-0 ${dashboardTab === 'overview' && selectedGroupId === null ? 'text-primary bg-glass' : ''} ${isCollapsed ? 'md:py-3 md:px-0 md:justify-center md:gap-0' : ''}`}
+          className={getSidebarBtnClass(dashboardTab === 'overview' && selectedGroupId === null)}
           onClick={() => { setDashboardTab('overview'); setActiveQuizModule(null); setSelectedGroupId(null); }}
         >
-          <Layers size={18} /> <span className={`transition-all duration-200 max-w-37.5 opacity-100 whitespace-nowrap inline-block overflow-hidden ${isCollapsed ? 'md:max-w-0 md:opacity-0' : ''}`}>Overview Panels</span>
+          <div className={getSidebarIconWrapperClass(dashboardTab === 'overview' && selectedGroupId === null)}>
+            <Layers size={18} />
+          </div>
+          <span className={`transition-all duration-200 max-w-37.5 opacity-100 whitespace-nowrap inline-block overflow-hidden ${isCollapsed ? 'md:max-w-0 md:opacity-0' : ''}`}>Overview Panels</span>
         </button>
 
         <button
-          className={`flex items-center gap-3 py-3 px-2 rounded-lg text-ink-muted no-underline font-semibold text-[0.95rem] bg-transparent border-0 w-full text-left cursor-pointer transition-all duration-150 hover:text-primary hover:bg-glass max-md:w-auto max-md:whitespace-nowrap max-md:py-2.5 max-md:px-4 max-md:shrink-0 max-md:justify-center max-md:text-[0.85rem] [&_svg]:shrink-0 ${dashboardTab === 'modules' && selectedGroupId === null ? 'text-primary bg-glass' : ''} ${isCollapsed ? 'md:py-3 md:px-0 md:justify-center md:gap-0' : ''}`}
+          className={getSidebarBtnClass(dashboardTab === 'modules' && selectedGroupId === null)}
           onClick={() => { setDashboardTab('modules'); setActiveQuizModule(null); setSelectedGroupId(null); }}
         >
-          <FileText size={18} /> <span className={`transition-all duration-200 max-w-37.5 opacity-100 whitespace-nowrap inline-block overflow-hidden ${isCollapsed ? 'md:max-w-0 md:opacity-0' : ''}`}>My Study Modules</span>
+          <div className={getSidebarIconWrapperClass(dashboardTab === 'modules' && selectedGroupId === null)}>
+            <FileText size={18} />
+          </div>
+          <span className={`transition-all duration-200 max-w-37.5 opacity-100 whitespace-nowrap inline-block overflow-hidden ${isCollapsed ? 'md:max-w-0 md:opacity-0' : ''}`}>My Study Modules</span>
         </button>
 
         <button
-          className={`flex items-center gap-3 py-3 px-2 rounded-lg text-ink-muted no-underline font-semibold text-[0.95rem] bg-transparent border-0 w-full text-left cursor-pointer transition-all duration-150 hover:text-primary hover:bg-glass max-md:w-auto max-md:whitespace-nowrap max-md:py-2.5 max-md:px-4 max-md:shrink-0 max-md:justify-center max-md:text-[0.85rem] [&_svg]:shrink-0 ${dashboardTab === 'groups' || selectedGroupId !== null ? 'text-primary bg-glass' : ''} ${isCollapsed ? 'md:py-3 md:px-0 md:justify-center md:gap-0' : ''}`}
+          className={getSidebarBtnClass(dashboardTab === 'groups' || selectedGroupId !== null)}
           onClick={() => { setDashboardTab('groups'); setActiveQuizModule(null); setSelectedGroupId(null); }}
         >
-          <Users size={18} /> <span className={`transition-all duration-200 max-w-37.5 opacity-100 whitespace-nowrap inline-block overflow-hidden ${isCollapsed ? 'md:max-w-0 md:opacity-0' : ''}`}>Collaborative Circles</span>
+          <div className={getSidebarIconWrapperClass(dashboardTab === 'groups' || selectedGroupId !== null)}>
+            <Users size={18} />
+          </div>
+          <span className={`transition-all duration-200 max-w-37.5 opacity-100 whitespace-nowrap inline-block overflow-hidden ${isCollapsed ? 'md:max-w-0 md:opacity-0' : ''}`}>Collaborative Circles</span>
         </button>
 
         <button
-          className={`flex items-center gap-3 py-3 px-2 rounded-lg text-ink-muted no-underline font-semibold text-[0.95rem] bg-transparent border-0 w-full text-left cursor-pointer transition-all duration-150 hover:text-primary hover:bg-glass max-md:w-auto max-md:whitespace-nowrap max-md:py-2.5 max-md:px-4 max-md:shrink-0 max-md:justify-center max-md:text-[0.85rem] [&_svg]:shrink-0 ${dashboardTab === 'tools' && selectedGroupId === null ? 'text-primary bg-glass' : ''} ${isCollapsed ? 'md:py-3 md:px-0 md:justify-center md:gap-0' : ''}`}
+          className={getSidebarBtnClass(dashboardTab === 'tools' && selectedGroupId === null)}
           onClick={() => { setDashboardTab('tools'); setActiveQuizModule(null); setSelectedGroupId(null); }}
         >
-          <Plus size={18} /> <span className={`transition-all duration-200 max-w-37.5 opacity-100 whitespace-nowrap inline-block overflow-hidden ${isCollapsed ? 'md:max-w-0 md:opacity-0' : ''}`}>study Tools</span>
+          <div className={getSidebarIconWrapperClass(dashboardTab === 'tools' && selectedGroupId === null)}>
+            <Plus size={18} />
+          </div>
+          <span className={`transition-all duration-200 max-w-37.5 opacity-100 whitespace-nowrap inline-block overflow-hidden ${isCollapsed ? 'md:max-w-0 md:opacity-0' : ''}`}>study Tools</span>
         </button>
 
         <button
-          className={`flex items-center gap-3 py-3 px-2 rounded-lg text-ink-muted no-underline font-semibold text-[0.95rem] bg-transparent border-0 w-full text-left cursor-pointer transition-all duration-150 hover:text-primary hover:bg-glass max-md:w-auto max-md:whitespace-nowrap max-md:py-2.5 max-md:px-4 max-md:shrink-0 max-md:justify-center max-md:text-[0.85rem] [&_svg]:shrink-0 mt-auto max-md:mt-0 ${dashboardTab === 'settings' && selectedGroupId === null ? 'text-primary bg-glass' : ''} ${isCollapsed ? 'md:py-3 md:px-0 md:justify-center md:gap-0 md:mt-0' : ''}`}
+          className={`${getSidebarBtnClass(dashboardTab === 'settings' && selectedGroupId === null)} mt-auto max-md:mt-0`}
           onClick={() => { setDashboardTab('settings'); setActiveQuizModule(null); setSelectedGroupId(null); completeQuest('view_settings'); }}
         >
-          <Settings size={18} /> <span className={`transition-all duration-200 max-w-37.5 opacity-100 whitespace-nowrap inline-block overflow-hidden ${isCollapsed ? 'md:max-w-0 md:opacity-0' : ''}`}>Settings</span>
+          <div className={getSidebarIconWrapperClass(dashboardTab === 'settings' && selectedGroupId === null)}>
+            <Settings size={18} />
+          </div>
+          <span className={`transition-all duration-200 max-w-37.5 opacity-100 whitespace-nowrap inline-block overflow-hidden ${isCollapsed ? 'md:max-w-0 md:opacity-0' : ''}`}>Settings</span>
         </button>
       </aside>
 
