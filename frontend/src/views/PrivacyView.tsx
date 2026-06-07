@@ -61,7 +61,7 @@ export const PrivacyView: React.FC = () => {
         <section>
           <h2 style={{ color: 'var(--text-primary)', fontSize: '1.5rem', marginBottom: '0.75rem' }}>6. Contact Us</h2>
           <p>
-            If you have questions or concerns regarding this Privacy Policy, please reach out to us at <strong>support@lumio.study</strong>.
+            If you have questions or concerns regarding this Privacy Policy, please reach out to us at <strong><a href="mailto:support.lumio@gmail.com" style={{ color: 'var(--primary)', textDecoration: 'none' }}>support.lumio@gmail.com</a></strong>.
           </p>
         </section>
       </div>

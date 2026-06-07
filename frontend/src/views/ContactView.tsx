@@ -60,7 +60,9 @@ export const ContactView: React.FC = () => {
             <div className="contact-info-icon"><Mail size={18} /></div>
             <div>
               <h4 style={{ fontWeight: 700, marginBottom: '0.25rem' }}>Support Email</h4>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>support@lumio.study</p>
+              <a href="mailto:support.lumio@gmail.com" style={{ color: 'var(--primary)', textDecoration: 'none', fontSize: '0.9rem', fontWeight: 500 }}>
+                support.lumio@gmail.com
+              </a>
             </div>
           </motion.div>
 
@@ -68,7 +70,7 @@ export const ContactView: React.FC = () => {
             <div className="contact-info-icon"><Phone size={18} /></div>
             <div>
               <h4 style={{ fontWeight: 700, marginBottom: '0.25rem' }}>Call Us</h4>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>+1 (555) 492-8822</p>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>+63 9605215327</p>
             </div>
           </motion.div>
 
@@ -76,7 +78,7 @@ export const ContactView: React.FC = () => {
             <div className="contact-info-icon"><MapPin size={18} /></div>
             <div>
               <h4 style={{ fontWeight: 700, marginBottom: '0.25rem' }}>Main HQ</h4>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>100 Pine Street, San Francisco, CA</p>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Quezon City, Philippines</p>
             </div>
           </motion.div>
         </motion.div>

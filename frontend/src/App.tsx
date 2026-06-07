@@ -5,6 +5,7 @@ import {
 
 import { Navbar } from './components/Navbar'
 import { Footer } from './components/Footer'
+import { MaintenancePage } from './components/ErrorBoundary'
 
 // Import views
 import { LandingView } from './views/LandingView'
@@ -19,6 +20,10 @@ import { AuthView } from './views/AuthView'
 import { DashboardView } from './views/DashboardView'
 import { PrivacyView } from './views/PrivacyView'
 import { TermsView } from './views/TermsView'
+import { DocsView } from './views/DocsView'
+
+// ⚡ Toggle this to true to show maintenance page across the entire site
+const MAINTENANCE_MODE = false;
 
 interface Module {
   id: number;
@@ -68,11 +73,16 @@ interface StudyGroup {
 }
 
 function App() {
+  // Show maintenance page when enabled
+  if (MAINTENANCE_MODE) {
+    return <MaintenancePage onReload={() => window.location.reload()} />;
+  }
+
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   // Navigation & Auth State
-  const [view, setView] = useState<'landing' | 'auth' | 'dashboard' | 'how-it-works' | 'tools' | 'contact' | 'flashcards' | 'essay-grader' | 'condenser' | 'pricing' | 'privacy' | 'terms'>('landing');
+  const [view, setView] = useState<'landing' | 'auth' | 'dashboard' | 'how-it-works' | 'tools' | 'contact' | 'flashcards' | 'essay-grader' | 'condenser' | 'pricing' | 'privacy' | 'terms' | 'docs'>('landing');
   const [authTab, setAuthTab] = useState<'login' | 'signup'>('login');
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
 
@@ -351,7 +361,7 @@ function App() {
         />
       )}
 
-      <main className={view !== 'auth' ? "container" : "auth-main"} style={view !== 'auth' ? { flex: 1, paddingBottom: '4rem' } : { flex: 1, display: 'flex', flexDirection: 'column' }}>
+      <main className={view === 'auth' ? "auth-main" : view === 'docs' ? "docs-main-wrapper" : "container"} style={view === 'auth' ? { flex: 1, display: 'flex', flexDirection: 'column' } : { flex: 1, paddingBottom: view === 'docs' ? '0' : '4rem' }}>
         {view === 'landing' && (
           <LandingView 
             user={user}
@@ -388,6 +398,10 @@ function App() {
             setView={setView}
             setAuthTab={setAuthTab}
           />
+        )}
+
+        {view === 'docs' && (
+          <DocsView />
         )}
 
         {view === 'contact' && (

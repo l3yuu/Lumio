@@ -4,8 +4,8 @@ import { Sun, Moon, Menu, X, ChevronRight, Sparkles, HelpCircle, Layers } from '
 interface NavbarProps {
   theme: 'dark' | 'light';
   toggleTheme: () => void;
-  view: 'landing' | 'auth' | 'dashboard' | 'how-it-works' | 'tools' | 'contact' | 'flashcards' | 'essay-grader' | 'condenser' | 'pricing' | 'privacy' | 'terms';
-  setView: (view: 'landing' | 'auth' | 'dashboard' | 'how-it-works' | 'tools' | 'contact' | 'flashcards' | 'essay-grader' | 'condenser' | 'pricing' | 'privacy' | 'terms') => void;
+  view: 'landing' | 'auth' | 'dashboard' | 'how-it-works' | 'tools' | 'contact' | 'flashcards' | 'essay-grader' | 'condenser' | 'pricing' | 'privacy' | 'terms' | 'docs';
+  setView: (view: 'landing' | 'auth' | 'dashboard' | 'how-it-works' | 'tools' | 'contact' | 'flashcards' | 'essay-grader' | 'condenser' | 'pricing' | 'privacy' | 'terms' | 'docs') => void;
   mobileMenuOpen: boolean;
   setMobileMenuOpen: (open: boolean) => void;
   user: { name: string; email: string } | null;
@@ -125,20 +125,20 @@ export const Navbar: React.FC<NavbarProps> = ({
               </li>
               <li>
                 <button 
+                  onClick={() => { setView('docs'); setActiveQuizModule(null); }} 
+                  className={`sidebar-link ${view === 'docs' ? 'active' : ''}`}
+                  style={{ background: 'none' }}
+                >
+                  Docs
+                </button>
+              </li>
+              <li>
+                <button 
                   onClick={() => { setView('pricing'); setActiveQuizModule(null); }} 
                   className={`sidebar-link ${view === 'pricing' ? 'active' : ''}`}
                   style={{ background: 'none' }}
                 >
                   Pricing
-                </button>
-              </li>
-              <li>
-                <button 
-                  onClick={() => { setView('contact'); setActiveQuizModule(null); }} 
-                  className={`sidebar-link ${view === 'contact' ? 'active' : ''}`}
-                  style={{ background: 'none' }}
-                >
-                  Contact
                 </button>
               </li>
             </>
@@ -262,19 +262,19 @@ export const Navbar: React.FC<NavbarProps> = ({
               </li>
               <li style={{ animationDelay: '0.2s' }}>
                 <button 
-                  onClick={() => { setView('pricing'); setMobileMenuOpen(false); }} 
-                  className={`mobile-nav-link ${view === 'pricing' ? 'active' : ''}`}
+                  onClick={() => { setView('docs'); setActiveQuizModule(null); setMobileMenuOpen(false); }} 
+                  className={`mobile-nav-link ${view === 'docs' ? 'active' : ''}`}
                 >
-                  <span>Pricing</span>
+                  <span>Docs</span>
                   <ChevronRight size={16} style={{ opacity: 0.7 }} />
                 </button>
               </li>
               <li style={{ animationDelay: '0.25s' }}>
                 <button 
-                  onClick={() => { setView('contact'); setActiveQuizModule(null); setMobileMenuOpen(false); }} 
-                  className={`mobile-nav-link ${view === 'contact' ? 'active' : ''}`}
+                  onClick={() => { setView('pricing'); setMobileMenuOpen(false); }} 
+                  className={`mobile-nav-link ${view === 'pricing' ? 'active' : ''}`}
                 >
-                  <span>Contact</span>
+                  <span>Pricing</span>
                   <ChevronRight size={16} style={{ opacity: 0.7 }} />
                 </button>
               </li>

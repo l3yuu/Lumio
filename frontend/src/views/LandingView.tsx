@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Sparkles, HelpCircle, Layers, Users, Trophy, Clock } from 'lucide-react';
 import { MockQuizWidget } from '../components/MockQuizWidget';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface LandingViewProps {
   user: { name: string; email: string } | null;
@@ -191,17 +191,17 @@ export const LandingView: React.FC<LandingViewProps> = ({ user, setView, setAuth
           whileInView="visible"
           viewport={{ once: true, margin: "-100px" }}
         >
-          <motion.div className="step-card" variants={itemVariants} whileHover={{ y: -5, borderColor: 'var(--primary)' }}>
+          <motion.div className="step-card" variants={itemVariants} whileHover={{ y: -5 }}>
             <span className="step-num">01</span>
             <h3 style={{ marginBottom: '0.75rem', fontSize: '1.25rem' }}>Upload Outlines</h3>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>Drag and drop syllabus outline PDFs, textbook content briefs, or class notes templates.</p>
           </motion.div>
-          <motion.div className="step-card" variants={itemVariants} whileHover={{ y: -5, borderColor: 'var(--primary)' }}>
+          <motion.div className="step-card" variants={itemVariants} whileHover={{ y: -5 }}>
             <span className="step-num">02</span>
             <h3 style={{ marginBottom: '0.75rem', fontSize: '1.25rem' }}>Concept Mapping</h3>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>Our AI parses and outlines core terms, formulas, and concepts maps for your course.</p>
           </motion.div>
-          <motion.div className="step-card" variants={itemVariants} whileHover={{ y: -5, borderColor: 'var(--primary)' }}>
+          <motion.div className="step-card" variants={itemVariants} whileHover={{ y: -5 }}>
             <span className="step-num">03</span>
             <h3 style={{ marginBottom: '0.75rem', fontSize: '1.25rem' }}>Practice & Grade</h3>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>Run mock exams, synchronize scorecards with classmates, and track accuracies over time.</p>
@@ -489,13 +489,23 @@ export const LandingView: React.FC<LandingViewProps> = ({ user, setView, setAuth
                   ▼
                 </span>
               </button>
-              {landingFaqOpen === index && (
-                <div style={{ padding: '0 1.5rem 1.25rem 1.5rem', borderTop: '1px solid var(--border)' }}>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.5, margin: '1rem 0 0 0' }}>
-                    {faq.a}
-                  </p>
-                </div>
-              )}
+              <AnimatePresence initial={false}>
+                {landingFaqOpen === index && (
+                  <motion.div 
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.25, ease: "easeInOut" }}
+                    style={{ overflow: 'hidden' }}
+                  >
+                    <div style={{ padding: '0 1.5rem 1.25rem 1.5rem', borderTop: '1px solid var(--border)' }}>
+                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.5, margin: '1rem 0 0 0' }}>
+                        {faq.a}
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </motion.div>
           ))}
         </div>

@@ -10,7 +10,7 @@ export const MockFlashcardWidget: React.FC = () => {
       style={{
         perspective: '1000px',
         cursor: 'pointer',
-        height: '180px'
+        height: '140px'
       }}
     >
       <div className="flashcard-inner" style={{
@@ -30,7 +30,7 @@ export const MockFlashcardWidget: React.FC = () => {
           background: 'var(--bg-app)',
           border: '1px solid var(--border)',
           borderRadius: '12px',
-          padding: '1.25rem',
+          padding: '1rem',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between'
@@ -53,7 +53,7 @@ export const MockFlashcardWidget: React.FC = () => {
           background: 'var(--bg-app)',
           border: '1px solid var(--primary)',
           borderRadius: '12px',
-          padding: '1.25rem',
+          padding: '1rem',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between'

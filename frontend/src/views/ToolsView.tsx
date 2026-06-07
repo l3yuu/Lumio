@@ -1,20 +1,58 @@
 import React from 'react';
+import { motion } from 'framer-motion';
 import { Sparkles, HelpCircle, Layers } from 'lucide-react';
 
 interface ToolsViewProps {
   setView: (view: 'landing' | 'auth' | 'dashboard' | 'how-it-works' | 'tools' | 'contact' | 'flashcards' | 'essay-grader' | 'condenser' | 'pricing') => void;
 }
 
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.15, delayChildren: 0.1 }
+  }
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { 
+    opacity: 1, 
+    y: 0,
+    transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] as any }
+  }
+};
+
 export const ToolsView: React.FC<ToolsViewProps> = ({ setView }) => {
   return (
-    <div className="sub-page-container">
-      <header className="sub-page-header">
+    <motion.div 
+      className="sub-page-container"
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+    >
+      <motion.header 
+        className="sub-page-header"
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
+      >
         <h1 className="sub-page-title">AI Study Utilities</h1>
         <p className="sub-page-intro">Detailed overview of core tools built to help you review syllabus notes.</p>
-      </header>
+      </motion.header>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-        <div className="dashboard-card" style={{ display: 'flex', gap: '2rem', alignItems: 'center', flexWrap: 'wrap' }}>
+      <motion.div 
+        style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+      >
+        <motion.div 
+          className="dashboard-card" 
+          style={{ display: 'flex', gap: '2rem', alignItems: 'center', flexWrap: 'wrap' }}
+          variants={itemVariants}
+          whileHover={{ scale: 1.015, transition: { duration: 0.2 } }}
+        >
           <div className="tool-icon" style={{ width: '44px', height: '44px', borderRadius: '8px', margin: 0 }}>
             <Sparkles size={22} />
           </div>
@@ -27,9 +65,14 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ setView }) => {
               Open Flashcard Generator &rarr;
             </button>
           </div>
-        </div>
+        </motion.div>
 
-        <div className="dashboard-card" style={{ display: 'flex', gap: '2rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        <motion.div 
+          className="dashboard-card" 
+          style={{ display: 'flex', gap: '2rem', alignItems: 'center', flexWrap: 'wrap' }}
+          variants={itemVariants}
+          whileHover={{ scale: 1.015, transition: { duration: 0.2 } }}
+        >
           <div className="tool-icon" style={{ width: '44px', height: '44px', borderRadius: '8px', margin: 0, color: 'var(--primary)', background: 'rgba(62,207,142,0.08)' }}>
             <HelpCircle size={22} />
           </div>
@@ -42,9 +85,14 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ setView }) => {
               Open AI Essay Grader &rarr;
             </button>
           </div>
-        </div>
+        </motion.div>
 
-        <div className="dashboard-card" style={{ display: 'flex', gap: '2rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        <motion.div 
+          className="dashboard-card" 
+          style={{ display: 'flex', gap: '2rem', alignItems: 'center', flexWrap: 'wrap' }}
+          variants={itemVariants}
+          whileHover={{ scale: 1.015, transition: { duration: 0.2 } }}
+        >
           <div className="tool-icon" style={{ width: '44px', height: '44px', borderRadius: '8px', margin: 0, color: 'var(--primary)', background: 'rgba(16,185,129,0.08)' }}>
             <Layers size={22} />
           </div>
@@ -57,8 +105,8 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ setView }) => {
               Open Document Condenser &rarr;
             </button>
           </div>
-        </div>
-      </div>
-    </div>
+        </motion.div>
+      </motion.div>
+    </motion.div>
   );
 };

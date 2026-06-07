@@ -2,7 +2,7 @@ import React from 'react';
 
 interface FooterProps {
   user: { name: string; email: string } | null;
-  setView: (view: 'landing' | 'auth' | 'dashboard' | 'how-it-works' | 'tools' | 'contact' | 'flashcards' | 'essay-grader' | 'condenser' | 'pricing' | 'privacy' | 'terms') => void;
+  setView: (view: 'landing' | 'auth' | 'dashboard' | 'how-it-works' | 'tools' | 'contact' | 'flashcards' | 'essay-grader' | 'condenser' | 'pricing' | 'privacy' | 'terms' | 'docs') => void;
   setDashboardTab?: (tab: 'overview' | 'modules' | 'groups' | 'tools' | 'settings') => void;
 }
 
@@ -40,6 +40,7 @@ export const Footer: React.FC<FooterProps> = ({ user, setView, setDashboardTab }
             <ul className="footer-links-list">
               <li><button onClick={() => { setView(user ? 'dashboard' : 'landing'); if (setDashboardTab) setDashboardTab('overview'); }} className="footer-link-btn">Dashboard</button></li>
               <li><button onClick={() => { setView('how-it-works'); }} className="footer-link-btn">How it Works</button></li>
+              <li><button onClick={() => { setView('docs'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="footer-link-btn">Documentation</button></li>
               <li><button onClick={() => { setView(user ? 'dashboard' : 'auth'); if (setDashboardTab) setDashboardTab('groups'); }} className="footer-link-btn">Study Groups</button></li>
               <li><button onClick={() => { setView(user ? 'dashboard' : 'auth'); if (setDashboardTab) setDashboardTab('modules'); }} className="footer-link-btn">My Modules</button></li>
             </ul>
@@ -57,9 +58,14 @@ export const Footer: React.FC<FooterProps> = ({ user, setView, setDashboardTab }
           <div className="footer-links-column">
             <h4 className="footer-title">Contact</h4>
             <ul className="footer-links-list">
-              <li style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '0.5rem' }}>support@lumio.study</li>
-              <li style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '0.5rem' }}>+1 (555) 492-8822</li>
-              <li style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>100 Pine St, San Francisco, CA</li>
+              <li><button onClick={() => { setView('contact'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="footer-link-btn">Contact Us</button></li>
+              <li style={{ fontSize: '0.9rem', marginBottom: '0.5rem' }}>
+                <a href="mailto:support.lumio@gmail.com" className="footer-link" style={{ fontSize: '0.9rem' }}>
+                  support.lumio@gmail.com
+                </a>
+              </li>
+              <li style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '0.5rem' }}>+63 9605215327</li>
+              <li style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Quezon City, Philippines</li>
             </ul>
           </div>
         </div>
