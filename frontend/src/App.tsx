@@ -1,90 +1,61 @@
 import { useEffect, useState } from 'react'
-import { 
+import {
   Sparkles, HelpCircle, Layers, UploadCloud
 } from 'lucide-react'
 
-import { Navbar } from './components/Navbar'
-import { Footer } from './components/Footer'
-import { MaintenancePage } from './components/ErrorBoundary'
+import { Navbar } from './components/layout/Navbar'
+import { Footer } from './components/layout/Footer'
+import { MaintenancePage } from './components/layout/ErrorBoundary'
 
 // Import views
-import { LandingView } from './views/LandingView'
-import { HowItWorksView } from './views/HowItWorksView'
-import { ToolsView } from './views/ToolsView'
-import { FlashcardsTool } from './views/FlashcardsTool'
-import { EssayGraderTool } from './views/EssayGraderTool'
-import { CondenserTool } from './views/CondenserTool'
-import { PricingView } from './views/PricingView'
-import { ContactView } from './views/ContactView'
-import { AuthView } from './views/AuthView'
-import { DashboardView } from './views/DashboardView'
-import { PrivacyView } from './views/PrivacyView'
-import { TermsView } from './views/TermsView'
-import { DocsView } from './views/DocsView'
+import { LandingView } from './views/marketing/LandingView'
+import { HowItWorksView } from './views/marketing/HowItWorksView'
+import { ToolsView } from './views/marketing/ToolsView'
+import { PricingView } from './views/marketing/PricingView'
+import { ContactView } from './views/marketing/ContactView'
+import { DocsView } from './views/marketing/DocsView'
+import { AuthView } from './views/auth/AuthView'
+import { PrivacyView } from './views/legal/PrivacyView'
+import { TermsView } from './views/legal/TermsView'
+import { FlashcardsTool } from './views/tools/FlashcardsTool'
+import { EssayGraderTool } from './views/tools/EssayGraderTool'
+import { CondenserTool } from './views/tools/CondenserTool'
+import { DashboardView } from './views/dashboard/DashboardView'
+
+import type { View, AuthTab, DashboardTab, User, Module, QuizQuestion, GroupMember, StudyGroup } from './types'
 
 // ⚡ Toggle this to true to show maintenance page across the entire site
 const MAINTENANCE_MODE = false;
 
-interface Module {
-  id: number;
-  name: string;
-  date: string;
-  size: string;
-  questionsCount: number;
-  questions: QuizQuestion[];
-  subject?: string;
-}
-
-interface QuizQuestion {
-  id: number;
-  question: string;
-  options: string[];
-  correctAnswerIndex: number;
-}
-
-interface GroupMember {
-  name: string;
-  email: string;
-  online: boolean;
-}
-
-interface GroupQuizRank {
-  name: string;
-  score: string;
-  percentage: number;
-  time: string;
-  isUser: boolean;
-}
-
-interface GroupQuizSession {
-  id: number;
-  moduleName: string;
-  date: string;
-  avgScore: string;
-  rankings: GroupQuizRank[];
-}
-
-interface StudyGroup {
-  id: number;
-  name: string;
-  members: GroupMember[];
-  modules: Module[];
-  quizSessions: GroupQuizSession[];
-}
-
 function App() {
-  // Show maintenance page when enabled
-  if (MAINTENANCE_MODE) {
-    return <MaintenancePage onReload={() => window.location.reload()} />;
-  }
-
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    const saved = localStorage.getItem('theme');
+    return saved === 'light' ? 'light' : 'dark';
+  });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   // Navigation & Auth State
-  const [view, setView] = useState<'landing' | 'auth' | 'dashboard' | 'how-it-works' | 'tools' | 'contact' | 'flashcards' | 'essay-grader' | 'condenser' | 'pricing' | 'privacy' | 'terms' | 'docs'>('landing');
-  const [authTab, setAuthTab] = useState<'login' | 'signup'>('login');
-  const [user, setUser] = useState<{ name: string; email: string } | null>(null);
+  const [view, setView] = useState<View>('landing');
+  const [authTab, setAuthTab] = useState<AuthTab>('login');
+  const [user, setUser] = useState<User | null>(null);
+
+  // Dashboard Lifted State
+  const [dashboardTab, setDashboardTab] = useState<DashboardTab>('overview');
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
+  const [activeQuizModule, setActiveQuizModule] = useState<Module | null>(null);
+
+  // Sidebar Collapsed State
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    return localStorage.getItem('sidebar-collapsed') === 'true';
+  });
+
+  const handleToggleSidebar = () => {
+    setIsSidebarCollapsed(prev => {
+      const next = !prev;
+      localStorage.setItem('sidebar-collapsed', String(next));
+      return next;
+    });
+  };
 
   // Modals state
   const [isUploadOpen, setIsUploadOpen] = useState(false);
@@ -236,16 +207,10 @@ function App() {
     }
   ]);
 
-  // Initialize theme from localStorage
+  // Sync theme to document on every change
   useEffect(() => {
-    const savedTheme = localStorage.getItem('theme') as 'dark' | 'light' | null;
-    if (savedTheme) {
-      setTheme(savedTheme);
-      document.documentElement.setAttribute('data-theme', savedTheme);
-    } else {
-      document.documentElement.setAttribute('data-theme', 'dark');
-    }
-  }, []);
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
   // Scroll reveal Intersection Observer
   useEffect(() => {
@@ -267,11 +232,25 @@ function App() {
     };
   }, [view]);
 
+  // Lock window scroll on dashboard view
+  useEffect(() => {
+    if (view === 'dashboard') {
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+    };
+  }, [view]);
+
   const toggleTheme = () => {
     const newTheme = theme === 'dark' ? 'light' : 'dark';
     setTheme(newTheme);
     localStorage.setItem('theme', newTheme);
-    document.documentElement.setAttribute('data-theme', newTheme);
   };
 
   const handleLogout = () => {
@@ -344,193 +323,215 @@ function App() {
   ];
 
   return (
-    <div className="app-layout">
-      {view !== 'auth' && (
-        <Navbar 
-          user={user}
-          theme={theme}
-          view={view}
-          setView={setView}
-          setAuthTab={setAuthTab}
-          toggleTheme={toggleTheme}
-          handleLogout={handleLogout}
-          mobileMenuOpen={mobileMenuOpen}
-          setMobileMenuOpen={setMobileMenuOpen}
-          setActiveQuizModule={() => {}}
-          setSelectedGroupId={() => {}}
-        />
-      )}
+    MAINTENANCE_MODE
+      ? <MaintenancePage onReload={() => window.location.reload()} />
+      : <div className={`flex flex-col ${view === 'dashboard' ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
+        {view !== 'auth' && (
+          <Navbar
+            user={user}
+            theme={theme}
+            view={view}
+            setView={setView}
+            setAuthTab={setAuthTab}
+            toggleTheme={toggleTheme}
+            handleLogout={handleLogout}
+            mobileMenuOpen={mobileMenuOpen}
+            setMobileMenuOpen={setMobileMenuOpen}
+            setActiveQuizModule={setActiveQuizModule}
+            setSelectedGroupId={setSelectedGroupId}
+            dashboardTab={dashboardTab}
+            setDashboardTab={setDashboardTab}
+            onToggleSidebar={handleToggleSidebar}
+          />
+        )}
 
-      <main className={view === 'auth' ? "auth-main" : view === 'docs' ? "docs-main-wrapper" : "container"} style={view === 'auth' ? { flex: 1, display: 'flex', flexDirection: 'column' } : { flex: 1, paddingBottom: view === 'docs' ? '0' : '4rem' }}>
-        {view === 'landing' && (
-          <LandingView 
+        <main
+          className={
+            view === 'auth'
+              ? "flex-1 flex flex-col"
+              : view === 'docs'
+                ? "flex-1"
+                : view === 'dashboard'
+                  ? "max-w-full w-full p-0 flex-1"
+                  : "max-w-300 mx-auto pt-4 px-8 pb-16 flex-1"
+          }
+        >
+          {view === 'landing' && (
+            <LandingView
+              user={user}
+              setView={setView}
+              setAuthTab={setAuthTab}
+            />
+          )}
+
+          {view === 'how-it-works' && (
+            <HowItWorksView
+              setView={setView}
+              setAuthTab={setAuthTab}
+            />
+          )}
+
+          {view === 'tools' && (
+            <ToolsView setView={setView} />
+          )}
+
+          {view === 'flashcards' && (
+            <FlashcardsTool setView={setView} />
+          )}
+
+          {view === 'essay-grader' && (
+            <EssayGraderTool setView={setView} />
+          )}
+
+          {view === 'condenser' && (
+            <CondenserTool setView={setView} />
+          )}
+
+          {view === 'pricing' && (
+            <PricingView
+              setView={setView}
+              setAuthTab={setAuthTab}
+            />
+          )}
+
+          {view === 'docs' && (
+            <DocsView />
+          )}
+
+          {view === 'contact' && (
+            <ContactView />
+          )}
+
+          {view === 'privacy' && (
+            <PrivacyView />
+          )}
+
+          {view === 'terms' && (
+            <TermsView />
+          )}
+
+          {view === 'auth' && (
+            <AuthView
+              authTab={authTab}
+              setAuthTab={setAuthTab}
+              setView={setView}
+              setUser={setUser}
+            />
+          )}
+
+          {view === 'dashboard' && user && (
+            <DashboardView
+              user={user}
+              setUser={setUser}
+              modules={modules}
+              groups={groups}
+              setModules={setModules}
+              setGroups={setGroups}
+              setIsUploadOpen={setIsUploadOpen}
+              setIsGroupModalOpen={setIsGroupModalOpen}
+              studyTools={studyTools}
+              dashboardTab={dashboardTab}
+              setDashboardTab={setDashboardTab}
+              selectedGroupId={selectedGroupId}
+              setSelectedGroupId={setSelectedGroupId}
+              activeQuizModule={activeQuizModule}
+              setActiveQuizModule={setActiveQuizModule}
+              isSidebarCollapsed={isSidebarCollapsed}
+            />
+          )}
+        </main>
+
+        {/* Add Module Modal */}
+        {isUploadOpen && (
+          <div className="fixed inset-0 bg-[rgba(5,5,5,0.7)] backdrop-blur-sm z-3000 flex items-center justify-center p-4">
+            <div className="bg-card border border-line rounded-2xl p-8 max-w-140 w-full shadow-lg">
+              <h3 className="text-2xl mb-6">Upload Study Module</h3>
+
+              <form onSubmit={handleAddModule}>
+                <div className="flex flex-col gap-2 mb-4">
+                  <label className="text-[0.9rem] font-semibold text-ink">Module Name</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. History Midterm Prep"
+                    className="w-full py-2 px-3 bg-input border border-line rounded-md text-ink text-sm transition-all duration-150 outline-none focus:border-primary focus:bg-app"
+                    value={newModuleName}
+                    onChange={(e) => setNewModuleName(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="border-2 border-dashed border-line rounded-lg p-8 text-center cursor-pointer bg-app flex flex-col items-center gap-3 mb-6 hover:border-primary" onClick={() => document.getElementById('file-loader')?.click()}>
+                  <UploadCloud size={32} color="var(--primary)" />
+                  <span className="font-semibold text-[0.95rem]">Choose a file or drag it here</span>
+                  <span className="text-[0.8rem] text-ink-muted">PDF, TXT, DOCX up to 10MB</span>
+                  <input type="file" id="file-loader" className="hidden" onChange={() => { if(!newModuleName) setNewModuleName('Uploaded Study Note'); }} />
+                </div>
+
+                <div className="flex flex-col gap-2 mb-4">
+                  <label className="text-[0.9rem] font-semibold text-ink">Paste Text Content (Optional)</label>
+                  <textarea
+                    placeholder="Paste lecture transcription or syllabus outlines..."
+                    className="w-full py-3 px-4 bg-input border border-line rounded-md text-ink text-sm transition-all duration-150 outline-none focus:border-primary focus:bg-app min-h-25 resize-y"
+                    value={newModuleContent}
+                    onChange={(e) => setNewModuleContent(e.target.value)}
+                  />
+                </div>
+
+                <div className="flex gap-4 justify-end mt-6">
+                  <button type="button" onClick={() => setIsUploadOpen(false)} className="inline-flex items-center justify-center gap-2 py-2.5 px-5 rounded-md font-semibold text-sm transition-all duration-200 no-underline cursor-pointer bg-transparent border border-line text-ink hover:bg-input hover:border-line-strong">Cancel</button>
+                  <button type="submit" className="inline-flex items-center justify-center gap-2 py-2.5 px-5 rounded-md font-semibold text-sm transition-all duration-200 no-underline cursor-pointer bg-primary text-ink-on-primary border border-primary hover:bg-primary-hover hover:border-primary-hover hover:shadow-glow-primary-btn">Generate Quiz</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Create Group Modal */}
+        {isGroupModalOpen && (
+          <div className="fixed inset-0 bg-[rgba(5,5,5,0.7)] backdrop-blur-sm z-3000 flex items-center justify-center p-4">
+            <div className="bg-card border border-line rounded-2xl p-8 max-w-140 w-full shadow-lg">
+              <h3 className="text-2xl mb-6">Create Study Group</h3>
+
+              <form onSubmit={handleCreateGroup}>
+                <div className="flex flex-col gap-2 mb-4">
+                  <label className="text-[0.9rem] font-semibold text-ink">Group Name</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Calculus Midterm Prep"
+                    className="w-full py-2 px-3 bg-input border border-line rounded-md text-ink text-sm transition-all duration-150 outline-none focus:border-primary focus:bg-app"
+                    value={newGroupName}
+                    onChange={(e) => setNewGroupName(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2 mb-4">
+                  <label className="text-[0.9rem] font-semibold text-ink">Add Member (Email or Name)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. alex@example.com"
+                    className="w-full py-2 px-3 bg-input border border-line rounded-md text-ink text-sm transition-all duration-150 outline-none focus:border-primary focus:bg-app"
+                    value={newGroupMember}
+                    onChange={(e) => setNewGroupMember(e.target.value)}
+                  />
+                </div>
+
+                <div className="flex gap-4 justify-end mt-6">
+                  <button type="button" onClick={() => setIsGroupModalOpen(false)} className="inline-flex items-center justify-center gap-2 py-2.5 px-5 rounded-md font-semibold text-sm transition-all duration-200 no-underline cursor-pointer bg-transparent border border-line text-ink hover:bg-input hover:border-line-strong">Cancel</button>
+                  <button type="submit" className="inline-flex items-center justify-center gap-2 py-2.5 px-5 rounded-md font-semibold text-sm transition-all duration-200 no-underline cursor-pointer bg-primary text-ink-on-primary border border-primary hover:bg-primary-hover hover:border-primary-hover hover:shadow-glow-primary-btn">Create Group</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {view !== 'auth' && view !== 'dashboard' && (
+          <Footer
             user={user}
             setView={setView}
-            setAuthTab={setAuthTab}
           />
         )}
-
-        {view === 'how-it-works' && (
-          <HowItWorksView 
-            setView={setView}
-            setAuthTab={setAuthTab}
-          />
-        )}
-
-        {view === 'tools' && (
-          <ToolsView setView={setView} />
-        )}
-
-        {view === 'flashcards' && (
-          <FlashcardsTool setView={setView} />
-        )}
-
-        {view === 'essay-grader' && (
-          <EssayGraderTool setView={setView} />
-        )}
-
-        {view === 'condenser' && (
-          <CondenserTool setView={setView} />
-        )}
-
-        {view === 'pricing' && (
-          <PricingView 
-            setView={setView}
-            setAuthTab={setAuthTab}
-          />
-        )}
-
-        {view === 'docs' && (
-          <DocsView />
-        )}
-
-        {view === 'contact' && (
-          <ContactView />
-        )}
-
-        {view === 'privacy' && (
-          <PrivacyView />
-        )}
-
-        {view === 'terms' && (
-          <TermsView />
-        )}
-
-        {view === 'auth' && (
-          <AuthView 
-            authTab={authTab}
-            setAuthTab={setAuthTab}
-            setView={setView}
-            setUser={setUser}
-          />
-        )}
-
-        {view === 'dashboard' && user && (
-          <DashboardView 
-            user={user}
-            modules={modules}
-            groups={groups}
-            setModules={setModules}
-            setGroups={setGroups}
-            setIsUploadOpen={setIsUploadOpen}
-            setIsGroupModalOpen={setIsGroupModalOpen}
-            studyTools={studyTools}
-          />
-        )}
-      </main>
-
-      {/* Add Module Modal */}
-      {isUploadOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <h3 style={{ fontSize: '1.5rem', marginBottom: '1.5rem' }}>Upload Study Module</h3>
-            
-            <form onSubmit={handleAddModule}>
-              <div className="form-group">
-                <label className="form-label">Module Name</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g. History Midterm Prep" 
-                  className="form-input" 
-                  value={newModuleName}
-                  onChange={(e) => setNewModuleName(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="upload-zone" onClick={() => document.getElementById('file-loader')?.click()}>
-                <UploadCloud size={32} color="var(--primary)" />
-                <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>Choose a file or drag it here</span>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>PDF, TXT, DOCX up to 10MB</span>
-                <input type="file" id="file-loader" style={{ display: 'none' }} onChange={() => { if(!newModuleName) setNewModuleName('Uploaded Study Note'); }} />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Paste Text Content (Optional)</label>
-                <textarea 
-                  placeholder="Paste lecture transcription or syllabus outlines..." 
-                  className="form-input" 
-                  style={{ padding: '0.75rem 1rem', minHeight: '100px', resize: 'vertical' }}
-                  value={newModuleContent}
-                  onChange={(e) => setNewModuleContent(e.target.value)}
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
-                <button type="button" onClick={() => setIsUploadOpen(false)} className="btn btn-outline">Cancel</button>
-                <button type="submit" className="btn btn-primary">Generate Quiz</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Create Group Modal */}
-      {isGroupModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <h3 style={{ fontSize: '1.5rem', marginBottom: '1.5rem' }}>Create Study Group</h3>
-            
-            <form onSubmit={handleCreateGroup}>
-              <div className="form-group">
-                <label className="form-label">Group Name</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g. Calculus Midterm Prep" 
-                  className="form-input" 
-                  value={newGroupName}
-                  onChange={(e) => setNewGroupName(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Add Member (Email or Name)</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g. alex@example.com" 
-                  className="form-input" 
-                  value={newGroupMember}
-                  onChange={(e) => setNewGroupMember(e.target.value)}
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
-                <button type="button" onClick={() => setIsGroupModalOpen(false)} className="btn btn-outline">Cancel</button>
-                <button type="submit" className="btn btn-primary">Create Group</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {view !== 'auth' && (
-        <Footer 
-          user={user}
-          setView={setView}
-        />
-      )}
-    </div>
+      </div>
   )
 }
 
