@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion } from 'framer-motion';
 import { Sun, Moon, Menu, X, ChevronRight, Sparkles, HelpCircle, Layers, Settings, Bell } from 'lucide-react';
 import type { User, View, AuthTab, DashboardTab, Module } from '../../types';
 
@@ -17,6 +18,7 @@ interface NavbarProps {
   dashboardTab: DashboardTab;
   setDashboardTab: (tab: DashboardTab) => void;
   onToggleSidebar: () => void;
+  isSidebarCollapsed?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -34,6 +36,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   dashboardTab,
   setDashboardTab,
   onToggleSidebar,
+  isSidebarCollapsed = false,
 }) => {
   return (
     <nav className="navbar fixed top-0 left-0 right-0 z-50 w-full border-b border-line bg-app/85 backdrop-blur-xl">
@@ -41,13 +44,22 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="flex items-center">
           {view === 'dashboard' && user ? (
             <div className="flex items-center justify-center shrink-0 w-[72px]">
-              <button
+              <motion.button
                 onClick={onToggleSidebar}
                 aria-label="Toggle Sidebar"
-                className="inline-flex bg-transparent border-0 cursor-pointer p-2 items-center justify-center text-ink-muted rounded-full transition-all duration-150 hover:text-ink hover:bg-glass"
+                className="inline-flex bg-transparent border-0 cursor-pointer p-2 items-center justify-center text-ink-muted rounded-full hover:text-ink hover:bg-glass"
+                whileHover={{ scale: 1.08 }}
+                whileTap={{ scale: 0.92 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 20 }}
               >
-                <Menu size={20} />
-              </button>
+                <motion.span
+                  animate={{ rotate: isSidebarCollapsed ? 90 : 0 }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 22 }}
+                  className="flex"
+                >
+                  <Menu size={20} />
+                </motion.span>
+              </motion.button>
             </div>
           ) : null}
           <button

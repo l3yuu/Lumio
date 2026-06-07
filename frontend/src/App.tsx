@@ -325,7 +325,7 @@ function App() {
   return (
     MAINTENANCE_MODE
       ? <MaintenancePage onReload={() => window.location.reload()} />
-      : <div className={`flex flex-col ${view === 'dashboard' ? 'h-screen overflow-hidden' : view === 'auth' ? 'h-screen' : 'pt-14.5 min-h-screen'}`}>
+      : <div className={`flex flex-col ${view === 'dashboard' ? 'h-screen overflow-hidden pt-14.5' : view === 'auth' ? 'h-screen' : 'pt-14.5 min-h-screen'}`}>
         {view !== 'auth' && (
           <Navbar
             user={user}
@@ -342,6 +342,7 @@ function App() {
             dashboardTab={dashboardTab}
             setDashboardTab={setDashboardTab}
             onToggleSidebar={handleToggleSidebar}
+            isSidebarCollapsed={isSidebarCollapsed}
           />
         )}
 
@@ -437,6 +438,7 @@ function App() {
               activeQuizModule={activeQuizModule}
               setActiveQuizModule={setActiveQuizModule}
               isSidebarCollapsed={isSidebarCollapsed}
+              setView={setView}
             />
           )}
         </main>

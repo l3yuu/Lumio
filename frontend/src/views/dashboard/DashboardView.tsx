@@ -4,7 +4,7 @@ import {
   Calendar, Search, MessageSquare, Sparkles, CheckCircle2, RotateCcw, Award, Zap, Target
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { User, Module, StudyGroup, GroupQuizSession, GroupQuizRank, DashboardTab } from '../../types';
+import type { User, Module, StudyGroup, GroupQuizSession, GroupQuizRank, DashboardTab, View } from '../../types';
 
 interface DashboardViewProps {
   user: User;
@@ -23,6 +23,7 @@ interface DashboardViewProps {
   activeQuizModule: Module | null;
   setActiveQuizModule: (mod: Module | null) => void;
   isSidebarCollapsed: boolean;
+  setView: (view: View) => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -42,6 +43,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   activeQuizModule,
   setActiveQuizModule,
   isSidebarCollapsed: isCollapsed,
+  setView,
 }) => {
 
 
@@ -530,10 +532,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     : modules.filter(m => m.subject === selectedSubject);
 
   const getSidebarBtnClass = (isActive: boolean) => {
-    return `group flex items-center border-0 bg-transparent text-left cursor-pointer transition-all duration-150 rounded-lg no-underline font-semibold text-[0.95rem] max-md:w-auto max-md:whitespace-nowrap max-md:py-2.5 max-md:px-4 max-md:shrink-0 max-md:justify-center max-md:text-[0.85rem]
+    return `group flex items-center gap-3 border-0 bg-transparent text-left cursor-pointer transition-all duration-150 rounded-lg no-underline font-medium text-[0.875rem] max-md:w-auto max-md:whitespace-nowrap max-md:py-2.5 max-md:px-4 max-md:shrink-0 max-md:justify-center max-md:text-[0.85rem]
       ${isCollapsed 
         ? 'md:w-14 md:h-12 md:py-0 md:px-0 md:justify-center md:gap-0' 
-        : `w-full py-3 px-3 hover:bg-glass ${isActive ? 'text-primary bg-primary-soft' : 'text-ink-muted hover:text-primary hover:bg-glass'}`
+        : `w-full py-2.5 px-3 ${
+            isActive
+              ? 'text-primary bg-primary-soft border-l-2 border-primary pl-[10px]'
+              : 'text-ink-muted hover:text-ink hover:bg-glass-strong border-l-2 border-transparent pl-[10px]'
+          }`
       }`;
   };
 
@@ -541,16 +547,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     return `flex items-center justify-center transition-all duration-150 shrink-0 [&_svg]:shrink-0
       ${isCollapsed 
         ? `w-14 h-8 rounded-full ${isActive ? 'bg-primary-soft text-primary' : 'text-ink-muted group-hover:bg-glass-strong group-hover:text-primary'}` 
-        : `${isActive ? 'text-primary' : 'text-ink-muted group-hover:text-primary'}`
+        : `${isActive ? 'text-primary' : 'text-ink-muted group-hover:text-ink'}`
       }`;
   };
 
   return (
-    <div className={`grid max-md:grid-cols-1 max-md:grid-rows-[auto_1fr] h-[calc(100vh-58px)] overflow-hidden transition-[grid-template-columns] duration-300 ${isCollapsed ? 'md:grid-cols-[72px_1fr]' : 'md:grid-cols-[220px_1fr]'}`}>
-      <aside className={`flex md:flex-col max-md:flex-row md:gap-1 max-md:gap-2 h-full max-md:h-auto bg-card max-md:bg-app border-line md:border-r max-md:border-r-0 md:border-b-0 max-md:border-b md:py-6 max-md:py-3 md:px-3 max-md:px-4 overflow-hidden md:box-border max-md:overflow-x-auto transition-all duration-300 scrollbar-none ${isCollapsed ? 'md:py-6 md:px-2 md:items-center md:gap-3' : ''}`}>
-        <div className={`px-2 pb-6 mb-6 border-b border-line max-h-24 opacity-100 overflow-hidden transition-all duration-300 max-md:hidden ${isCollapsed ? 'md:max-h-0 md:mb-0 md:p-0 md:opacity-0 md:border-b-0' : ''}`}>
-          <span className="text-[0.8rem] text-ink-muted font-medium block mb-1">STUDENT ACCOUNT</span>
-          <span className="text-[0.95rem] text-ink font-semibold block overflow-hidden text-ellipsis whitespace-nowrap">{user.email}</span>
+    <div className={`grid max-md:grid-cols-1 max-md:grid-rows-[auto_1fr] h-[calc(100vh-58px)] overflow-hidden transition-[grid-template-columns] duration-280 ease-in-out ${isCollapsed ? 'md:grid-cols-[72px_1fr]' : 'md:grid-cols-[240px_1fr]'}`}>
+      <motion.aside
+        layout
+        transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+        className={`flex md:flex-col max-md:flex-row md:gap-0.5 max-md:gap-2 h-full max-md:h-auto bg-card max-md:bg-app border-line md:border-r max-md:border-r-0 md:border-b-0 max-md:border-b md:pt-5 md:pb-6 max-md:py-3 md:px-3 max-md:px-4 overflow-hidden md:box-border max-md:overflow-x-auto scrollbar-none ${isCollapsed ? 'md:py-6 md:px-2 md:items-center md:gap-3' : ''}`}>
+        <div className={`px-2 pt-1 pb-5 mb-5 border-b border-line overflow-hidden transition-all duration-300 max-md:hidden ${isCollapsed ? 'md:max-h-0 md:mb-0 md:p-0 md:opacity-0 md:border-b-0 md:h-0' : 'max-h-20 opacity-100'}`}>
+          <span className="text-[0.7rem] text-ink-muted font-semibold uppercase tracking-wider block mb-1">Account</span>
+          <span className="text-[0.85rem] text-ink font-medium block overflow-hidden text-ellipsis whitespace-nowrap">{user.email}</span>
         </div>
 
         <button
@@ -588,9 +597,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           onClick={() => { setDashboardTab('tools'); setActiveQuizModule(null); setSelectedGroupId(null); }}
         >
           <div className={getSidebarIconWrapperClass(dashboardTab === 'tools' && selectedGroupId === null)}>
-            <Plus size={18} />
+            <Sparkles size={18} />
           </div>
-          <span className={`transition-all duration-200 max-w-37.5 opacity-100 whitespace-nowrap inline-block overflow-hidden ${isCollapsed ? 'md:max-w-0 md:opacity-0' : ''}`}>study Tools</span>
+          <span className={`transition-all duration-200 max-w-37.5 opacity-100 whitespace-nowrap inline-block overflow-hidden ${isCollapsed ? 'md:max-w-0 md:opacity-0' : ''}`}>Study Tools</span>
         </button>
 
         <button
@@ -602,12 +611,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
           <span className={`transition-all duration-200 max-w-37.5 opacity-100 whitespace-nowrap inline-block overflow-hidden ${isCollapsed ? 'md:max-w-0 md:opacity-0' : ''}`}>Settings</span>
         </button>
-      </aside>
+      </motion.aside>
 
-      <div className="overflow-y-auto h-full w-full scrollbar-thin">
-        <main className="flex flex-col gap-10 py-8 px-12 pb-24 max-w-275 w-full mx-auto max-md:py-4 max-md:px-6 max-md:pb-16">
+      <div className="overflow-y-auto h-full w-full">
+        <main className="flex flex-col gap-6 py-7 px-8 pb-20 max-w-275 w-full mx-auto max-md:py-4 max-md:px-4 max-md:pb-16">
         {activeQuizModule ? (
-          <div className="bg-card border border-line rounded-2xl p-10 shadow-lg">
+          <div className="bg-card border border-line rounded-xl p-7 shadow-lg">
             <div className="flex justify-between items-center mb-8 pb-4 border-b border-line">
               <div>
                 <h3 className="text-2xl mb-1">
@@ -639,7 +648,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       {q.options.map((option, optIdx) => (
                         <button
                           key={optIdx}
-                          className={`flex items-center py-4 px-5 rounded-lg border border-line bg-app text-ink cursor-pointer font-medium transition-all duration-150 text-left hover:border-primary hover:bg-glass ${selectedAnswers[q.id] === optIdx ? 'border-primary bg-[rgba(62,207,142,0.05)]' : ''}`}
+                          className={`flex items-center py-4 px-5 rounded-lg border border-line bg-app text-ink cursor-pointer font-medium transition-all duration-150 text-left hover:border-primary hover:bg-glass ${selectedAnswers[q.id] === optIdx ? 'border-primary bg-primary/5' : ''}`}
                           onClick={() => handleSelectAnswer(q.id, optIdx)}
                         >
                           {option}
@@ -747,8 +756,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         <div className="flex flex-col gap-3">
                           {q.options.map((option, optIdx) => {
                             let statusClass = '';
-                            if (optIdx === correct) statusClass = '!border-primary !bg-[rgba(62,207,142,0.1)] !text-primary';
-                            else if (optIdx === selected && selected !== correct) statusClass = '!border-danger !bg-[rgba(239,68,68,0.1)] !text-danger';
+                            if (optIdx === correct) statusClass = '!border-primary !bg-primary/10 !text-primary';
+                            else if (optIdx === selected && selected !== correct) statusClass = '!border-danger !bg-danger/10 !text-danger';
 
                             return (
                               <div key={optIdx} className={`flex items-center py-4 px-5 rounded-lg border border-line bg-app text-ink cursor-pointer font-medium transition-all duration-150 text-left hover:border-primary hover:bg-glass ${statusClass}`} style={{ cursor: 'default' }}>
@@ -791,55 +800,55 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             )}
           </div>
         ) : (
-          <>
+          <AnimatePresence mode="wait">
+          <motion.div
+            key={`${dashboardTab}-${selectedGroupId ?? 'none'}`}
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            className="flex flex-col gap-6 min-w-0"
+          >
             {dashboardTab === 'overview' && selectedGroupId === null && (
               <>
-                <div className="bg-[linear-gradient(135deg,rgba(62,207,142,0.04)_0%,rgba(6,182,212,0.04)_100%)] border border-line rounded-xl p-10 mb-8">
-                  <h2 className="text-[2rem] mb-2">Welcome back, {user.name}!</h2>
-                  <p className="text-ink-muted text-base leading-relaxed">
+                <div className="bg-[linear-gradient(135deg,rgba(62,207,142,0.06)_0%,rgba(6,182,212,0.04)_100%)] border border-line rounded-xl px-7 py-6 mb-2">
+                  <h2 className="text-[1.75rem] font-bold mb-1">Welcome back, {user.name}! 👋</h2>
+                  <p className="text-ink-muted text-[0.9rem] leading-relaxed">
                     Track your daily progress, query topics instantly with the AI tutor, and practice scheduled card recall modules.
                   </p>
                 </div>
 
-                <div className="grid grid-cols-[1.2fr_1fr] gap-8 mb-8 max-md:grid-cols-1">
-                  <div className="flex flex-col gap-8">
-                    <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-                      <div className="bg-card border border-line rounded-xl flex items-center gap-3 p-4">
-                        <div className="bg-primary-soft text-primary p-2 rounded-lg">
-                          <Flame size={20} />
+                <div className="grid grid-cols-[1.2fr_1fr] gap-6 mb-0 max-md:grid-cols-1">
+                  <div className="flex flex-col gap-6">
+                    <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+                      <div className="bg-card border border-line rounded-xl flex flex-col gap-1 p-4">
+                        <div className="bg-primary-soft text-primary p-2 rounded-lg w-fit mb-1">
+                          <Flame size={16} />
                         </div>
-                        <div>
-                          <div className="text-xl font-bold">5 Days</div>
-                          <div className="text-[0.75rem] text-ink-muted">Streak</div>
-                        </div>
+                        <div className="text-2xl font-bold tracking-tight">5</div>
+                        <div className="text-[0.7rem] text-ink-muted font-medium uppercase tracking-wider">Day Streak</div>
                       </div>
-                      <div className="bg-card border border-line rounded-xl flex items-center gap-3 p-4">
-                        <div className="bg-cyan-soft-2 text-accent-cyan p-2 rounded-lg">
-                          <Users size={20} />
+                      <div className="bg-card border border-line rounded-xl flex flex-col gap-1 p-4">
+                        <div className="bg-cyan-soft-2 text-accent-cyan p-2 rounded-lg w-fit mb-1">
+                          <Users size={16} />
                         </div>
-                        <div>
-                          <div className="text-xl font-bold">{groups.length} Circles</div>
-                          <div className="text-[0.75rem] text-ink-muted">Groups</div>
-                        </div>
+                        <div className="text-2xl font-bold tracking-tight">{groups.length}</div>
+                        <div className="text-[0.7rem] text-ink-muted font-medium uppercase tracking-wider">Circles</div>
                       </div>
-                      <div className="bg-card border border-line rounded-xl flex items-center gap-3 p-4">
-                        <div className="bg-success/10 text-primary p-2 rounded-lg">
-                          <Trophy size={20} />
+                      <div className="bg-card border border-line rounded-xl flex flex-col gap-1 p-4">
+                        <div className="bg-success/10 text-primary p-2 rounded-lg w-fit mb-1">
+                          <Trophy size={16} />
                         </div>
-                        <div>
-                          <div className="text-xl font-bold">12 Results</div>
-                          <div className="text-[0.75rem] text-ink-muted">Quizzes</div>
-                        </div>
+                        <div className="text-2xl font-bold tracking-tight">12</div>
+                        <div className="text-[0.7rem] text-ink-muted font-medium uppercase tracking-wider">Quizzes</div>
                       </div>
                     </div>
 
-                    <div className="bg-card border border-line rounded-xl p-6">
-                      <h3 className="text-[1.1rem] mb-5 flex items-center gap-2 m-0">
-                        <Calendar size={18} className="text-primary" /> Activity Progress Intensity
+                    <div className="bg-card border border-line rounded-xl p-5">
+                      <h3 className="text-[0.95rem] font-semibold mb-4 flex items-center gap-2">
+                        <Calendar size={16} className="text-primary" /> Activity Intensity
                       </h3>
-                      <p className="text-[0.8rem] text-ink-muted mb-5">
-                        Visualizing mock study hours and generated syllabus reviews over the last two weeks.
-                      </p>
+                      <p className="text-[0.75rem] text-ink-muted mb-4">Study hours over the last two weeks.</p>
 
                       <div className="flex items-center gap-1.5 flex-wrap">
                         {heatmapData.map((data, index) => (
@@ -872,10 +881,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       </div>
                     </div>
 
-                    <div className="bg-card border border-line rounded-xl p-6 mt-8">
-                      <div className="flex justify-between items-center mb-5">
-                        <h3 className="text-[1.1rem] mb-5 flex items-center gap-2 m-0">
-                          <Calendar size={18} className="text-primary" /> Upcoming Exam Countdowns
+                    <div className="bg-card border border-line rounded-xl p-5">
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-[0.95rem] font-semibold flex items-center gap-2 m-0">
+                          <Calendar size={16} className="text-primary" /> Exam Countdowns
                         </h3>
                         <button
                           onClick={() => setIsAddingExam(!isAddingExam)}
@@ -1016,10 +1025,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       </div>
                     </div>
 
-                    <div className="bg-card border border-line rounded-xl p-6 mt-8">
-                      <div className="flex justify-between items-center mb-5">
-                        <h3 className="text-[1.1rem] mb-5 flex items-center gap-2 m-0">
-                          <Layers size={18} className="text-primary" /> Insights &amp; Analytics
+                    <div className="bg-card border border-line rounded-xl p-5">
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-[0.95rem] font-semibold flex items-center gap-2 m-0">
+                          <Layers size={16} className="text-primary" /> Insights & Analytics
                         </h3>
 
                         <div className="flex bg-ink-tint-1 border border-line rounded-md p-0.5">
@@ -1173,11 +1182,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex flex-col gap-8">
-                    <div className="bg-card border border-line rounded-xl p-6 relative overflow-hidden">
-                      <div className="flex justify-between items-center mb-5">
-                        <h3 className="text-[1.1rem] mb-5 flex items-center gap-2 m-0">
-                          <Award size={18} className="text-primary" /> Daily Study Quests
+                  <div className="flex flex-col gap-6">
+                    <div className="bg-card border border-line rounded-xl p-5 relative overflow-hidden">
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-[0.95rem] font-semibold flex items-center gap-2 m-0">
+                          <Award size={16} className="text-primary" /> Daily Study Quests
                         </h3>
                         <span className="inline-flex items-center gap-1 text-[0.75rem] font-bold text-primary bg-primary-soft py-1 px-2 rounded-full border border-primary-line">
                           <Zap size={12} fill="var(--primary)" className="text-primary" /> Level {level}
@@ -1238,13 +1247,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       </div>
                     </div>
 
-                    <div className="bg-card border border-line rounded-xl p-6">
-                      <h3 className="text-[1.1rem] mb-5 flex items-center gap-2 m-0">
-                        <Search size={18} className="text-primary" /> AI Concept Tutor
+                    <div className="bg-card border border-line rounded-xl p-5">
+                      <h3 className="text-[0.95rem] font-semibold mb-3 flex items-center gap-2 m-0">
+                        <Search size={16} className="text-primary" /> AI Concept Tutor
                       </h3>
-                      <p className="text-[0.8rem] text-ink-muted mb-4">
-                        Query textbook topics to extract explanations from notes.
-                      </p>
+                      <p className="text-[0.75rem] text-ink-muted mb-4">Query textbook topics to extract explanations from notes.</p>
 
                       <form onSubmit={handleAiSearch} className="flex gap-2 mb-4">
                         <input
@@ -1289,9 +1296,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       </AnimatePresence>
                     </div>
 
-                    <div className="bg-card border border-line rounded-xl p-6">
-                      <h3 className="text-[1.1rem] mb-5 flex items-center gap-2 m-0">
-                        <Clock size={18} className="text-primary" /> Spaced Recall Calendar
+                    <div className="bg-card border border-line rounded-xl p-5">
+                      <h3 className="text-[0.95rem] font-semibold mb-4 flex items-center gap-2 m-0">
+                        <Clock size={16} className="text-primary" /> Spaced Recall Calendar
                       </h3>
                       <div className="flex flex-col gap-3">
                         {spacedRepetitionList.map((item) => (
@@ -1323,53 +1330,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </div>
                 </div>
 
-                <div className="bg-card border border-line rounded-xl p-7">
-                  <div className="flex justify-between items-center mb-5">
-                    <h3 className="text-[1.15rem] mb-5 flex items-center gap-2 m-0">
-                      <FileText size={20} className="text-primary" /> Recent Outline Modules
-                    </h3>
-                    <button onClick={() => setIsUploadOpen(true)} className="btn btn-primary px-4 py-2 text-[0.85rem]">
-                      <Plus size={16} /> Add Module
-                    </button>
-                  </div>
-
-                  <div className="flex flex-col gap-3">
-                    {modules.length === 0 ? (
-                      <div className="text-center p-8 text-ink-muted">
-                        No study modules uploaded. Click "Add Module" to upload textbooks!
-                      </div>
-                    ) : (
-                      modules.map((m) => (
-                        <div className="flex justify-between items-center bg-app border border-line rounded-lg p-4 px-5" key={m.id}>
-                          <div className="flex flex-col gap-1">
-                            <span className="font-bold text-base">{m.name}</span>
-                            <div className="text-[0.8rem] text-ink-muted flex gap-4">
-                              <span>Uploaded: {m.date}</span>
-                              <span>Size: {m.size}</span>
-                              <span>Questions: {m.questionsCount}</span>
-                              {m.subject && <span className="bg-glass-strong border border-line rounded px-1.5 text-[0.7rem] font-semibold">{m.subject}</span>}
-                            </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <button onClick={() => startQuiz(m)} className="btn btn-primary px-4 py-2 text-[0.85rem]">
-                              Practice Quiz
-                            </button>
-                            <button onClick={() => handleDeleteModule(m.id)} className="btn btn-outline p-2 text-danger border-danger-line" aria-label="Delete module">
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
               </>
             )}
 
             {dashboardTab === 'modules' && selectedGroupId === null && (
-              <div className="bg-card border border-line rounded-xl p-7">
+              <div className="bg-card border border-line rounded-xl p-5">
                 <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-[1.15rem] mb-5 flex items-center gap-2 m-0">My Study Modules</h3>
+                  <h3 className="text-[1.15rem] flex items-center gap-2 m-0">My Study Modules</h3>
                   <button onClick={() => setIsUploadOpen(true)} className="btn btn-primary">
                     <Plus size={18} /> Add Module
                   </button>
@@ -1380,18 +1347,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <button
                       key={subj}
                       onClick={() => setSelectedSubject(subj)}
-                      style={{
-                        padding: '0.35rem 0.85rem',
-                        fontSize: '0.8rem',
-                        borderRadius: '20px',
-                        background: selectedSubject === subj ? 'var(--primary)' : 'rgba(255,255,255,0.04)',
-                        color: selectedSubject === subj ? '#121212' : 'var(--text-secondary)',
-                        border: selectedSubject === subj ? 'none' : '1px solid var(--border)',
-                        cursor: 'pointer',
-                        fontWeight: 'bold',
-                        transition: 'all 0.2s ease'
-                      }}
-                      className="transition-all duration-200"
+                      className={`px-3.5 py-1.5 text-xs rounded-full border transition-all duration-200 cursor-pointer font-bold ${
+                        selectedSubject === subj
+                          ? 'bg-primary text-ink-on-primary border-primary'
+                          : 'bg-glass border-line text-ink-muted hover:text-ink hover:bg-glass-strong'
+                      }`}
                     >
                       {subj === 'All' ? '📂 All Folders' : `🏷️ ${subj}`}
                     </button>
@@ -1405,7 +1365,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </div>
                   ) : (
                     filteredModules.map((m) => (
-                      <div className="flex justify-between items-center bg-app border border-line rounded-lg p-4 px-5" key={m.id}>
+                      <div className="flex justify-between items-center bg-app border border-line rounded-lg p-4 px-5 hover:border-primary/50 transition-all duration-200" key={m.id}>
                         <div className="flex flex-col gap-1">
                           <span className="font-bold text-base">{m.name}</span>
                           <div className="text-[0.8rem] text-ink-muted flex gap-4">
@@ -1432,7 +1392,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             {dashboardTab === 'groups' && selectedGroupId === null && (
               <div>
                 <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-[1.15rem] mb-5 flex items-center gap-2 m-0">My Study Groups</h3>
+                  <h3 className="text-[1.15rem] flex items-center gap-2 m-0">My Study Groups</h3>
                   <button onClick={() => setIsGroupModalOpen(true)} className="btn btn-primary">
                     <Plus size={18} /> Create Study Group
                   </button>
@@ -1440,7 +1400,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                 <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-6">
                   {groups.map((group) => (
-                    <div className="bg-card border border-line rounded-xl p-7 flex flex-col h-full" key={group.id}>
+                    <div className="bg-card border border-line rounded-xl p-5 flex flex-col h-full" key={group.id}>
                       <h4 className="text-xl mb-2">{group.name}</h4>
                       <span className="text-[0.85rem] text-ink-muted">
                         {group.members.length} Members | {group.modules.length} Shared Modules
@@ -1470,7 +1430,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         ))}
                       </div>
 
-                      <div className="mt-auto pt-6 flex justify-end">
+                      <div className="mt-auto pt-4 flex justify-end">
                         <button
                           onClick={() => { setSelectedGroupId(group.id); completeQuest('study_group'); }}
                           className="btn btn-outline inline-flex items-center gap-1 px-4 py-2 text-[0.85rem]"
@@ -1491,7 +1451,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <div>
                       <button
                         onClick={() => setSelectedGroupId(null)}
-                        className="btn btn-outline px-3 py-2 text-[0.8rem] mb-4 border-0 bg-transparent"
+                        className="btn btn-outline border-none bg-transparent hover:bg-glass text-ink-muted hover:text-ink px-3 py-1.5 text-xs mb-4 inline-flex items-center gap-1"
                       >
                         &larr; Back to Groups
                       </button>
@@ -1529,8 +1489,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-8 max-md:grid-cols-1">
-                  <div className="bg-card border border-line rounded-xl p-7">
+                <div className="grid grid-cols-2 gap-6 max-md:grid-cols-1">
+                  <div className="bg-card border border-line rounded-xl p-5">
                     <h3 className="text-[1.15rem] mb-5 flex items-center gap-2">Shared Modules</h3>
                     {activeGroup.modules.length === 0 ? (
                       <div className="text-center p-8 text-ink-muted">
@@ -1558,7 +1518,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     )}
                   </div>
 
-                  <div className="bg-card border border-line rounded-xl p-7">
+                  <div className="bg-card border border-line rounded-xl p-5">
                     <h3 className="text-[1.15rem] mb-5 flex items-center gap-2">Group Scorecards</h3>
                     {activeGroup.quizSessions.length === 0 ? (
                       <div className="text-center p-8 text-ink-muted">
@@ -1593,11 +1553,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             )}
 
             {dashboardTab === 'tools' && selectedGroupId === null && (
-              <div className="bg-card border border-line rounded-xl p-7">
-                <h3 className="text-[1.15rem] mb-5 flex items-center gap-2">Study Utilities</h3>
+              <div className="bg-card border border-line rounded-xl p-5">
+                <h3 className="text-[1.15rem] mb-4 flex items-center gap-2">Study Utilities</h3>
                 <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-6">
                   {studyTools.map((t, idx) => (
-                    <div className="bg-app border border-line rounded-lg p-6 cursor-pointer text-center transition-all duration-200 hover:border-primary hover:bg-glass" key={idx} onClick={() => alert(`Launching: ${t.title}`)}>
+                    <div
+                      className="bg-app border border-line rounded-lg p-6 cursor-pointer text-center transition-all duration-200 hover:border-primary hover:bg-glass"
+                      key={idx}
+                      onClick={() => {
+                        if (t.title === 'Flashcard Generator') setView('flashcards');
+                        else if (t.title === 'AI Essay Grader') setView('essay-grader');
+                        else if (t.title === 'Document Condenser') setView('condenser');
+                        else alert(`Launching: ${t.title}`);
+                      }}
+                    >
                       <div className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-primary-soft text-primary mb-3 mx-auto">{t.icon}</div>
                       <div className="text-[0.95rem] font-bold mb-2">{t.title}</div>
                       <div className="text-[0.8rem] text-ink-muted">{t.desc}</div>
@@ -1609,8 +1578,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
             {dashboardTab === 'settings' && selectedGroupId === null && (
               <>
-                <div className="bg-card border border-line rounded-xl p-7 flex flex-col gap-6">
-                  <h3 className="text-[1.15rem] mb-5 flex items-center gap-2">Profile Settings</h3>
+                <div className="bg-card border border-line rounded-xl p-5 flex flex-col gap-6">
+                  <h3 className="text-[1.15rem] flex items-center gap-2 m-0">Profile Settings</h3>
 
                   <div>
                     <label className="text-[0.9rem] font-semibold text-ink mb-3">Profile Picture</label>
@@ -1642,11 +1611,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             <button
                               key={idx}
                               onClick={() => { setUser({ ...user, avatar: url }); completeQuest('custom', 'custom_avatar'); }}
-                              style={{
-                                border: user.avatar === url ? '2px solid var(--primary)' : '2px solid transparent',
-                                background: 'none'
-                              }}
-                              className="p-0 rounded-full cursor-pointer w-10 h-10 overflow-hidden transition-all duration-200"
+                              className={`p-0 rounded-full cursor-pointer w-10 h-10 overflow-hidden transition-all duration-200 border-2 ${
+                                user.avatar === url ? 'border-primary' : 'border-transparent'
+                              }`}
                             >
                               <img src={url} alt={`Avatar option ${idx + 1}`} className="w-full h-full object-cover" />
                             </button>
@@ -1706,8 +1673,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </div>
                 </div>
 
-                <div className="bg-card border border-line rounded-xl p-7 flex flex-col gap-6 mt-6">
-                  <h3 className="text-[1.15rem] mb-5 flex items-center gap-2">Notification Settings</h3>
+                <div className="bg-card border border-line rounded-xl p-5 flex flex-col gap-6 mt-6">
+                  <h3 className="text-[1.15rem] flex items-center gap-2 m-0">Notification Settings</h3>
 
                   <div className="flex flex-col gap-4">
                     <div className="flex justify-between items-center pb-3 border-b border-line">
@@ -1772,8 +1739,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </div>
                 </div>
 
-                <div className="bg-card border border-line rounded-xl p-7 flex flex-col gap-6 mt-6">
-                  <h3 className="text-[1.15rem] mb-5 flex items-center gap-2">Security Settings</h3>
+                <div className="bg-card border border-line rounded-xl p-5 flex flex-col gap-6 mt-6">
+                  <h3 className="text-[1.15rem] flex items-center gap-2 m-0">Security Settings</h3>
 
                   <form onSubmit={(e) => { e.preventDefault(); alert('Password successfully updated!'); }} className="flex flex-col gap-5">
                     <div className="flex gap-6 flex-wrap">
@@ -1815,7 +1782,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </div>
               </>
             )}
-          </>
+          </motion.div>
+          </AnimatePresence>
         )}
 
         <AnimatePresence>
