@@ -11,17 +11,25 @@ export type View =
   | 'pricing'
   | 'privacy'
   | 'terms'
-  | 'docs';
+  | 'docs'
+  | 'pomodoro';
 
 export type AuthTab = 'login' | 'signup';
 
-export type DashboardTab = 'overview' | 'modules' | 'groups' | 'tools' | 'settings';
+export type DashboardTab = 'overview' | 'modules' | 'groups' | 'tools' | 'settings' | 'calendar';
 
 export interface User {
   name: string;
   email: string;
   avatar?: string;
   school?: string;
+  username?: string;
+  bio?: string;
+  gradeLevel?: string;
+  studyGoal?: string;
+  studyLanguage?: string;
+  streakGoal?: number;
+  timezone?: string;
 }
 
 export interface QuizQuestion {
@@ -69,4 +77,22 @@ export interface StudyGroup {
   members: GroupMember[];
   modules: Module[];
   quizSessions: GroupQuizSession[];
+}
+
+export interface StudyQuest {
+  id: string;
+  text: string;
+  points: number;
+  completed: boolean;
+  actionType: 'ask_ai' | 'view_settings' | 'complete_quiz' | 'study_group' | 'custom';
+}
+
+export interface ExamDeadline {
+  id: number;
+  title: string;
+  subject: string;
+  date: string;
+  rawDate?: string;
+  daysRemaining: number;
+  priority: 'high' | 'medium' | 'low';
 }

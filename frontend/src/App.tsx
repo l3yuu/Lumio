@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  Sparkles, HelpCircle, Layers, UploadCloud
+  Sparkles, HelpCircle, Layers, UploadCloud, Timer
 } from 'lucide-react'
 
 import { Navbar } from './components/layout/Navbar'
@@ -20,6 +20,7 @@ import { TermsView } from './views/legal/TermsView'
 import { FlashcardsTool } from './views/tools/FlashcardsTool'
 import { EssayGraderTool } from './views/tools/EssayGraderTool'
 import { CondenserTool } from './views/tools/CondenserTool'
+import { PomodoroTool } from './views/tools/PomodoroTool'
 import { DashboardView } from './views/dashboard/DashboardView'
 
 import type { View, AuthTab, DashboardTab, User, Module, QuizQuestion, GroupMember, StudyGroup } from './types'
@@ -319,7 +320,8 @@ function App() {
   const studyTools = [
     { title: 'Flashcard Generator', desc: 'Auto-generate revision cards from notes.', icon: <Sparkles size={20} /> },
     { title: 'AI Essay Grader', desc: 'Get grading reviews on your practice essays.', icon: <HelpCircle size={20} /> },
-    { title: 'Document Condenser', desc: 'Condense large textbooks in seconds.', icon: <Layers size={20} /> }
+    { title: 'Document Condenser', desc: 'Condense large textbooks in seconds.', icon: <Layers size={20} /> },
+    { title: 'Pomodoro Focus Timer', desc: 'Track focus intervals with custom audio alerts.', icon: <Timer size={20} /> }
   ];
 
   return (
@@ -386,6 +388,10 @@ function App() {
 
           {view === 'condenser' && (
             <CondenserTool setView={setView} />
+          )}
+
+          {view === 'pomodoro' && (
+            <PomodoroTool setView={setView} />
           )}
 
           {view === 'pricing' && (
