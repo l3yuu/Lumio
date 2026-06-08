@@ -81,7 +81,7 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({
               score: r.score,
               percentage: r.percentage,
               time: r.time,
-              isUser: r.is_user || (r as Record<string, unknown>).isUser as boolean
+              isUser: r.is_user
             }));
             setLiveRankings(mappedRankings);
           }
