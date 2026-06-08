@@ -1,6 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Trophy, Clock } from 'lucide-react';
-import type { Module, StudyGroup, GroupQuizSession, GroupQuizRank } from '../../types';
+import type { Module, StudyGroup, GroupQuizSession, GroupQuizRank, GroupQuizRankResponse } from '../../types';
+
+interface RosterMember {
+  user_id: number;
+  name: string;
+  online: boolean;
+  finished?: boolean;
+  score?: string;
+}
 
 interface QuizPanelProps {
   activeQuizModule: Module;
@@ -35,12 +43,12 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({
   startGroupQuiz,
   selectedGroupId,
 }) => {
-  const [socket, setSocket] = useState<WebSocket | null>(null);
-  const [roster, setRoster] = useState<any[]>([]);
+  const socketRef = useRef<WebSocket | null>(null);
+  const [roster, setRoster] = useState<RosterMember[]>([]);
   const [liveRankings, setLiveRankings] = useState<GroupQuizRank[]>([]);
   const [liveAvgScore, setLiveAvgScore] = useState<string>("0%");
   
-  const startTimeRef = useRef<number>(Date.now());
+  const startTimeRef = useRef<number>(0);
 
   // Reset timer on quiz startup or retake
   useEffect(() => {
@@ -68,12 +76,12 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({
         } else if (data.type === 'scoreboard_update') {
           setLiveAvgScore(data.avgScore || "0%");
           if (data.rankings) {
-            const mappedRankings = data.rankings.map((r: any) => ({
+            const mappedRankings = data.rankings.map((r: GroupQuizRankResponse) => ({
               name: r.name,
               score: r.score,
               percentage: r.percentage,
               time: r.time,
-              isUser: r.is_user || r.isUser
+              isUser: r.is_user || (r as Record<string, unknown>).isUser as boolean
             }));
             setLiveRankings(mappedRankings);
           }
@@ -91,10 +99,11 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({
       console.log('WebSocket connection closed');
     };
 
-    setSocket(ws);
+    socketRef.current = ws;
 
     return () => {
       ws.close();
+      socketRef.current = null;
     };
   }, [isGroupQuizMode, selectedGroupId, activeQuizModule.id]);
 
@@ -110,8 +119,8 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({
     const minutes = Math.floor(durationMs / 1000 / 60);
     const durationStr = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
 
-    if (isGroupQuizMode && socket && socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify({
+    if (isGroupQuizMode && socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({
         type: 'submit_score',
         score: `${score}/${activeQuizModule.questions.length}`,
         percentage: percent,
@@ -153,7 +162,7 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({
         <div className="flex flex-wrap gap-2 items-center mb-6 p-4 bg-app border border-line rounded-xl">
           <span className="text-xs font-bold text-ink-muted uppercase tracking-wider">Live Study Partners:</span>
           <div className="flex flex-wrap gap-2">
-            {roster.map((member: any) => (
+            {roster.map((member) => (
               <span key={member.user_id} className={`inline-flex items-center gap-1.5 py-1 px-3 rounded-full text-xs font-semibold border ${member.online ? 'bg-primary-soft text-primary border-primary-line' : 'bg-ink-soft text-ink-muted border-line'}`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${member.online ? 'bg-primary animate-pulse' : 'bg-ink-muted'}`} />
                 {member.name} {member.finished && <span className="text-[0.7rem] opacity-80">(finished: {member.score})</span>}

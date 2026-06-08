@@ -32,13 +32,14 @@ export const PomodoroTool: React.FC<PomodoroToolProps> = ({ setView }) => {
   const [tempDurations, setTempDurations] = useState({ ...durations });
 
   // Refs for tracking timer interval
-  const timerRef = useRef<any>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const handleCycleCompletionRef = useRef<() => void>(() => {});
 
   // Play a beautiful synthetic alert sound using the Web Audio API
   const playAlertSound = () => {
     if (!isSoundEnabled) return;
     try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      const AudioCtx = window.AudioContext ?? (window as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!AudioCtx) return;
       const ctx = new AudioCtx();
       
@@ -72,13 +73,37 @@ export const PomodoroTool: React.FC<PomodoroToolProps> = ({ setView }) => {
     }
   };
 
-  // Synchronize timer duration updates when changing tab modes
-  useEffect(() => {
-    const min = durations[mode];
+  // Switch mode and reset timer
+  const switchMode = (newMode: TimerMode) => {
+    setIsRunning(false);
+    setMode(newMode);
+    const min = durations[newMode];
     setTimeLeft(min * 60);
     setTotalDuration(min * 60);
+  };
+
+  const handleCycleCompletion = () => {
     setIsRunning(false);
-  }, [mode, durations]);
+    playAlertSound();
+
+    if (mode === 'focus') {
+      setSessionsCompleted((prev) => prev + 1);
+      setTotalFocusMinutes((prev) => prev + durations.focus);
+
+      if ((sessionsCompleted + 1) % 4 === 0) {
+        switchMode('longBreak');
+      } else {
+        switchMode('shortBreak');
+      }
+    } else {
+      switchMode('focus');
+    }
+  };
+
+  // Keep ref in sync with latest handleCycleCompletion
+  useEffect(() => {
+    handleCycleCompletionRef.current = handleCycleCompletion;
+  });
 
   // Main countdown timer interval loop
   useEffect(() => {
@@ -86,7 +111,7 @@ export const PomodoroTool: React.FC<PomodoroToolProps> = ({ setView }) => {
       timerRef.current = setInterval(() => {
         setTimeLeft((prev) => {
           if (prev <= 1) {
-            handleCycleCompletion();
+            handleCycleCompletionRef.current();
             return 0;
           }
           return prev - 1;
@@ -103,25 +128,6 @@ export const PomodoroTool: React.FC<PomodoroToolProps> = ({ setView }) => {
     };
   }, [isRunning]);
 
-  const handleCycleCompletion = () => {
-    setIsRunning(false);
-    playAlertSound();
-
-    if (mode === 'focus') {
-      setSessionsCompleted((prev) => prev + 1);
-      setTotalFocusMinutes((prev) => prev + durations.focus);
-      
-      // Auto-suggest next state based on completed sessions
-      if ((sessionsCompleted + 1) % 4 === 0) {
-        setMode('longBreak');
-      } else {
-        setMode('shortBreak');
-      }
-    } else {
-      setMode('focus');
-    }
-  };
-
   // Button controls
   const handleToggleStart = () => {
     setIsRunning(!isRunning);
@@ -134,26 +140,30 @@ export const PomodoroTool: React.FC<PomodoroToolProps> = ({ setView }) => {
   };
 
   const handleSkip = () => {
-    setIsRunning(false);
     if (mode === 'focus') {
       if ((sessionsCompleted + 1) % 4 === 0) {
-        setMode('longBreak');
+        switchMode('longBreak');
       } else {
-        setMode('shortBreak');
+        switchMode('shortBreak');
       }
     } else {
-      setMode('focus');
+      switchMode('focus');
     }
   };
 
   // Custom durations settings submission
   const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
-    setDurations({
+    const newDurations = {
       focus: Math.max(1, Math.min(180, tempDurations.focus)),
       shortBreak: Math.max(1, Math.min(60, tempDurations.shortBreak)),
       longBreak: Math.max(1, Math.min(120, tempDurations.longBreak)),
-    });
+    };
+    setDurations(newDurations);
+    setIsRunning(false);
+    const min = newDurations[mode];
+    setTimeLeft(min * 60);
+    setTotalDuration(min * 60);
     setShowSettings(false);
   };
 
@@ -193,7 +203,7 @@ export const PomodoroTool: React.FC<PomodoroToolProps> = ({ setView }) => {
           {(['focus', 'shortBreak', 'longBreak'] as TimerMode[]).map((tab) => (
             <button
               key={tab}
-              onClick={() => setMode(tab)}
+               onClick={() => switchMode(tab)}
               className={`flex-1 py-1.5 px-3 text-xs rounded-full border-0 font-medium transition-all duration-200 cursor-pointer text-center ${
                 mode === tab
                   ? 'bg-primary text-ink-on-primary font-semibold shadow-sm'
