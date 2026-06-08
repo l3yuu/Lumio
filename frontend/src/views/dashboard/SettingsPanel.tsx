@@ -1,13 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, AlertTriangle, Globe, BookOpen, Target, Clock, User as UserIcon, AtSign, Trash2, ShieldAlert } from 'lucide-react';
-import type { User } from '../../types';
+import { Check, AlertTriangle, Globe, BookOpen, Target, Clock, User as UserIcon, AtSign, Trash2, ShieldAlert, LogOut, ShieldCheck } from 'lucide-react';
+import type { User, Module } from '../../types';
 
 interface SettingsPanelProps {
   user: User;
   setUser: (user: User | null) => void;
+  setModules: React.Dispatch<React.SetStateAction<Module[]>>;
   handleAvatarUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   completeQuest: (actionType: 'custom', customId?: string) => void;
+  handleLogout: () => void;
   notifStudyGroup: boolean;
   notifQuizReminders: boolean;
   notifSounds: boolean;
@@ -42,7 +44,7 @@ type ToastType = 'success' | 'error';
 interface Toast { type: ToastType; message: string; }
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({
-  user, setUser, handleAvatarUpload, completeQuest,
+  user, setUser, setModules, handleAvatarUpload, completeQuest, handleLogout,
   notifStudyGroup, notifQuizReminders, notifSounds, notifEmails,
   setNotifStudyGroup, setNotifQuizReminders, setNotifSounds, setNotifEmails,
 }) => {
@@ -52,9 +54,12 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const [bioLen, setBioLen] = useState(draft.bio?.length ?? 0);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleteInput, setDeleteInput] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
 
-  // Keep draft in sync if user changes externally (e.g., avatar preset click)
-  useEffect(() => { setDraft(u => ({ ...u, avatar: user.avatar })); }, [user.avatar]);
+
 
   const showToast = (type: ToastType, message: string) => {
     setToast({ type, message });
@@ -62,13 +67,49 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   };
 
   const handleSaveProfile = () => {
-    setUser({ ...user, ...draft });
-    completeQuest('custom', 'custom_avatar');
-    showToast('success', 'Profile updated successfully!');
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    fetch('http://127.0.0.1:8000/api/auth/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({
+        name: draft.name,
+        avatar: draft.avatar,
+        school: draft.school,
+        username: draft.username,
+        bio: draft.bio,
+        grade_level: draft.gradeLevel,
+        study_goal: draft.studyGoal,
+        study_language: draft.studyLanguage,
+        timezone: draft.timezone,
+        streak_goal: draft.streakGoal,
+      })
+    })
+    .then(res => {
+      if (!res.ok) throw new Error('Failed to update profile');
+      return res.json();
+    })
+    .then(data => {
+      setUser({ ...user, ...data });
+      completeQuest('custom', 'custom_avatar');
+      showToast('success', 'Profile updated successfully!');
+    })
+    .catch(err => showToast('error', err.message));
   };
 
   const handleDeleteModules = () => {
-    showToast('success', 'All modules have been deleted.');
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    fetch('http://127.0.0.1:8000/api/modules', {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    .then(res => {
+      if (!res.ok) throw new Error('Failed to delete modules');
+      setModules([]);
+      showToast('success', 'All modules have been deleted.');
+    })
+    .catch(err => showToast('error', err.message));
   };
 
   const handleDeleteAccount = () => {
@@ -76,7 +117,17 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       showToast('error', 'Email does not match. Account not deleted.');
       return;
     }
-    setUser(null);
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    fetch('http://127.0.0.1:8000/api/auth/account', {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    .then(res => {
+      if (!res.ok) throw new Error('Failed to delete account');
+      handleLogout();
+    })
+    .catch(err => showToast('error', err.message));
   };
 
   return (
@@ -90,7 +141,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.95 }}
             transition={{ duration: 0.22, ease: 'easeOut' }}
-            className={`fixed bottom-6 right-6 z-[9999] flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-xl border backdrop-blur-xl text-sm font-semibold ${
+            className={`fixed bottom-6 right-6 z-9999 flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-xl border backdrop-blur-xl text-sm font-semibold ${
               toast.type === 'success'
                 ? 'bg-[rgba(18,18,18,0.9)] border-primary/40 text-primary'
                 : 'bg-[rgba(18,18,18,0.9)] border-red-500/40 text-red-400'
@@ -326,30 +377,97 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         ))}
       </div>
 
+      {/* ─── Account Info ──────────────────────────────── */}
+      <div className="bg-card border border-line rounded-xl p-6 flex flex-col gap-5 mt-6">
+        <div className="flex items-center gap-2">
+          <ShieldCheck size={17} className="text-primary" />
+          <h3 className="text-[1.1rem] font-bold m-0">Account</h3>
+        </div>
+
+        <div className="flex items-center justify-between pb-4 border-b border-line">
+          <div>
+            <div className="font-semibold text-[0.88rem] text-ink">Email Verification</div>
+            <div className="text-[0.75rem] text-ink-muted mt-0.5">
+              {user.is_verified ? 'Your email is verified' : 'Your email is not verified'}
+            </div>
+          </div>
+          {user.is_verified ? (
+            <span className="flex items-center gap-1.5 text-[0.8rem] font-semibold text-primary bg-primary/10 px-3 py-1.5 rounded-full">
+              <Check size={14} /> Verified
+            </span>
+          ) : (
+            <span className="flex items-center gap-1.5 text-[0.8rem] font-semibold text-yellow-400 bg-yellow-400/10 px-3 py-1.5 rounded-full">
+              <AlertTriangle size={14} /> Unverified
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="font-semibold text-[0.88rem] text-ink">Sign Out</div>
+            <div className="text-[0.75rem] text-ink-muted mt-0.5">Sign out of your account on this device</div>
+          </div>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex items-center gap-2 px-4 py-2 text-[0.82rem] font-semibold rounded-lg border border-line text-ink-muted hover:text-ink hover:border-primary/50 transition-all duration-150 cursor-pointer"
+          >
+            <LogOut size={14} /> Sign Out
+          </button>
+        </div>
+      </div>
+
       {/* ─── Security Settings ──────────────────────────── */}
       <div className="bg-card border border-line rounded-xl p-6 flex flex-col gap-5 mt-6">
         <h3 className="text-[1.1rem] font-bold flex items-center gap-2 m-0">Security Settings</h3>
 
         <form
-          onSubmit={e => { e.preventDefault(); showToast('success', 'Password updated successfully!'); (e.target as HTMLFormElement).reset(); }}
+          onSubmit={e => {
+            e.preventDefault();
+            if (newPassword !== confirmPassword) {
+              showToast('error', 'New passwords do not match');
+              return;
+            }
+            setPasswordLoading(true);
+            const token = localStorage.getItem('token');
+            fetch('http://127.0.0.1:8000/api/auth/change-password', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })
+            })
+            .then(res => {
+              if (!res.ok) return res.json().then(err => { throw new Error(err.detail); });
+              return res.json();
+            })
+            .then(() => {
+              showToast('success', 'Password updated successfully!');
+              setCurrentPassword('');
+              setNewPassword('');
+              setConfirmPassword('');
+            })
+            .catch(err => showToast('error', err.message))
+            .finally(() => setPasswordLoading(false));
+          }}
           className="flex flex-col gap-4"
         >
           <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-4">
             <div className="flex flex-col gap-1.5">
               <label className="text-[0.85rem] font-semibold text-ink">Current Password</label>
-              <input type="password" className="w-full py-2 px-3 bg-input border border-line rounded-lg text-ink text-sm outline-none focus:border-primary focus:bg-app transition-all" placeholder="••••••••" required />
+              <input type="password" className="w-full py-2 px-3 bg-input border border-line rounded-lg text-ink text-sm outline-none focus:border-primary focus:bg-app transition-all" placeholder="••••••••" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} required />
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-[0.85rem] font-semibold text-ink">New Password</label>
-              <input type="password" className="w-full py-2 px-3 bg-input border border-line rounded-lg text-ink text-sm outline-none focus:border-primary focus:bg-app transition-all" placeholder="••••••••" required />
+              <input type="password" className="w-full py-2 px-3 bg-input border border-line rounded-lg text-ink text-sm outline-none focus:border-primary focus:bg-app transition-all" placeholder="••••••••" value={newPassword} onChange={e => setNewPassword(e.target.value)} required />
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-[0.85rem] font-semibold text-ink">Confirm New Password</label>
-              <input type="password" className="w-full py-2 px-3 bg-input border border-line rounded-lg text-ink text-sm outline-none focus:border-primary focus:bg-app transition-all" placeholder="••••••••" required />
+              <input type="password" className="w-full py-2 px-3 bg-input border border-line rounded-lg text-ink text-sm outline-none focus:border-primary focus:bg-app transition-all" placeholder="••••••••" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required />
             </div>
           </div>
           <div className="flex justify-end">
-            <button type="submit" className="btn btn-outline px-5 py-2.5 text-[0.85rem]">Update Password</button>
+            <button type="submit" disabled={passwordLoading} className="btn btn-outline px-5 py-2.5 text-[0.85rem] disabled:opacity-50">
+              {passwordLoading ? 'Updating...' : 'Update Password'}
+            </button>
           </div>
         </form>
       </div>

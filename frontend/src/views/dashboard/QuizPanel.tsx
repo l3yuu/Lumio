@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Trophy, Clock } from 'lucide-react';
-import type { Module, StudyGroup, GroupQuizSession } from '../../types';
+import type { Module, StudyGroup, GroupQuizSession, GroupQuizRank } from '../../types';
 
 interface QuizPanelProps {
   activeQuizModule: Module;
@@ -35,6 +35,101 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({
   startGroupQuiz,
   selectedGroupId,
 }) => {
+  const [socket, setSocket] = useState<WebSocket | null>(null);
+  const [roster, setRoster] = useState<any[]>([]);
+  const [liveRankings, setLiveRankings] = useState<GroupQuizRank[]>([]);
+  const [liveAvgScore, setLiveAvgScore] = useState<string>("0%");
+  
+  const startTimeRef = useRef<number>(Date.now());
+
+  // Reset timer on quiz startup or retake
+  useEffect(() => {
+    startTimeRef.current = Date.now();
+  }, [activeQuizModule.id, showQuizResults]);
+
+  // WebSocket connection for real-time multiplayer group quiz
+  useEffect(() => {
+    if (!isGroupQuizMode || !selectedGroupId) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    // Connect to FastAPI WebSockets endpoint
+    const ws = new WebSocket(`ws://127.0.0.1:8000/api/groups/ws/${selectedGroupId}/quiz/${activeQuizModule.id}?token=${token}`);
+    
+    ws.onopen = () => {
+      console.log('WebSocket connected to Group Quiz Room');
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'roster_update') {
+          setRoster(data.members || []);
+        } else if (data.type === 'scoreboard_update') {
+          setLiveAvgScore(data.avgScore || "0%");
+          if (data.rankings) {
+            const mappedRankings = data.rankings.map((r: any) => ({
+              name: r.name,
+              score: r.score,
+              percentage: r.percentage,
+              time: r.time,
+              isUser: r.is_user || r.isUser
+            }));
+            setLiveRankings(mappedRankings);
+          }
+        }
+      } catch (err) {
+        console.error('Error handling WebSocket message:', err);
+      }
+    };
+
+    ws.onerror = (err) => {
+      console.error('WebSocket error:', err);
+    };
+
+    ws.onclose = () => {
+      console.log('WebSocket connection closed');
+    };
+
+    setSocket(ws);
+
+    return () => {
+      ws.close();
+    };
+  }, [isGroupQuizMode, selectedGroupId, activeQuizModule.id]);
+
+  const onSubmit = () => {
+    let score = 0;
+    activeQuizModule.questions.forEach((q) => {
+      if (selectedAnswers[q.id] === q.correctAnswerIndex) score += 1;
+    });
+
+    const percent = Math.round((score / activeQuizModule.questions.length) * 100);
+    const durationMs = Date.now() - startTimeRef.current;
+    const seconds = Math.floor((durationMs / 1000) % 60);
+    const minutes = Math.floor(durationMs / 1000 / 60);
+    const durationStr = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+
+    if (isGroupQuizMode && socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({
+        type: 'submit_score',
+        score: `${score}/${activeQuizModule.questions.length}`,
+        percentage: percent,
+        time: durationStr
+      }));
+    }
+
+    handleSubmitQuiz();
+  };
+
+  const rankingsToRender = isGroupQuizMode && liveRankings.length > 0
+    ? liveRankings
+    : (activeQuizSession ? activeQuizSession.rankings : []);
+
+  const avgScoreToRender = isGroupQuizMode && liveRankings.length > 0
+    ? liveAvgScore
+    : (activeQuizSession ? activeQuizSession.avgScore : '0%');
+
   return (
     <div className="bg-card border border-line rounded-xl p-7 shadow-lg">
       <div className="flex justify-between items-center mb-8 pb-4 border-b border-line">
@@ -53,6 +148,20 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({
           Exit Quiz
         </button>
       </div>
+
+      {isGroupQuizMode && roster.length > 0 && (
+        <div className="flex flex-wrap gap-2 items-center mb-6 p-4 bg-app border border-line rounded-xl">
+          <span className="text-xs font-bold text-ink-muted uppercase tracking-wider">Live Study Partners:</span>
+          <div className="flex flex-wrap gap-2">
+            {roster.map((member: any) => (
+              <span key={member.user_id} className={`inline-flex items-center gap-1.5 py-1 px-3 rounded-full text-xs font-semibold border ${member.online ? 'bg-primary-soft text-primary border-primary-line' : 'bg-ink-soft text-ink-muted border-line'}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${member.online ? 'bg-primary animate-pulse' : 'bg-ink-muted'}`} />
+                {member.name} {member.finished && <span className="text-[0.7rem] opacity-80">(finished: {member.score})</span>}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {!showQuizResults ? (
         <>
@@ -75,7 +184,7 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({
             </div>
           ))}
           <button
-            onClick={handleSubmitQuiz}
+            onClick={onSubmit}
             className="btn btn-primary w-full justify-center p-4 mt-4"
           >
             Submit & Grade {isGroupQuizMode ? 'Group Results' : 'Quiz'} &rarr;
@@ -83,20 +192,20 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({
         </>
       ) : (
         <div className="quiz-results-card">
-          {isGroupQuizMode && activeQuizSession ? (
+          {isGroupQuizMode && rankingsToRender.length > 0 ? (
             <div className="text-center mt-6">
               <div className="flex items-center gap-2 justify-center mb-2 text-primary">
                 <Trophy size={32} />
                 <h4 className="text-[1.75rem] m-0">Group Quiz Scorecard</h4>
               </div>
               <p className="text-ink-muted mb-6">
-                Session on: {activeQuizSession.moduleName} | {activeQuizSession.date}
+                Session on: {activeQuizModule.name} | Just now
               </p>
 
               <div className="grid grid-cols-2 gap-6 my-6 p-6 bg-app border border-line rounded-xl">
                 <div>
                   <div className="text-[1.75rem] font-bold text-accent-cyan">
-                    {activeQuizSession.avgScore}
+                    {avgScoreToRender}
                   </div>
                   <span className="text-[0.8rem] text-ink-muted">Group Average Accuracy</span>
                 </div>
@@ -111,7 +220,7 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({
               <table className="w-full border-collapse mt-4">
                 <thead>
                   <tr>
-                    <th className="text-left py-2 px-3 text-[0.8rem] font-semibold text-ink-muted border-b border-line">Rank</th>
+                    <th className="text-left py-2 px-3 text-[0.8rem] font-semibold text-ink-muted border-b border-line text-center">Rank</th>
                     <th className="text-left py-2 px-3 text-[0.8rem] font-semibold text-ink-muted border-b border-line">Name</th>
                     <th className="text-left py-2 px-3 text-[0.8rem] font-semibold text-ink-muted border-b border-line">Score</th>
                     <th className="text-left py-2 px-3 text-[0.8rem] font-semibold text-ink-muted border-b border-line">Accuracy</th>
@@ -119,7 +228,7 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {activeQuizSession.rankings.map((rank, rankIdx) => {
+                  {rankingsToRender.map((rank, rankIdx) => {
                     const isCurrentUser = rank.isUser;
                     return (
                       <tr key={rankIdx} className={`hover:bg-glass transition-colors duration-150 ${isCurrentUser ? 'bg-primary-tint-1' : ''}`}>

@@ -23,7 +23,57 @@ import { CondenserTool } from './views/tools/CondenserTool'
 import { PomodoroTool } from './views/tools/PomodoroTool'
 import { DashboardView } from './views/dashboard/DashboardView'
 
-import type { View, AuthTab, DashboardTab, User, Module, QuizQuestion, GroupMember, StudyGroup } from './types'
+import type { View, AuthTab, DashboardTab, User, Module, StudyGroup, UserResponse, ModuleResponse, QuizQuestionResponse, GroupQuizSessionResponse, GroupQuizRankResponse, StudyGroupResponse } from './types'
+
+const mapUser = (data: UserResponse): User => ({
+  name: data.name,
+  email: data.email,
+  avatar: data.avatar,
+  school: data.school,
+  username: data.username,
+  bio: data.bio,
+  gradeLevel: data.grade_level,
+  studyGoal: data.study_goal,
+  studyLanguage: data.study_language,
+  streakGoal: data.streak_goal,
+  timezone: data.timezone,
+  is_verified: data.is_verified,
+});
+
+const mapModule = (m: ModuleResponse): Module => ({
+  id: m.id,
+  name: m.name,
+  date: m.date,
+  size: m.size,
+  subject: m.subject || 'General',
+  questionsCount: m.questionsCount !== undefined ? m.questionsCount : (m.questions ? m.questions.length : 0),
+  questions: m.questions ? m.questions.map((q: QuizQuestionResponse) => ({
+    id: q.id,
+    question: q.question,
+    options: q.options,
+    correctAnswerIndex: q.correct_answer_index
+  })) : []
+});
+
+const mapGroup = (g: StudyGroupResponse): StudyGroup => ({
+  id: g.id,
+  name: g.name,
+  members: g.members || [],
+  modules: g.modules ? g.modules.map(mapModule) : [],
+  quizSessions: g.quiz_sessions ? g.quiz_sessions.map((s: GroupQuizSessionResponse) => ({
+    id: s.id,
+    moduleName: s.module_name,
+    date: s.date,
+    avgScore: s.avg_score,
+    rankings: s.rankings ? s.rankings.map((r: GroupQuizRankResponse) => ({
+      name: r.name,
+      score: r.score,
+      percentage: r.percentage,
+      time: r.time,
+      isUser: r.is_user
+    })) : []
+  })) : []
+});
 
 // ⚡ Toggle this to true to show maintenance page across the entire site
 const MAINTENANCE_MODE = false;
@@ -66,7 +116,7 @@ function App() {
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupMember, setNewGroupMember] = useState('');
-  
+
   // Modules list
   const [modules, setModules] = useState<Module[]>([
     {
@@ -208,6 +258,67 @@ function App() {
     }
   ]);
 
+  // Hydrate user and data from backend if token exists
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch('http://127.0.0.1:8000/api/auth/me', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      .then(res => {
+        if (!res.ok) throw new Error('Invalid token');
+        return res.json();
+      })
+      .then(userData => {
+        setUser(mapUser(userData));
+        setView('dashboard');
+        
+        // Fetch modules
+        fetch('http://127.0.0.1:8000/api/modules', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        .then(res => res.json())
+        .then(data => setModules(data.map(mapModule)))
+        .catch(err => console.error('Error fetching modules:', err));
+
+        // Fetch groups
+        fetch('http://127.0.0.1:8000/api/groups', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        .then(res => res.json())
+        .then(data => setGroups(data.map(mapGroup)))
+        .catch(err => console.error('Error fetching groups:', err));
+      })
+      .catch(() => {
+        localStorage.removeItem('token');
+        setUser(null);
+        setView('landing');
+      });
+    }
+  }, []);
+
+  const handleLoginSuccess = (userData: User, token: string) => {
+    localStorage.setItem('token', token);
+    setUser(userData);
+    setView('dashboard');
+    
+    // Fetch modules
+    fetch('http://127.0.0.1:8000/api/modules', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    .then(res => res.json())
+    .then(data => setModules(data.map(mapModule)))
+    .catch(err => console.error('Error fetching modules:', err));
+
+    // Fetch groups
+    fetch('http://127.0.0.1:8000/api/groups', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    .then(res => res.json())
+    .then(data => setGroups(data.map(mapGroup)))
+    .catch(err => console.error('Error fetching groups:', err));
+  };
+  
   // Sync theme to document on every change
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -255,6 +366,7 @@ function App() {
   };
 
   const handleLogout = () => {
+    localStorage.removeItem('token');
     setUser(null);
     setView('landing');
   };
@@ -264,34 +376,51 @@ function App() {
     e.preventDefault();
     if (!newModuleName) return;
 
-    const mockQuestions: QuizQuestion[] = [
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    const mockQuestions = [
       {
-        id: Date.now() + 1,
         question: `Based on your module "${newModuleName}": What is the core mechanism outlined in the uploaded text?`,
         options: ['Optimal efficiency through iteration', 'Random system distribution', 'Linear thermal cooling', 'Static variable constant allocation'],
         correctAnswerIndex: 0
       },
       {
-        id: Date.now() + 2,
         question: `According to your document: Which factor is critical to success?`,
         options: ['Manual input updates', 'Automated study quiz generation', 'External reference imports', 'Zero value configuration defaults'],
         correctAnswerIndex: 1
       }
     ];
 
-    const newModule: Module = {
-      id: Date.now(),
+    const payload = {
       name: newModuleName,
-      date: 'Just now',
+      subject: 'General',
       size: `${(Math.random() * 3 + 1).toFixed(1)} MB`,
-      questionsCount: mockQuestions.length,
       questions: mockQuestions
     };
 
-    setModules([newModule, ...modules]);
-    setNewModuleName('');
-    setNewModuleContent('');
-    setIsUploadOpen(false);
+    fetch('http://127.0.0.1:8000/api/modules', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(payload)
+    })
+    .then(res => {
+      if (!res.ok) throw new Error('Failed to create module');
+      return res.json();
+    })
+    .then(newModule => {
+      setModules([mapModule(newModule), ...modules]);
+      setNewModuleName('');
+      setNewModuleContent('');
+      setIsUploadOpen(false);
+    })
+    .catch(err => {
+      console.error(err);
+      alert('Error creating module on backend');
+    });
   };
 
   // Create Group Action
@@ -299,22 +428,36 @@ function App() {
     e.preventDefault();
     if (!newGroupName) return;
 
-    const members: GroupMember[] = [
-      { name: newGroupMember || 'Study Partner', email: 'partner@example.com', online: true }
-    ];
+    const token = localStorage.getItem('token');
+    if (!token) return;
 
-    const newGroup: StudyGroup = {
-      id: Date.now(),
+    const payload = {
       name: newGroupName,
-      members: members,
-      modules: [],
-      quizSessions: []
+      members: newGroupMember ? [newGroupMember] : []
     };
 
-    setGroups([newGroup, ...groups]);
-    setNewGroupName('');
-    setNewGroupMember('');
-    setIsGroupModalOpen(false);
+    fetch('http://127.0.0.1:8000/api/groups', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(payload)
+    })
+    .then(res => {
+      if (!res.ok) throw new Error('Failed to create group');
+      return res.json();
+    })
+    .then(newGroup => {
+      setGroups([mapGroup(newGroup), ...groups]);
+      setNewGroupName('');
+      setNewGroupMember('');
+      setIsGroupModalOpen(false);
+    })
+    .catch(err => {
+      console.error(err);
+      alert('Error creating group');
+    });
   };
 
   const studyTools = [
@@ -356,7 +499,7 @@ function App() {
                 ? "flex-1"
                 : view === 'dashboard'
                   ? "max-w-full w-full p-0 flex-1"
-                  : "max-w-300 mx-auto pt-4 px-8 pb-16 flex-1"
+                  : "max-w-300 mx-auto pt-4 px-4 sm:px-8 pb-16 flex-1 w-full overflow-x-hidden"
           }
         >
           {view === 'landing' && (
@@ -422,7 +565,7 @@ function App() {
               authTab={authTab}
               setAuthTab={setAuthTab}
               setView={setView}
-              setUser={setUser}
+              onLoginSuccess={handleLoginSuccess}
             />
           )}
 
@@ -445,6 +588,7 @@ function App() {
               setActiveQuizModule={setActiveQuizModule}
               isSidebarCollapsed={isSidebarCollapsed}
               setView={setView}
+              handleLogout={handleLogout}
             />
           )}
         </main>

@@ -30,6 +30,7 @@ export interface User {
   studyLanguage?: string;
   streakGoal?: number;
   timezone?: string;
+  is_verified?: boolean;
 }
 
 export interface QuizQuestion {
@@ -85,6 +86,72 @@ export interface StudyQuest {
   points: number;
   completed: boolean;
   actionType: 'ask_ai' | 'view_settings' | 'complete_quiz' | 'study_group' | 'custom';
+}
+
+export interface ExamDeadlineResponse {
+  id: number;
+  title: string;
+  subject: string;
+  date: string;
+  raw_date?: string;
+  days_remaining: number;
+  priority: string;
+}
+
+export interface QuizQuestionResponse {
+  id: number;
+  question: string;
+  options: string[];
+  correct_answer_index: number;
+}
+
+export interface ModuleResponse {
+  id: number;
+  name: string;
+  date: string;
+  size: string;
+  subject?: string;
+  questionsCount?: number;
+  questions?: QuizQuestionResponse[];
+}
+
+export interface GroupQuizRankResponse {
+  name: string;
+  score: string;
+  percentage: number;
+  time: string;
+  is_user: boolean;
+}
+
+export interface GroupQuizSessionResponse {
+  id: number;
+  module_name: string;
+  date: string;
+  avg_score: string;
+  rankings: GroupQuizRankResponse[];
+}
+
+export interface StudyGroupResponse {
+  id: number;
+  name: string;
+  members: GroupMember[];
+  modules?: ModuleResponse[];
+  quiz_sessions?: GroupQuizSessionResponse[];
+}
+
+export interface UserResponse {
+  name: string;
+  email: string;
+  avatar?: string;
+  school?: string;
+  username?: string;
+  bio?: string;
+  grade_level?: string;
+  study_goal?: string;
+  study_language?: string;
+  streak_goal?: number;
+  timezone?: string;
+  is_verified?: boolean;
 }
 
 export interface ExamDeadline {

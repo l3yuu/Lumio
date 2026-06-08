@@ -1,15 +1,30 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Mail } from 'lucide-react';
-import type { View, AuthTab, User } from '../../types';
+import { ArrowLeft, Mail, Eye, EyeOff, Check, AlertTriangle } from 'lucide-react';
+import type { View, AuthTab, User, UserResponse } from '../../types';
 
-type AuthScreen = 'login' | 'signup' | 'forgot' | 'forgot-sent';
+const mapUser = (data: UserResponse): User => ({
+  name: data.name,
+  email: data.email,
+  avatar: data.avatar,
+  school: data.school,
+  username: data.username,
+  bio: data.bio,
+  gradeLevel: data.grade_level,
+  studyGoal: data.study_goal,
+  studyLanguage: data.study_language,
+  streakGoal: data.streak_goal,
+  timezone: data.timezone,
+  is_verified: data.is_verified,
+});
+
+type AuthScreen = 'login' | 'signup' | 'verify' | 'forgot' | 'forgot-sent' | 'reset';
 
 interface AuthViewProps {
   authTab: AuthTab;
   setAuthTab: (tab: AuthTab) => void;
   setView: (view: View) => void;
-  setUser: (user: User | null) => void;
+  onLoginSuccess: (user: User, token: string) => void;
 }
 
 const slideVariants = {
@@ -18,11 +33,21 @@ const slideVariants = {
   exit:  (dir: number) => ({ opacity: 0, x: dir * -24 }),
 };
 
-export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView, setUser }) => {
+export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView, onLoginSuccess }) => {
   const [formName, setFormName]         = useState('');
   const [formEmail, setFormEmail]       = useState('');
   const [formPassword, setFormPassword] = useState('');
   const [resetEmail, setResetEmail]     = useState('');
+  const [resetCode, setResetCode]       = useState('');
+  const [resetPassword, setResetPassword] = useState('');
+  const [resetMessage, setResetMessage] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [pendingToken, setPendingToken] = useState('');
+  const [verifyCode, setVerifyCode]     = useState('');
+  const [verifyEmail, setVerifyEmail]   = useState('');
   const [screen, setScreen]             = useState<AuthScreen>(authTab === 'signup' ? 'signup' : 'login');
   const [slideDir, setSlideDir]         = useState(1);
 
@@ -32,26 +57,119 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
     if (next === 'login' || next === 'signup') setAuthTab(next);
   };
 
+  const showToast = (type: 'success' | 'error', message: string) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 3200);
+  };
+
   const handleAuthSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formEmail || !formPassword || (screen === 'signup' && !formName)) {
-      alert('Please fill in all required fields.');
+      showToast('error', 'Please fill in all required fields.');
       return;
     }
-    const name = screen === 'signup' ? formName : formEmail.split('@')[0];
-    setUser({
-      name,
-      email: formEmail,
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&h=150&q=80',
-      school: 'State University',
+
+    setLoading(true);
+    const endpoint = screen === 'signup' ? '/api/auth/register' : '/api/auth/login';
+    const payload = screen === 'signup'
+      ? { email: formEmail, password: formPassword, name: formName }
+      : { email: formEmail, password: formPassword };
+
+    fetch(`http://127.0.0.1:8000${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    .then(async res => {
+      const err = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(err?.detail || 'Authentication failed');
+      }
+      return err;
+    })
+    .then(data => {
+      if (!data) return;
+      const token = data.access_token;
+      
+      if (screen === 'signup') {
+        setPendingToken(token);
+        setVerifyEmail(formEmail);
+        setLoading(false);
+        go('verify', 1);
+        return;
+      }
+      
+      fetch('http://127.0.0.1:8000/api/auth/me', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      .then(res => res.json())
+      .then(userData => {
+        onLoginSuccess(mapUser(userData), token);
+      });
+    })
+    .catch(err => {
+      setLoading(false);
+      showToast('error', err.message);
     });
-    setView('dashboard');
   };
 
   const handleForgotSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!resetEmail) return;
-    go('forgot-sent', 1);
+    setResetMessage('');
+    fetch('http://127.0.0.1:8000/api/auth/forgot-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: resetEmail })
+    })
+    .then(res => res.json())
+    .then(() => go('forgot-sent', 1))
+    .catch(() => go('forgot-sent', 1));
+  };
+
+  const handleResetSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetCode || !resetPassword) return;
+    setResetMessage('');
+    fetch('http://127.0.0.1:8000/api/auth/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: resetEmail, code: resetCode, new_password: resetPassword })
+    })
+    .then(res => {
+      if (!res.ok) return res.json().then(err => { throw new Error(err.detail); });
+      return res.json();
+    })
+    .then(() => {
+      setResetMessage('Password reset successfully!');
+      setTimeout(() => go('login', 1), 2000);
+    })
+    .catch(err => alert(err.message));
+  };
+
+  const handleVerifySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!verifyCode) return;
+    fetch('http://127.0.0.1:8000/api/auth/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: verifyEmail, code: verifyCode })
+    })
+    .then(res => {
+      if (!res.ok) return res.json().then(err => { throw new Error(err.detail); });
+      return res.json();
+    })
+    .then(() => {
+      const token = pendingToken;
+      fetch('http://127.0.0.1:8000/api/auth/me', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      .then(res => res.json())
+      .then(userData => {
+        onLoginSuccess(mapUser(userData), token);
+      });
+    })
+    .catch(err => alert(err.message));
   };
 
   const formContent = () => {
@@ -69,24 +187,153 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
               <span className="text-ink font-medium">{resetEmail}</span>
             </p>
           </div>
+            <p className="text-ink-muted text-[0.85rem]">
+              Didn't get it?{' '}
+              <button
+                type="button"
+                onClick={() => go('forgot', -1)}
+                className="bg-transparent border-0 text-primary font-medium cursor-pointer p-0"
+              >
+                Try again
+              </button>
+            </p>
+            <button
+              type="button"
+              onClick={() => go('reset', 1)}
+              className="bg-transparent border-0 text-primary font-medium cursor-pointer p-0 text-sm"
+            >
+              I have a reset code
+            </button>
+            <button
+              type="button"
+              onClick={() => go('login', -1)}
+              className="inline-flex items-center justify-center w-full gap-2 text-sm p-[0.85rem] rounded-md font-bold transition-all duration-150 border border-transparent cursor-pointer bg-primary text-ink-on-primary hover:bg-primary-hover mt-2"
+            >
+              Back to Sign in
+            </button>
+        </div>
+      );
+    }
+
+    /* ── Verify email ── */
+    if (screen === 'verify') {
+      return (
+        <div className="flex flex-col items-center text-center gap-5">
+          <div className="w-16 h-16 rounded-full bg-primary/15 flex items-center justify-center">
+            <Mail size={28} className="text-primary" />
+          </div>
+          <div>
+            <h1 className="text-[2rem] font-bold tracking-[-0.03em] text-ink mb-2">Check your inbox</h1>
+            <p className="text-ink-muted text-[0.95rem] leading-relaxed">
+              We sent a 6-digit code to<br />
+              <span className="text-ink font-medium">{verifyEmail}</span>
+            </p>
+          </div>
+          <form onSubmit={handleVerifySubmit} className="flex flex-col gap-5 w-full">
+            <div className="flex flex-col gap-[0.35rem]">
+              <label className="block text-[0.85rem] font-medium text-ink-muted">Verification code</label>
+              <input
+                type="text"
+                placeholder="000000"
+                maxLength={6}
+                autoFocus
+                className="w-full bg-input border border-line rounded-md p-3 text-ink text-[0.9rem] outline-none focus:border-primary transition-colors text-center text-2xl tracking-[8px]"
+                value={verifyCode}
+                onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                required
+              />
+            </div>
+            <button
+              type="submit"
+              className="inline-flex items-center justify-center w-full gap-2 text-sm p-[0.85rem] rounded-md font-bold transition-all duration-150 border border-transparent cursor-pointer bg-primary text-ink-on-primary hover:bg-primary-hover mt-1"
+            >
+              Verify email
+            </button>
+          </form>
           <p className="text-ink-muted text-[0.85rem]">
             Didn't get it?{' '}
             <button
               type="button"
-              onClick={() => go('forgot', -1)}
+              onClick={() => {
+                fetch('http://127.0.0.1:8000/api/auth/resend-code', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ email: verifyEmail })
+                }).catch(() => {});
+                showToast('success', 'A new code has been sent!');
+              }}
               className="bg-transparent border-0 text-primary font-medium cursor-pointer p-0"
             >
-              Try again
+              Resend code
             </button>
           </p>
+        </div>
+      );
+    }
+
+    /* ── Reset password ── */
+    if (screen === 'reset') {
+      return (
+        <>
           <button
             type="button"
-            onClick={() => go('login', -1)}
-            className="inline-flex items-center justify-center w-full gap-2 text-sm p-[0.85rem] rounded-md font-bold transition-all duration-150 border border-transparent cursor-pointer bg-primary text-ink-on-primary hover:bg-primary-hover mt-2"
+            onClick={() => go('forgot-sent', -1)}
+            className="flex items-center gap-1.5 text-sm text-ink-muted hover:text-ink transition-colors bg-transparent border-0 cursor-pointer p-0 mb-8 self-start"
           >
-            Back to Sign in
+            <ArrowLeft size={15} />
+            Back
           </button>
-        </div>
+          <div className="mb-8">
+            <h1 className="text-[2rem] font-bold tracking-[-0.03em] text-ink mb-2">Enter reset code</h1>
+            <p className="text-ink-muted text-[0.95rem]">
+              Check <span className="text-ink font-medium">{resetEmail}</span> for your 6-digit code
+            </p>
+          </div>
+          <form onSubmit={handleResetSubmit} className="flex flex-col gap-5">
+            <div className="flex flex-col gap-[0.35rem]">
+              <label className="block text-[0.85rem] font-medium text-ink-muted">Reset code</label>
+              <input
+                type="text"
+                placeholder="000000"
+                maxLength={6}
+                autoFocus
+                className="w-full bg-input border border-line rounded-md p-3 text-ink text-[0.9rem] outline-none focus:border-primary transition-colors"
+                value={resetCode}
+                onChange={(e) => setResetCode(e.target.value)}
+                required
+              />
+            </div>
+            <div className="flex flex-col gap-[0.35rem]">
+              <label className="block text-[0.85rem] font-medium text-ink-muted">New password</label>
+              <div className="relative">
+                <input
+                  type={showResetPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  className="w-full bg-input border border-line rounded-md p-3 text-ink text-[0.9rem] outline-none focus:border-primary transition-colors pr-10"
+                  value={resetPassword}
+                  onChange={(e) => setResetPassword(e.target.value)}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowResetPassword(!showResetPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 bg-transparent border-0 cursor-pointer p-0 text-ink-muted hover:text-ink"
+                >
+                  {showResetPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+            {resetMessage && (
+              <p className="text-primary font-medium text-sm text-center">{resetMessage}</p>
+            )}
+            <button
+              type="submit"
+              className="inline-flex items-center justify-center w-full gap-2 text-sm p-[0.85rem] rounded-md font-bold transition-all duration-150 border border-transparent cursor-pointer bg-primary text-ink-on-primary hover:bg-primary-hover mt-1"
+            >
+              Reset password
+            </button>
+          </form>
+        </>
       );
     }
 
@@ -137,11 +384,19 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
     /* ── Login / Signup ── */
     return (
       <>
-        <div className="mb-8 overflow-hidden">
-          <h1 className="text-[2rem] font-bold tracking-[-0.03em] text-ink mb-2">
+        <div className="mb-8 overflow-hidden text-center md:text-left">
+          {/* Mobile inline logo — shown only on mobile, sits just above the heading */}
+          <button
+            type="button"
+            onClick={() => setView('landing')}
+            className="md:hidden bg-transparent border-0 cursor-pointer p-0 mb-4 block w-full text-center"
+          >
+            <span className="text-5xl font-bold tracking-[-0.03em] text-ink">Lumio</span>
+          </button>
+          <h1 className="text-[1.5rem] font-bold tracking-[-0.03em] text-ink mb-1">
             {screen === 'login' ? 'Welcome back' : 'Get started'}
           </h1>
-          <p className="text-ink-muted text-[0.95rem]">
+          <p className="text-ink-muted text-[0.85rem]">
             {screen === 'login' ? 'Sign in to your account' : 'Create your student account'}
           </p>
         </div>
@@ -149,15 +404,43 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
         {/* Google */}
         <button
           type="button"
-          className="flex items-center justify-center w-full gap-3 text-sm px-3 py-3 rounded-md font-medium transition-all duration-200 border border-line text-ink cursor-pointer bg-card hover:bg-input hover:border-line-strong mb-5"
+          className="flex items-center justify-center w-full gap-3 text-xs px-3 py-2 rounded-md font-medium transition-all duration-200 border border-line text-ink cursor-pointer bg-card hover:bg-input hover:border-line-strong mb-3"
           onClick={() => {
-            setUser({
-              name: 'Google Student',
+            const googlePayload = {
               email: 'student@gmail.com',
-              avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=150&h=150&q=80',
-              school: 'State University',
+              password: 'google_mock_password_123',
+              name: 'Google Student',
+              school: 'State University'
+            };
+            // Try to login, if fails try to register
+            fetch('http://127.0.0.1:8000/api/auth/login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: googlePayload.email, password: googlePayload.password })
+            })
+            .then(res => {
+              if (res.ok) return res.json();
+              // Try to register
+              return fetch('http://127.0.0.1:8000/api/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(googlePayload)
+              }).then(r => r.json());
+            })
+            .then(data => {
+              const token = data.access_token;
+              fetch('http://127.0.0.1:8000/api/auth/me', {
+                headers: { 'Authorization': `Bearer ${token}` }
+              })
+              .then(res => res.json())
+              .then(userData => {
+                onLoginSuccess(mapUser(userData), token);
+              });
+            })
+            .catch(err => {
+              console.error(err);
+              showToast('error', 'Google login simulation failed');
             });
-            setView('dashboard');
           }}
         >
           <svg width="18" height="18" viewBox="0 0 24 24">
@@ -169,8 +452,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
           Continue with Google
         </button>
 
-        <div className="flex items-center text-center text-ink-muted text-sm my-4 before:content-[''] before:flex-1 before:border-b before:border-line after:content-[''] after:flex-1 after:border-b after:border-line">
-          <span className="px-4">or</span>
+        <div className="flex items-center text-center text-ink-muted text-xs my-2 before:content-[''] before:flex-1 before:border-b before:border-line after:content-[''] after:flex-1 after:border-b after:border-line">
+          <span className="px-3">or</span>
         </div>
 
         <form onSubmit={handleAuthSubmit} className="flex flex-col">
@@ -179,16 +462,16 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
             {screen === 'signup' && (
               <motion.div
                 initial={{ height: 0, opacity: 0, marginBottom: 0 }}
-                animate={{ height: 'auto', opacity: 1, marginBottom: 20 }}
+                animate={{ height: 'auto', opacity: 1, marginBottom: 12 }}
                 exit={{ height: 0, opacity: 0, marginBottom: 0 }}
                 transition={{ duration: 0.25, ease: 'easeInOut' }}
                 className="overflow-hidden"
               >
-                <label className="block text-[0.85rem] font-medium mb-1.5 text-ink-muted">Full Name</label>
+                <label className="block text-[0.8rem] font-medium mb-1 text-ink-muted">Full Name</label>
                 <input
                   type="text"
                   placeholder="John Doe"
-                  className="w-full bg-input border border-line rounded-md p-3 text-ink text-[0.9rem] outline-none focus:border-primary transition-colors"
+                  className="w-full bg-input border border-line rounded-md p-2.5 text-ink text-[0.85rem] outline-none focus:border-primary transition-colors"
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
                   required
@@ -197,50 +480,65 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
             )}
           </AnimatePresence>
 
-          <div className="flex flex-col gap-[0.35rem] mb-5">
-            <label className="block text-[0.85rem] font-medium mb-1.5 text-ink-muted">Email address</label>
+          <div className="flex flex-col gap-1 mb-3">
+            <label className="block text-[0.8rem] font-medium text-ink-muted">Email address</label>
             <input
               type="email"
               placeholder="you@example.com"
-              className="w-full bg-input border border-line rounded-md p-3 text-ink text-[0.9rem] outline-none focus:border-primary transition-colors"
+              className="w-full bg-input border border-line rounded-md p-2.5 text-ink text-[0.85rem] outline-none focus:border-primary transition-colors"
               value={formEmail}
               onChange={(e) => setFormEmail(e.target.value)}
               required
             />
           </div>
 
-          <div className="flex flex-col gap-[0.35rem] mb-5">
-            <div className="flex justify-between items-center mb-1.5">
-              <label className="block text-[0.85rem] font-medium text-ink-muted">Password</label>
+          <div className="flex flex-col gap-1 mb-3">
+            <div className="flex justify-between items-center mb-1">
+              <label className="block text-[0.8rem] font-medium text-ink-muted">Password</label>
               {screen === 'login' && (
                 <button
                   type="button"
                   onClick={() => go('forgot', 1)}
-                  className="text-[0.8rem] text-ink-muted hover:text-primary transition-colors bg-transparent border-0 cursor-pointer p-0"
+                  className="text-[0.75rem] text-ink-muted hover:text-primary transition-colors bg-transparent border-0 cursor-pointer p-0"
                 >
                   Forgot password?
                 </button>
               )}
             </div>
-            <input
-              type="password"
-              placeholder="••••••••"
-              className="w-full bg-input border border-line rounded-md p-3 text-ink text-[0.9rem] outline-none focus:border-primary transition-colors"
-              value={formPassword}
-              onChange={(e) => setFormPassword(e.target.value)}
-              required
-            />
+            <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  className="w-full bg-input border border-line rounded-md p-2.5 text-ink text-[0.85rem] outline-none focus:border-primary transition-colors pr-10"
+                value={formPassword}
+                onChange={(e) => setFormPassword(e.target.value)}
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 bg-transparent border-0 cursor-pointer p-0 text-ink-muted hover:text-ink"
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
           </div>
 
           <button
             type="submit"
-            className="inline-flex items-center justify-center w-full gap-2 text-sm p-[0.85rem] rounded-md font-bold transition-all duration-150 border border-transparent cursor-pointer bg-primary text-ink-on-primary hover:bg-primary-hover mt-2"
+            disabled={loading}
+            className="inline-flex items-center justify-center w-full gap-2 text-sm p-[0.7rem] rounded-md font-bold transition-all duration-150 border border-transparent cursor-pointer bg-primary text-ink-on-primary hover:bg-primary-hover mt-1 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {screen === 'login' ? 'Sign in' : 'Sign up'}
+            {loading ? (
+              <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            ) : screen === 'login' ? 'Sign in' : 'Sign up'}
           </button>
         </form>
 
-        <div className="text-center mt-8 text-[0.9rem] text-ink-muted">
+        <div className="text-center mt-3 text-[0.8rem] text-ink-muted">
           {screen === 'login' ? (
             <>Don't have an account?{' '}
               <button onClick={() => go('signup', 1)} className="bg-transparent border-0 text-primary font-medium cursor-pointer p-0">Sign up</button>
@@ -257,12 +555,35 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
 
   return (
     <div className="flex flex-row-reverse h-screen w-full bg-app relative">
-      {/* Logo — pinned top-right */}
+      {/* Toast */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            key="auth-toast"
+            initial={{ opacity: 0, y: 32, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 16, scale: 0.95 }}
+            transition={{ duration: 0.22, ease: 'easeOut' }}
+            className={`fixed bottom-6 right-6 z-9999 flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-xl border backdrop-blur-xl text-sm font-semibold ${
+              toast.type === 'success'
+                ? 'bg-[rgba(18,18,18,0.9)] border-primary/40 text-primary'
+                : 'bg-[rgba(18,18,18,0.9)] border-red-500/40 text-red-400'
+            }`}
+          >
+            {toast.type === 'success'
+              ? <Check size={16} className="shrink-0" />
+              : <AlertTriangle size={16} className="shrink-0" />}
+            {toast.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Logo — desktop only, pinned top-right */}
       <button
         onClick={() => setView('landing')}
-        className="absolute top-6 right-8 z-50 bg-transparent border-0 cursor-pointer p-0"
+        className="hidden md:block absolute top-6 right-8 z-50 bg-transparent border-0 cursor-pointer p-0"
       >
-        <span className="text-xl font-bold tracking-[-0.03em] text-ink">Lumio</span>
+        <span className="text-4xl font-bold tracking-[-0.03em] text-ink">Lumio</span>
       </button>
 
       {/* Right side: form */}

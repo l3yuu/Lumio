@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, Zap } from 'lucide-react';
-import type { User, Module, StudyGroup, GroupQuizSession, GroupQuizRank, DashboardTab, View, StudyQuest, ExamDeadline } from '../../types';
+import type { User, Module, StudyGroup, GroupQuizSession, GroupQuizRank, DashboardTab, View, StudyQuest, ExamDeadline, ExamDeadlineResponse, StudyGroupResponse } from '../../types';
 
 import { DashboardSidebar } from './DashboardSidebar';
 import { OverviewPanel } from './OverviewPanel';
@@ -36,12 +36,13 @@ interface DashboardViewProps {
   setActiveQuizModule: (mod: Module | null) => void;
   isSidebarCollapsed: boolean;
   setView: (view: View) => void;
+  handleLogout: () => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   user, setUser, modules, groups, setModules, setGroups, setIsUploadOpen, setIsGroupModalOpen,
   studyTools, dashboardTab, setDashboardTab, selectedGroupId, setSelectedGroupId,
-  activeQuizModule, setActiveQuizModule, isSidebarCollapsed: isCollapsed, setView,
+  activeQuizModule, setActiveQuizModule, isSidebarCollapsed: isCollapsed, setView, handleLogout,
 }) => {
   const [activeTool, setActiveTool] = useState<ActiveTool | null>(null);
 
@@ -202,22 +203,107 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [newExamDate, setNewExamDate] = useState('');
   const [newExamPriority, setNewExamPriority] = useState<'high' | 'medium' | 'low'>('medium');
 
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch('http://127.0.0.1:8000/api/exams', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to fetch exams');
+        return res.json();
+      })
+      .then(data => {
+        const mapped: ExamDeadline[] = (data as ExamDeadlineResponse[]).map(e => ({
+          id: e.id,
+          title: e.title,
+          subject: e.subject,
+          date: e.date,
+          rawDate: e.raw_date,
+          daysRemaining: e.days_remaining,
+          priority: e.priority as 'high' | 'medium' | 'low'
+        }));
+        setExams(mapped);
+      })
+      .catch(err => console.error('Error fetching exams:', err));
+    }
+  }, [user]);
+
   useEffect(() => { localStorage.setItem('lumio_exams', JSON.stringify(exams)); }, [exams]);
 
   const handleAddExam = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newExamTitle.trim() || !newExamDate.trim()) return;
-    setExams([...exams, {
-      id: Date.now(), title: newExamTitle,
-      subject: newExamSubject,
-      date: new Date(newExamDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      rawDate: newExamDate, daysRemaining: calculateDaysRemaining(newExamDate), priority: newExamPriority
-    }]);
-    setNewExamTitle(''); setNewExamDate(''); setNewExamPriority('medium'); setIsAddingExam(false);
-    completeQuest('custom', 'add_exam');
+
+    const token = localStorage.getItem('token');
+    if (token) {
+      const payload = {
+        title: newExamTitle,
+        subject: newExamSubject,
+        date: new Date(newExamDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+        raw_date: newExamDate,
+        priority: newExamPriority
+      };
+      fetch('http://127.0.0.1:8000/api/exams', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      })
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to create exam');
+        return res.json();
+      })
+      .then(newExam => {
+        setExams([...exams, {
+          id: newExam.id,
+          title: newExam.title,
+          subject: newExam.subject,
+          date: newExam.date,
+          rawDate: newExam.raw_date,
+          daysRemaining: newExam.days_remaining,
+          priority: newExam.priority as 'high' | 'medium' | 'low'
+        }]);
+        setNewExamTitle(''); setNewExamDate(''); setNewExamPriority('medium'); setIsAddingExam(false);
+        completeQuest('custom', 'add_exam');
+      })
+      .catch(err => {
+        console.error('Error saving exam:', err);
+        alert('Failed to save exam to backend');
+      });
+    } else {
+      setExams([...exams, {
+        id: Date.now(), title: newExamTitle,
+        subject: newExamSubject,
+        date: new Date(newExamDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+        rawDate: newExamDate, daysRemaining: calculateDaysRemaining(newExamDate), priority: newExamPriority
+      }]);
+      setNewExamTitle(''); setNewExamDate(''); setNewExamPriority('medium'); setIsAddingExam(false);
+      completeQuest('custom', 'add_exam');
+    }
   };
 
-  const handleDeleteExam = (id: number) => setExams(exams.filter(e => e.id !== id));
+  const handleDeleteExam = (id: number) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch(`http://127.0.0.1:8000/api/exams/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to delete exam');
+        setExams(exams.filter(e => e.id !== id));
+      })
+      .catch(err => {
+        console.error('Error deleting exam:', err);
+        alert('Failed to delete exam from backend');
+      });
+    } else {
+      setExams(exams.filter(e => e.id !== id));
+    }
+  };
 
   const [selectedSubject, setSelectedSubject] = useState<string>('All');
   const [aiSearchQuery, setAiSearchQuery] = useState('');
@@ -351,8 +437,77 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   };
 
   const handleDeleteModule = (id: number) => {
-    setModules(modules.filter(m => m.id !== id));
-    if (activeQuizModule?.id === id) setActiveQuizModule(null);
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch(`http://127.0.0.1:8000/api/modules/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to delete module');
+        setModules(modules.filter(m => m.id !== id));
+        if (activeQuizModule?.id === id) setActiveQuizModule(null);
+      })
+      .catch(err => {
+        console.error('Error deleting module:', err);
+        alert('Failed to delete module from backend');
+      });
+    } else {
+      setModules(modules.filter(m => m.id !== id));
+      if (activeQuizModule?.id === id) setActiveQuizModule(null);
+    }
+  };
+
+  const refetchGroups = () => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch('http://127.0.0.1:8000/api/groups', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      .then(res => res.json())
+      .then(data => {
+        const mapped = (data as StudyGroupResponse[]).map(g => ({
+          ...g,
+          modules: g.modules ? g.modules.map(m => ({
+            id: m.id,
+            name: m.name,
+            date: m.date,
+            size: m.size,
+            subject: m.subject || 'General',
+            questionsCount: m.questionsCount !== undefined ? m.questionsCount : (m.questions ? m.questions.length : 0),
+            questions: m.questions ? m.questions.map(q => ({
+              id: q.id,
+              question: q.question,
+              options: q.options,
+              correctAnswerIndex: q.correct_answer_index
+            })) : []
+          })) : [],
+          quizSessions: g.quiz_sessions ? g.quiz_sessions.map(s => ({
+            id: s.id,
+            moduleName: s.module_name,
+            date: s.date,
+            avgScore: s.avg_score,
+            rankings: s.rankings ? s.rankings.map(r => ({
+              name: r.name,
+              score: r.score,
+              percentage: r.percentage,
+              time: r.time,
+              isUser: r.is_user
+            })) : []
+          })) : []
+        }));
+        setGroups(mapped);
+      })
+      .catch(err => console.error('Error refetching groups:', err));
+    }
+  };
+
+  const handleExitQuiz = (mod: Module | null) => {
+    setActiveQuizModule(mod);
+    if (mod === null) {
+      setIsGroupQuizMode(false);
+      refetchGroups();
+    }
   };
 
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -373,17 +528,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const filteredModules = selectedSubject === 'All' ? modules : modules.filter(m => m.subject === selectedSubject);
 
   return (
-    <div className={`grid max-md:grid-cols-1 max-md:grid-rows-[auto_1fr] h-[calc(100vh-58px)] overflow-hidden transition-[grid-template-columns] duration-280 ease-in-out ${isCollapsed ? 'md:grid-cols-[68px_1fr]' : 'md:grid-cols-[240px_1fr]'}`}>
-      <DashboardSidebar
-        isCollapsed={isCollapsed}
-        dashboardTab={dashboardTab}
-        setDashboardTab={handleSetDashboardTab}
-        selectedGroupId={selectedGroupId}
-        setSelectedGroupId={setSelectedGroupId}
-        setActiveQuizModule={setActiveQuizModule}
-        user={user}
-        completeQuest={completeQuest}
-      />
+    <div className={`grid max-lg:grid-cols-1 max-lg:grid-rows-[auto_1fr] h-[calc(100vh-58px)] overflow-hidden transition-[grid-template-columns] duration-280 ease-in-out ${isCollapsed ? 'lg:grid-cols-[68px_1fr]' : 'lg:grid-cols-[240px_1fr]'}`}>
+      <div className="hidden lg:contents">
+        <DashboardSidebar
+          isCollapsed={isCollapsed}
+          dashboardTab={dashboardTab}
+          setDashboardTab={handleSetDashboardTab}
+          selectedGroupId={selectedGroupId}
+          setSelectedGroupId={setSelectedGroupId}
+          setActiveQuizModule={handleExitQuiz}
+          user={user}
+          completeQuest={completeQuest}
+        />
+      </div>
 
       <div className="overflow-y-auto h-full w-full">
         {/* Render active inline tool filling the full scroll area (sidebar stays visible) */}
@@ -406,7 +563,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
         {/* Normal dashboard main content (hidden when an inline tool is active) */}
         {!(dashboardTab === 'tools' && activeTool) && (
-        <main className="flex flex-col gap-6 py-7 px-8 pb-20 max-w-275 w-full mx-auto max-md:py-4 max-md:px-4 max-md:pb-16">
+        <main className="flex flex-col gap-6 py-7 px-8 pb-20 max-w-275 w-full mx-auto max-lg:py-4 max-lg:px-4 max-lg:pb-16">
           {activeQuizModule ? (
             <QuizPanel
               activeQuizModule={activeQuizModule}
@@ -416,7 +573,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               showQuizResults={showQuizResults}
               quizScore={quizScore}
               activeQuizSession={activeQuizSession}
-              setActiveQuizModule={setActiveQuizModule}
+              setActiveQuizModule={handleExitQuiz}
               setIsGroupQuizMode={setIsGroupQuizMode}
               handleSelectAnswer={handleSelectAnswer}
               handleSubmitQuiz={handleSubmitQuiz}
@@ -538,8 +695,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <SettingsPanel
                     user={user}
                     setUser={setUser}
+                    setModules={setModules}
                     handleAvatarUpload={handleAvatarUpload}
                     completeQuest={completeQuest}
+                    handleLogout={handleLogout}
                     notifStudyGroup={notifStudyGroup}
                     notifQuizReminders={notifQuizReminders}
                     notifSounds={notifSounds}
