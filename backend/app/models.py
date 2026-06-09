@@ -1,5 +1,5 @@
 import os
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Table, Text, JSON, DateTime
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Table, Text, JSON, DateTime, LargeBinary
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from .database import Base
@@ -95,10 +95,13 @@ class Module(Base):
     source_content = Column(Text, nullable=True)
     source_filename = Column(String(255), nullable=True)
     source_file_path = Column(String(500), nullable=True)
+    source_file_data = Column(LargeBinary, nullable=True)
+    source_file_mime = Column(String(100), nullable=True)
+    last_score = Column(String(50), nullable=True)
 
     @property
     def has_source_file(self) -> bool:
-        return bool(self.source_file_path) and os.path.exists(self.source_file_path)
+        return bool(self.source_file_data) or (bool(self.source_file_path) and os.path.exists(self.source_file_path))
 
     owner = relationship("User", back_populates="modules")
     questions = relationship("QuizQuestion", back_populates="module", cascade="all, delete-orphan")
@@ -203,4 +206,3 @@ class GroupNotificationPref(Base):
     group_id = Column(Integer, ForeignKey('study_groups.id', ondelete='CASCADE'), nullable=False)
     user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
     enabled = Column(Boolean, default=True)
-

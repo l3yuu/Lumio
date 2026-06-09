@@ -1,11 +1,12 @@
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.database import engine, Base
+from app.database import engine, Base, ensure_runtime_schema
 from app.routers import auth, modules, exams, groups, notifications
 
 # Create database tables automatically
 Base.metadata.create_all(bind=engine)
+ensure_runtime_schema()
 
 app = FastAPI(title="Lumio API")
 

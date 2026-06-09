@@ -65,6 +65,9 @@ class Token(BaseModel):
     access_token: str
     token_type: str
 
+class AuthResponse(Token):
+    user: UserOut
+
 class RegisterResponse(Token):
     is_verified: bool
 
@@ -102,6 +105,7 @@ class ModuleOut(ModuleBase):
     user_id: int
     source_filename: Optional[str] = None
     has_source_file: bool = False
+    last_score: Optional[str] = None
     questions: List[QuizQuestionOut]
 
     class Config:
@@ -112,6 +116,10 @@ class ModuleSourceOut(BaseModel):
     id: int
     source_filename: Optional[str] = None
     source_content: Optional[str] = None
+
+
+class ModuleScoreUpdate(BaseModel):
+    score: str
 
 
 # --- EXAM SCHEMAS ---

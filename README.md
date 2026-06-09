@@ -27,12 +27,12 @@ It is recommended to run the backend and frontend in separate terminals:
 
 **Terminal 1 (Backend):**
 ```bash
-make backend
+uvicorn main:app --reload --port 8000
 ```
 
 **Terminal 2 (Frontend):**
 ```bash
-make frontend
+npm run dev
 ```
 
 The API will be available at `http://localhost:8000` and the frontend at `http://localhost:5173`.

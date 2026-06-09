@@ -56,8 +56,10 @@ def verify(body: schemas.VerifyRequest, background_tasks: BackgroundTasks, reque
     user.is_verified = True
     user.verification_code = None
     db.commit()
+    db.refresh(user)
     send_welcome_email(background_tasks, user.email, user.name)
-    return {"message": "Email verified successfully"}
+    access_token = auth.create_access_token(data={"user_id": user.id, "email": user.email})
+    return {"message": "Email verified successfully", "access_token": access_token, "token_type": "bearer", "user": user}
 
 @router.post("/resend-code")
 def resend_code(body: schemas.ResendVerificationRequest, background_tasks: BackgroundTasks, request: Request, db: Session = Depends(get_db)):
@@ -109,7 +111,7 @@ def reset_password(body: schemas.ResetPasswordRequest, request: Request, db: Ses
     db.commit()
     return {"message": "Password reset successfully"}
 
-@router.post("/login", response_model=schemas.Token)
+@router.post("/login", response_model=schemas.AuthResponse)
 def login(login_data: schemas.LoginRequest, request: Request, db: Session = Depends(get_db)):
     client_ip = request.client.host if request.client else "unknown"
     login_key = f"login:{client_ip}:{login_data.email}"
@@ -127,9 +129,9 @@ def login(login_data: schemas.LoginRequest, request: Request, db: Session = Depe
         )
     login_limiter.reset(login_key)
     access_token = auth.create_access_token(data={"user_id": user.id, "email": user.email})
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {"access_token": access_token, "token_type": "bearer", "user": user}
 
-@router.post("/google", response_model=schemas.Token)
+@router.post("/google", response_model=schemas.AuthResponse)
 def google_login(login_data: schemas.GoogleLoginRequest, db: Session = Depends(get_db)):
     import requests
     token = login_data.token
@@ -186,7 +188,7 @@ def google_login(login_data: schemas.GoogleLoginRequest, db: Session = Depends(g
         db.refresh(user)
         
     access_token = auth.create_access_token(data={"user_id": user.id, "email": user.email})
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {"access_token": access_token, "token_type": "bearer", "user": user}
 
 @router.get("/me", response_model=schemas.UserOut)
 def get_me(current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):

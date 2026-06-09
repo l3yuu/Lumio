@@ -2,7 +2,7 @@ from datetime import datetime
 import os
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from ..database import get_db
@@ -13,6 +13,17 @@ from ..ratelimit import modules_limiter
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "uploads")
 
 router = APIRouter(prefix="/api/modules", tags=["modules"])
+
+
+def get_source_media_type(filename: Optional[str]) -> str:
+    if not filename:
+        return "application/octet-stream"
+    ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
+    return {
+        "pdf": "application/pdf",
+        "txt": "text/plain",
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    }.get(ext, "application/octet-stream")
 
 @router.get("", response_model=List[schemas.ModuleOut])
 def get_modules(current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
@@ -84,7 +95,9 @@ def create_module(
         subject=subject,
         user_id=current_user.id,
         source_content=extracted_text if extracted_text else None,
-        source_filename=file_filename if file_filename else None
+        source_filename=file_filename if file_filename else None,
+        source_file_data=file_bytes if file_bytes else None,
+        source_file_mime=get_source_media_type(file_filename) if file_filename else None
     )
     db.add(db_module)
     db.commit()
@@ -120,6 +133,26 @@ def create_module(
     db.commit()
     db.refresh(db_module)
     return db_module
+
+
+@router.put("/{module_id}/score", response_model=schemas.ModuleOut)
+def update_module_score(
+    module_id: int,
+    body: schemas.ModuleScoreUpdate,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    module = db.query(models.Module).filter(
+        models.Module.id == module_id,
+        models.Module.user_id == current_user.id
+    ).first()
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found")
+
+    module.last_score = body.score
+    db.commit()
+    db.refresh(module)
+    return module
 
 @router.delete("/{module_id}")
 def delete_module(module_id: int, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
@@ -169,22 +202,20 @@ def get_module_file(
     ).first()
     if not module:
         raise HTTPException(status_code=404, detail="Module not found")
+    if module.source_file_data:
+        return Response(
+            content=module.source_file_data,
+            media_type=module.source_file_mime or get_source_media_type(module.source_filename),
+            headers={"Content-Disposition": f'inline; filename="{module.source_filename or "file"}"'}
+        )
+
     if not module.source_file_path or not os.path.exists(module.source_file_path):
         raise HTTPException(status_code=404, detail="Source file not available")
-
-    media_type = "application/octet-stream"
-    if module.source_filename:
-        ext = module.source_filename.lower().rsplit(".", 1)[-1] if "." in module.source_filename else ""
-        media_type = {
-            "pdf": "application/pdf",
-            "txt": "text/plain",
-            "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        }.get(ext, "application/octet-stream")
 
     return FileResponse(
         path=module.source_file_path,
         filename=module.source_filename or "file",
-        media_type=media_type
+        media_type=module.source_file_mime or get_source_media_type(module.source_filename)
     )
 
 

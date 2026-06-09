@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Mail, Eye, EyeOff, Check, AlertTriangle } from 'lucide-react';
 import type { View, AuthTab, User, UserResponse } from '../../types';
@@ -73,6 +73,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
   const [slideDir, setSlideDir]         = useState(1);
   const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
   const [cooldownLeft, setCooldownLeft] = useState(0);
+  const googleInitialized = useRef(false);
+
 
   // Countdown timer for rate-limit cooldown
   useEffect(() => {
@@ -97,6 +99,21 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
     setToast({ type, message });
     setTimeout(() => setToast(null), 3200);
   };
+
+  const completeLogin = useCallback((token: string, userData?: UserResponse) => {
+    if (userData) {
+      onLoginSuccess(mapUser(userData), token);
+      return;
+    }
+
+    fetch(`${API_BASE_URL}/api/auth/me`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    .then(res => res.json())
+    .then(data => {
+      onLoginSuccess(mapUser(data), token);
+    });
+  }, [onLoginSuccess]);
 
   const handleAuthSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -135,13 +152,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
         return;
       }
       
-      fetch(`${API_BASE_URL}/api/auth/me`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      .then(res => res.json())
-      .then(userData => {
-        onLoginSuccess(mapUser(userData), token);
-      });
+      completeLogin(token, data.user);
     })
     .catch(err => {
       if (err instanceof HttpError && err.status === 429) setCooldownUntil(Date.now() + 30000);
@@ -214,15 +225,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
       }
       return res.json();
     })
-    .then(() => {
-      const token = pendingToken;
-      fetch(`${API_BASE_URL}/api/auth/me`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      .then(res => res.json())
-      .then(userData => {
-        onLoginSuccess(mapUser(userData), token);
-      });
+    .then(data => {
+      const token = data.access_token || pendingToken;
+      completeLogin(token, data.user);
     })
     .catch(err => {
       if (err instanceof HttpError && err.status === 429) setCooldownUntil(Date.now() + 30000);
@@ -247,19 +252,13 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
     .then(data => {
       if (!data) return;
       const token = data.access_token;
-      fetch(`${API_BASE_URL}/api/auth/me`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      .then(res => res.json())
-      .then(userData => {
-        onLoginSuccess(mapUser(userData), token);
-      });
+      completeLogin(token, data.user);
     })
     .catch(err => {
       setLoading(false);
       showToast('error', err.message);
     });
-  }, [onLoginSuccess]);
+  }, [completeLogin]);
 
   useEffect(() => {
     if (screen !== 'login' && screen !== 'signup') return;
@@ -276,10 +275,16 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
     }
 
     const initializeGoogleSignIn = () => {
+      if (googleInitialized.current) return;
       const google = (window as GoogleWindow).google;
       if (google && google.accounts) {
         try {
           const client_id = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+          if (!client_id) {
+            console.error("Missing VITE_GOOGLE_CLIENT_ID. Google Sign-In requires an OAuth Web client ID.");
+            return;
+          }
+          googleInitialized.current = true;
           google.accounts.id.initialize({
             client_id: client_id,
             callback: handleGoogleCredentialResponse,
@@ -297,6 +302,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
             });
           }
         } catch (e) {
+          googleInitialized.current = false;
           console.error("Failed to initialize Google Sign-In:", e);
         }
       }
@@ -318,6 +324,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
 
     return () => clearInterval(timer);
   }, [screen, handleGoogleCredentialResponse]);
+
 
   const formContent = () => {
     /* ── Forgot sent ── */
