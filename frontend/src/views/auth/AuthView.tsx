@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Mail, Eye, EyeOff, Check, AlertTriangle } from 'lucide-react';
 import type { View, AuthTab, User, UserResponse } from '../../types';
@@ -19,6 +19,14 @@ const mapUser = (data: UserResponse): User => ({
 });
 
 type AuthScreen = 'login' | 'signup' | 'verify' | 'forgot' | 'forgot-sent' | 'reset';
+
+class HttpError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
 
 interface AuthViewProps {
   authTab: AuthTab;
@@ -50,6 +58,21 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
   const [verifyEmail, setVerifyEmail]   = useState('');
   const [screen, setScreen]             = useState<AuthScreen>(authTab === 'signup' ? 'signup' : 'login');
   const [slideDir, setSlideDir]         = useState(1);
+  const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
+  const [cooldownLeft, setCooldownLeft] = useState(0);
+
+  // Countdown timer for rate-limit cooldown
+  useEffect(() => {
+    if (cooldownUntil === null) return;
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000));
+      setCooldownLeft(left);
+      if (left <= 0) setCooldownUntil(null);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [cooldownUntil]);
 
   const go = (next: AuthScreen, dir = 1) => {
     setSlideDir(dir);
@@ -81,11 +104,11 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
       body: JSON.stringify(payload)
     })
     .then(async res => {
-      const err = await res.json().catch(() => null);
+      const data = await res.json().catch(() => null);
       if (!res.ok) {
-        throw new Error(err?.detail || 'Authentication failed');
+        throw new HttpError(data?.detail || 'Authentication failed', res.status);
       }
-      return err;
+      return data;
     })
     .then(data => {
       if (!data) return;
@@ -108,6 +131,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
       });
     })
     .catch(err => {
+      if (err instanceof HttpError && err.status === 429) setCooldownUntil(Date.now() + 30000);
       setLoading(false);
       showToast('error', err.message);
     });
@@ -122,9 +146,18 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: resetEmail })
     })
-    .then(res => res.json())
+    .then(async res => {
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new HttpError(data?.detail || 'Request failed', res.status);
+      }
+      return res.json();
+    })
     .then(() => go('forgot-sent', 1))
-    .catch(() => go('forgot-sent', 1));
+    .catch(err => {
+      if (err instanceof HttpError && err.status === 429) setCooldownUntil(Date.now() + 30000);
+      showToast('error', err.message);
+    });
   };
 
   const handleResetSubmit = (e: React.FormEvent) => {
@@ -136,15 +169,21 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: resetEmail, code: resetCode, new_password: resetPassword })
     })
-    .then(res => {
-      if (!res.ok) return res.json().then(err => { throw new Error(err.detail); });
+    .then(async res => {
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new HttpError(data?.detail || 'Reset failed', res.status);
+      }
       return res.json();
     })
     .then(() => {
       setResetMessage('Password reset successfully!');
       setTimeout(() => go('login', 1), 2000);
     })
-    .catch(err => alert(err.message));
+    .catch(err => {
+      if (err instanceof HttpError && err.status === 429) setCooldownUntil(Date.now() + 30000);
+      showToast('error', err.message);
+    });
   };
 
   const handleVerifySubmit = (e: React.FormEvent) => {
@@ -155,8 +194,11 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: verifyEmail, code: verifyCode })
     })
-    .then(res => {
-      if (!res.ok) return res.json().then(err => { throw new Error(err.detail); });
+    .then(async res => {
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new HttpError(data?.detail || 'Verification failed', res.status);
+      }
       return res.json();
     })
     .then(() => {
@@ -169,7 +211,10 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
         onLoginSuccess(mapUser(userData), token);
       });
     })
-    .catch(err => alert(err.message));
+    .catch(err => {
+      if (err instanceof HttpError && err.status === 429) setCooldownUntil(Date.now() + 30000);
+      showToast('error', err.message);
+    });
   };
 
   const formContent = () => {
@@ -245,9 +290,10 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
             </div>
             <button
               type="submit"
-              className="inline-flex items-center justify-center w-full gap-2 text-sm p-[0.85rem] rounded-md font-bold transition-all duration-150 border border-transparent cursor-pointer bg-primary text-ink-on-primary hover:bg-primary-hover mt-1"
+              disabled={cooldownLeft > 0}
+              className="inline-flex items-center justify-center w-full gap-2 text-sm p-[0.85rem] rounded-md font-bold transition-all duration-150 border border-transparent cursor-pointer bg-primary text-ink-on-primary hover:bg-primary-hover mt-1 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Verify email
+              {cooldownLeft > 0 ? `Wait ${cooldownLeft}s` : 'Verify email'}
             </button>
           </form>
           <p className="text-ink-muted text-[0.85rem]">
@@ -328,9 +374,10 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
             )}
             <button
               type="submit"
-              className="inline-flex items-center justify-center w-full gap-2 text-sm p-[0.85rem] rounded-md font-bold transition-all duration-150 border border-transparent cursor-pointer bg-primary text-ink-on-primary hover:bg-primary-hover mt-1"
+              disabled={cooldownLeft > 0}
+              className="inline-flex items-center justify-center w-full gap-2 text-sm p-[0.85rem] rounded-md font-bold transition-all duration-150 border border-transparent cursor-pointer bg-primary text-ink-on-primary hover:bg-primary-hover mt-1 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Reset password
+              {cooldownLeft > 0 ? `Wait ${cooldownLeft}s` : 'Reset password'}
             </button>
           </form>
         </>
@@ -372,9 +419,10 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
             </div>
             <button
               type="submit"
-              className="inline-flex items-center justify-center w-full gap-2 text-sm p-[0.85rem] rounded-md font-bold transition-all duration-150 border border-transparent cursor-pointer bg-primary text-ink-on-primary hover:bg-primary-hover mt-1"
+              disabled={cooldownLeft > 0}
+              className="inline-flex items-center justify-center w-full gap-2 text-sm p-[0.85rem] rounded-md font-bold transition-all duration-150 border border-transparent cursor-pointer bg-primary text-ink-on-primary hover:bg-primary-hover mt-1 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Send reset link
+              {cooldownLeft > 0 ? `Wait ${cooldownLeft}s` : 'Send reset link'}
             </button>
           </form>
         </>
@@ -526,10 +574,12 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || cooldownLeft > 0}
             className="inline-flex items-center justify-center w-full gap-2 text-sm p-[0.7rem] rounded-md font-bold transition-all duration-150 border border-transparent cursor-pointer bg-primary text-ink-on-primary hover:bg-primary-hover mt-1 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {loading ? (
+            {cooldownLeft > 0 ? (
+              `Wait ${cooldownLeft}s`
+            ) : loading ? (
               <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />

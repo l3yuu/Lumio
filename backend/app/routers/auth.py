@@ -1,15 +1,22 @@
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Request
 from sqlalchemy.orm import Session
 from ..database import get_db
 from .. import models, schemas, auth
 from ..email import generate_verification_code, send_verification_email, send_welcome_email, send_reset_code_email
+from ..ratelimit import login_limiter, register_limiter, verify_limiter, resend_limiter, forgot_limiter, reset_limiter
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 @router.post("/register", response_model=schemas.RegisterResponse)
-def register(user_in: schemas.UserCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+def register(user_in: schemas.UserCreate, background_tasks: BackgroundTasks, request: Request, db: Session = Depends(get_db)):
+    client_ip = request.client.host if request.client else "unknown"
+    reg_key = f"register:{client_ip}"
+    if register_limiter.is_limited(reg_key):
+        raise HTTPException(status_code=429, detail="Too many registration attempts. Please try again later.")
+
     db_user = db.query(models.User).filter(models.User.email == user_in.email).first()
     if db_user:
+        register_limiter.record(reg_key)
         raise HTTPException(status_code=400, detail="Email already registered")
     
     hashed_pwd = auth.get_password_hash(user_in.password)
@@ -32,13 +39,19 @@ def register(user_in: schemas.UserCreate, background_tasks: BackgroundTasks, db:
     return {"access_token": access_token, "token_type": "bearer", "is_verified": False}
 
 @router.post("/verify")
-def verify(body: schemas.VerifyRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+def verify(body: schemas.VerifyRequest, background_tasks: BackgroundTasks, request: Request, db: Session = Depends(get_db)):
+    client_ip = request.client.host if request.client else "unknown"
+    verify_key = f"verify:{client_ip}:{body.email}"
+    if verify_limiter.is_limited(verify_key):
+        raise HTTPException(status_code=429, detail="Too many verification attempts. Please try again later.")
+
     user = db.query(models.User).filter(models.User.email == body.email).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     if user.is_verified:
         return {"message": "Email already verified"}
     if user.verification_code != body.code:
+        verify_limiter.record(verify_key)
         raise HTTPException(status_code=400, detail="Invalid verification code")
     user.is_verified = True
     user.verification_code = None
@@ -47,7 +60,12 @@ def verify(body: schemas.VerifyRequest, background_tasks: BackgroundTasks, db: S
     return {"message": "Email verified successfully"}
 
 @router.post("/resend-code")
-def resend_code(body: schemas.ResendVerificationRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+def resend_code(body: schemas.ResendVerificationRequest, background_tasks: BackgroundTasks, request: Request, db: Session = Depends(get_db)):
+    client_ip = request.client.host if request.client else "unknown"
+    resend_key = f"resend:{client_ip}:{body.email}"
+    if resend_limiter.is_limited(resend_key):
+        raise HTTPException(status_code=429, detail="Too many resend requests. Please try again later.")
+
     user = db.query(models.User).filter(models.User.email == body.email).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -60,7 +78,12 @@ def resend_code(body: schemas.ResendVerificationRequest, background_tasks: Backg
     return {"message": "Verification code resent"}
 
 @router.post("/forgot-password")
-def forgot_password(body: schemas.ForgotPasswordRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+def forgot_password(body: schemas.ForgotPasswordRequest, background_tasks: BackgroundTasks, request: Request, db: Session = Depends(get_db)):
+    client_ip = request.client.host if request.client else "unknown"
+    forgot_key = f"forgot:{client_ip}:{body.email}"
+    if forgot_limiter.is_limited(forgot_key):
+        raise HTTPException(status_code=429, detail="Too many password reset requests. Please try again later.")
+
     user = db.query(models.User).filter(models.User.email == body.email).first()
     if not user:
         return {"message": "If that email exists, a reset code has been sent"}
@@ -71,9 +94,15 @@ def forgot_password(body: schemas.ForgotPasswordRequest, background_tasks: Backg
     return {"message": "If that email exists, a reset code has been sent"}
 
 @router.post("/reset-password")
-def reset_password(body: schemas.ResetPasswordRequest, db: Session = Depends(get_db)):
+def reset_password(body: schemas.ResetPasswordRequest, request: Request, db: Session = Depends(get_db)):
+    client_ip = request.client.host if request.client else "unknown"
+    reset_key = f"reset:{client_ip}:{body.email}"
+    if reset_limiter.is_limited(reset_key):
+        raise HTTPException(status_code=429, detail="Too many reset attempts. Please try again later.")
+
     user = db.query(models.User).filter(models.User.email == body.email).first()
     if not user or user.reset_code != body.code:
+        reset_limiter.record(reset_key)
         raise HTTPException(status_code=400, detail="Invalid or expired reset code")
     user.hashed_password = auth.get_password_hash(body.new_password)
     user.reset_code = None
@@ -81,14 +110,22 @@ def reset_password(body: schemas.ResetPasswordRequest, db: Session = Depends(get
     return {"message": "Password reset successfully"}
 
 @router.post("/login", response_model=schemas.Token)
-def login(login_data: schemas.LoginRequest, db: Session = Depends(get_db)):
+def login(login_data: schemas.LoginRequest, request: Request, db: Session = Depends(get_db)):
+    client_ip = request.client.host if request.client else "unknown"
+    login_key = f"login:{client_ip}:{login_data.email}"
+
+    if login_limiter.is_limited(login_key):
+        raise HTTPException(status_code=429, detail="Too many login attempts. Please try again later.")
+
     user = db.query(models.User).filter(models.User.email == login_data.email).first()
     if not user or not auth.verify_password(login_data.password, user.hashed_password):
+        login_limiter.record(login_key)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    login_limiter.reset(login_key)
     access_token = auth.create_access_token(data={"user_id": user.id, "email": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
 
