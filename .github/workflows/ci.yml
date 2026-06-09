@@ -109,6 +109,19 @@ jobs:
       - name: Copy Env Variables to Frontend
         run: cp .vercel/.env.production.local frontend/.env.production
 
+      - name: Verify Env Variables
+        run: |
+          if [ -f frontend/.env.production ]; then
+            echo "Found frontend/.env.production"
+            if grep -q "VITE_GOOGLE_CLIENT_ID" frontend/.env.production; then
+              echo "VITE_GOOGLE_CLIENT_ID is defined in .env.production."
+            else
+              echo "::warning::VITE_GOOGLE_CLIENT_ID is NOT defined in .env.production! Check Vercel Dashboard env settings."
+            fi
+          else
+            echo "::warning::frontend/.env.production was not created!"
+          fi
+
       - name: Build Project Artifacts
         run: vercel build --prod --token=$VERCEL_TOKEN
         env:
