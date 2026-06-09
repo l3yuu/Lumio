@@ -1,12 +1,15 @@
 import secrets
 import smtplib
 import traceback
+import requests
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from fastapi import BackgroundTasks
 from .config import settings
 
 SMTP_TIMEOUT_SECONDS = 10
+BREVO_TIMEOUT_SECONDS = 10
+BREVO_SEND_URL = "https://api.brevo.com/v3/smtp/email"
 
 
 def _send_smtp_email(user_email: str, subject: str, html_content: str, log_label: str):
@@ -33,6 +36,55 @@ def _send_smtp_email(user_email: str, subject: str, html_content: str, log_label
         print(f"[SMTP ERROR] Failed to send {log_label} to {user_email}")
         print(f"[SMTP ERROR] {type(e).__name__}: {e}")
         print(traceback.format_exc())
+
+
+def _send_brevo_email(user_email: str, subject: str, html_content: str, log_label: str):
+    print(
+        f"[BREVO MAIL SENDER] Sending {log_label} to {user_email} "
+        f"from {settings.MAIL_FROM}; console_email={settings.USE_CONSOLE_EMAIL}"
+    )
+
+    payload = {
+        "sender": {
+            "name": settings.MAIL_FROM_NAME,
+            "email": settings.MAIL_FROM,
+        },
+        "to": [{"email": user_email}],
+        "subject": subject,
+        "htmlContent": html_content,
+    }
+    headers = {
+        "api-key": settings.BREVO_API_KEY,
+        "content-type": "application/json",
+    }
+
+    try:
+        response = requests.post(
+            BREVO_SEND_URL,
+            json=payload,
+            headers=headers,
+            timeout=BREVO_TIMEOUT_SECONDS,
+        )
+        if response.status_code >= 400:
+            print(f"[BREVO ERROR] Failed to send {log_label} to {user_email}")
+            print(f"[BREVO ERROR] HTTP {response.status_code}: {response.text}")
+            return
+        print(f"[BREVO MAIL SENDER] {log_label} successfully sent to {user_email}")
+    except Exception as e:
+        print(f"[BREVO ERROR] Failed to send {log_label} to {user_email}")
+        print(f"[BREVO ERROR] {type(e).__name__}: {e}")
+        print(traceback.format_exc())
+
+
+def _has_email_provider() -> bool:
+    return bool(settings.BREVO_API_KEY or settings.SMTP_HOST)
+
+
+def _send_email(user_email: str, subject: str, html_content: str, log_label: str):
+    if settings.BREVO_API_KEY:
+        _send_brevo_email(user_email, subject, html_content, log_label)
+        return
+    _send_smtp_email(user_email, subject, html_content, log_label)
 
 def send_welcome_email_sync(user_email: str, user_name: str):
     subject = "Welcome to Lumio!"
@@ -62,7 +114,7 @@ def send_welcome_email_sync(user_email: str, user_name: str):
     </html>
     """
 
-    if settings.USE_CONSOLE_EMAIL or not settings.SMTP_HOST:
+    if settings.USE_CONSOLE_EMAIL or not _has_email_provider():
         print("\n" + "="*80)
         print(f"[CONSOLE MAIL SENDER] Welcome Email triggered for: {user_email}")
         print(f"Recipient Name: {user_name}")
@@ -71,7 +123,7 @@ def send_welcome_email_sync(user_email: str, user_name: str):
         print("="*80 + "\n")
         return
 
-    _send_smtp_email(user_email, subject, html_content, "Welcome email")
+    _send_email(user_email, subject, html_content, "Welcome email")
 
 def generate_verification_code() -> str:
     return f"{secrets.randbelow(1000000):06d}"
@@ -98,7 +150,7 @@ def send_verification_email_sync(user_email: str, user_name: str, code: str):
     </html>
     """
 
-    if settings.USE_CONSOLE_EMAIL or not settings.SMTP_HOST:
+    if settings.USE_CONSOLE_EMAIL or not _has_email_provider():
         print("\n" + "="*80)
         print(f"[CONSOLE MAIL SENDER] Verification Email triggered for: {user_email}")
         print(f"Recipient Name: {user_name}")
@@ -108,7 +160,7 @@ def send_verification_email_sync(user_email: str, user_name: str, code: str):
         print("="*80 + "\n")
         return
 
-    _send_smtp_email(user_email, subject, html_content, "Verification email")
+    _send_email(user_email, subject, html_content, "Verification email")
 
 def send_verification_email(background_tasks: BackgroundTasks, user_email: str, user_name: str, code: str):
     send_verification_email_sync(user_email, user_name, code)
@@ -134,12 +186,12 @@ def send_reset_code_email_sync(user_email: str, user_name: str, code: str):
       </body>
     </html>
     """
-    if settings.USE_CONSOLE_EMAIL or not settings.SMTP_HOST:
+    if settings.USE_CONSOLE_EMAIL or not _has_email_provider():
         print("\n" + "="*80)
         print(f"[CONSOLE MAIL SENDER] Reset code for {user_email}: {code}")
         print("="*80 + "\n")
         return
-    _send_smtp_email(user_email, subject, html_content, "Reset code email")
+    _send_email(user_email, subject, html_content, "Reset code email")
 
 def send_reset_code_email(background_tasks: BackgroundTasks, user_email: str, user_name: str, code: str):
     send_reset_code_email_sync(user_email, user_name, code)
@@ -170,7 +222,7 @@ def send_group_invite_email_sync(user_email: str, user_name: str, inviter_name: 
     </html>
     """
 
-    if settings.USE_CONSOLE_EMAIL or not settings.SMTP_HOST:
+    if settings.USE_CONSOLE_EMAIL or not _has_email_provider():
         print("\n" + "="*80)
         print(f"[CONSOLE MAIL SENDER] Group Invite Email triggered for: {user_email}")
         print(f"Recipient Name: {user_name}")
@@ -181,7 +233,7 @@ def send_group_invite_email_sync(user_email: str, user_name: str, inviter_name: 
         print("="*80 + "\n")
         return
 
-    _send_smtp_email(user_email, subject, html_content, "Group invite email")
+    _send_email(user_email, subject, html_content, "Group invite email")
 
 def send_group_invite_email(background_tasks: BackgroundTasks, user_email: str, user_name: str, inviter_name: str, group_name: str):
     background_tasks.add_task(send_group_invite_email_sync, user_email, user_name, inviter_name, group_name)
