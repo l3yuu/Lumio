@@ -1,9 +1,38 @@
 import secrets
 import smtplib
+import traceback
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from fastapi import BackgroundTasks
 from .config import settings
+
+SMTP_TIMEOUT_SECONDS = 10
+
+
+def _send_smtp_email(user_email: str, subject: str, html_content: str, log_label: str):
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = f"{settings.MAIL_FROM_NAME} <{settings.MAIL_FROM}>"
+    msg["To"] = user_email
+    msg.attach(MIMEText(html_content, "html"))
+
+    print(
+        f"[SMTP MAIL SENDER] Sending {log_label} to {user_email} "
+        f"via {settings.SMTP_HOST}:{settings.SMTP_PORT} "
+        f"from {settings.MAIL_FROM}; console_email={settings.USE_CONSOLE_EMAIL}"
+    )
+
+    try:
+        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS) as server:
+            server.starttls()
+            if settings.SMTP_USER and settings.SMTP_PASSWORD:
+                server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+            server.sendmail(settings.MAIL_FROM, [user_email], msg.as_string())
+        print(f"[SMTP MAIL SENDER] {log_label} successfully sent to {user_email}")
+    except Exception as e:
+        print(f"[SMTP ERROR] Failed to send {log_label} to {user_email}")
+        print(f"[SMTP ERROR] {type(e).__name__}: {e}")
+        print(traceback.format_exc())
 
 def send_welcome_email_sync(user_email: str, user_name: str):
     subject = "Welcome to Lumio!"
@@ -42,24 +71,7 @@ def send_welcome_email_sync(user_email: str, user_name: str):
         print("="*80 + "\n")
         return
 
-    # Real SMTP email sending
-    try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"] = f"{settings.MAIL_FROM_NAME} <{settings.MAIL_FROM}>"
-        msg["To"] = user_email
-
-        part = MIMEText(html_content, "html")
-        msg.attach(part)
-
-        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
-            server.starttls()
-            if settings.SMTP_USER and settings.SMTP_PASSWORD:
-                server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-            server.sendmail(settings.MAIL_FROM, [user_email], msg.as_string())
-        print(f"[SMTP MAIL SENDER] Welcome email successfully sent to {user_email}")
-    except Exception as e:
-        print(f"[SMTP MAIL SENDER] Failed to send SMTP email to {user_email}: {e}")
+    _send_smtp_email(user_email, subject, html_content, "Welcome email")
 
 def generate_verification_code() -> str:
     return f"{secrets.randbelow(1000000):06d}"
@@ -96,23 +108,7 @@ def send_verification_email_sync(user_email: str, user_name: str, code: str):
         print("="*80 + "\n")
         return
 
-    try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"] = f"{settings.MAIL_FROM_NAME} <{settings.MAIL_FROM}>"
-        msg["To"] = user_email
-
-        part = MIMEText(html_content, "html")
-        msg.attach(part)
-
-        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
-            server.starttls()
-            if settings.SMTP_USER and settings.SMTP_PASSWORD:
-                server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-            server.sendmail(settings.MAIL_FROM, [user_email], msg.as_string())
-        print(f"[SMTP MAIL SENDER] Verification email successfully sent to {user_email}")
-    except Exception as e:
-        print(f"[SMTP MAIL SENDER] Failed to send verification email to {user_email}: {e}")
+    _send_smtp_email(user_email, subject, html_content, "Verification email")
 
 def send_verification_email(background_tasks: BackgroundTasks, user_email: str, user_name: str, code: str):
     background_tasks.add_task(send_verification_email_sync, user_email, user_name, code)
@@ -143,21 +139,7 @@ def send_reset_code_email_sync(user_email: str, user_name: str, code: str):
         print(f"[CONSOLE MAIL SENDER] Reset code for {user_email}: {code}")
         print("="*80 + "\n")
         return
-    try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"] = f"{settings.MAIL_FROM_NAME} <{settings.MAIL_FROM}>"
-        msg["To"] = user_email
-        part = MIMEText(html_content, "html")
-        msg.attach(part)
-        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
-            server.starttls()
-            if settings.SMTP_USER and settings.SMTP_PASSWORD:
-                server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-            server.sendmail(settings.MAIL_FROM, [user_email], msg.as_string())
-        print(f"[SMTP MAIL SENDER] Reset code sent to {user_email}")
-    except Exception as e:
-        print(f"[SMTP MAIL SENDER] Failed to send reset code to {user_email}: {e}")
+    _send_smtp_email(user_email, subject, html_content, "Reset code email")
 
 def send_reset_code_email(background_tasks: BackgroundTasks, user_email: str, user_name: str, code: str):
     background_tasks.add_task(send_reset_code_email_sync, user_email, user_name, code)
@@ -199,23 +181,7 @@ def send_group_invite_email_sync(user_email: str, user_name: str, inviter_name: 
         print("="*80 + "\n")
         return
 
-    try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"] = f"{settings.MAIL_FROM_NAME} <{settings.MAIL_FROM}>"
-        msg["To"] = user_email
-
-        part = MIMEText(html_content, "html")
-        msg.attach(part)
-
-        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
-            server.starttls()
-            if settings.SMTP_USER and settings.SMTP_PASSWORD:
-                server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-            server.sendmail(settings.MAIL_FROM, [user_email], msg.as_string())
-        print(f"[SMTP MAIL SENDER] Group invite email successfully sent to {user_email}")
-    except Exception as e:
-        print(f"[SMTP MAIL SENDER] Failed to send group invite email to {user_email}: {e}")
+    _send_smtp_email(user_email, subject, html_content, "Group invite email")
 
 def send_group_invite_email(background_tasks: BackgroundTasks, user_email: str, user_name: str, inviter_name: str, group_name: str):
     background_tasks.add_task(send_group_invite_email_sync, user_email, user_name, inviter_name, group_name)
