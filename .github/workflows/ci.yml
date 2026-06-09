@@ -109,17 +109,13 @@ jobs:
 
       - name: Write frontend .env.production from GitHub Secrets
         run: |
-          cat > frontend/.env.production << EOF
+          cat > frontend/.env.production << 'EOF'
           VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }}
           VITE_WS_BASE_URL=${{ secrets.VITE_WS_BASE_URL }}
           VITE_GOOGLE_CLIENT_ID=${{ secrets.VITE_GOOGLE_CLIENT_ID }}
           EOF
-          echo "Generated frontend/.env.production:"
-          cat frontend/.env.production
-
-      - name: Build frontend
-        run: npm run build
-        working-directory: frontend
+          echo "Generated frontend/.env.production (keys only):"
+          grep -o '^[^=]*' frontend/.env.production
 
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
@@ -131,7 +127,14 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
-      - name: Deploy to Vercel
+      - name: Build with Vercel (uses our .env.production)
+        run: vercel build --prod --token=$VERCEL_TOKEN
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy prebuilt output to Vercel
         run: vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -147,5 +150,6 @@ jobs:
           curl -f -X POST "$RENDER_DEPLOY_HOOK_URL"
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+
 
 
