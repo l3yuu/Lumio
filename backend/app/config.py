@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     MAIL_FROM: str = "noreply@lumio.study"
     MAIL_FROM_NAME: str = "Lumio Study"
     USE_CONSOLE_EMAIL: bool = True
+    GEMINI_API_KEY: str = ""
 
     class Config:
         env_file = ".env"

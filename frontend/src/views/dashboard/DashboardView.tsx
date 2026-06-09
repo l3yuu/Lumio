@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trophy, Zap } from 'lucide-react';
-import type { User, Module, StudyGroup, GroupQuizSession, GroupQuizRank, DashboardTab, View, StudyQuest, ExamDeadline, ExamDeadlineResponse, StudyGroupResponse } from '../../types';
+import { Trophy, Zap, AlertTriangle } from 'lucide-react';
+import type { User, Module, StudyGroup, GroupInvitation, GroupQuizSession, GroupQuizRank, DashboardTab, View, StudyQuest, ExamDeadline, ExamDeadlineResponse, StudyGroupResponse, Notification } from '../../types';
 
 import { DashboardSidebar } from './DashboardSidebar';
 import { OverviewPanel } from './OverviewPanel';
@@ -11,6 +11,7 @@ import { ToolsPanel } from './ToolsPanel';
 import { SettingsPanel } from './SettingsPanel';
 import { QuizPanel } from './QuizPanel';
 import { CalendarPanel } from './CalendarPanel';
+import { NotificationsPanel } from './NotificationsPanel';
 import { FlashcardsTool } from '../tools/FlashcardsTool';
 import { EssayGraderTool } from '../tools/EssayGraderTool';
 import { CondenserTool } from '../tools/CondenserTool';
@@ -37,14 +38,47 @@ interface DashboardViewProps {
   isSidebarCollapsed: boolean;
   setView: (view: View) => void;
   handleLogout: () => void;
+  invitations: GroupInvitation[];
+  onAcceptInvitation: (id: number) => void;
+  onDeclineInvitation: (id: number) => void;
+  notifications: Notification[];
+  onMarkNotificationRead: (id: number) => void;
+  onMarkAllNotificationsRead: () => void;
+  onRefreshNotifications: () => void;
+  onFileDropped?: (file: File) => void;
 }
+
+const defaultHeatmap = [
+  { label: 'Mon', hours: 0, level: 0 }, { label: 'Tue', hours: 0, level: 0 },
+  { label: 'Wed', hours: 0, level: 0 }, { label: 'Thu', hours: 0, level: 0 },
+  { label: 'Fri', hours: 0, level: 0 }, { label: 'Sat', hours: 0, level: 0 },
+  { label: 'Sun', hours: 0, level: 0 }, { label: 'Mon', hours: 0, level: 0 },
+  { label: 'Tue', hours: 0, level: 0 }, { label: 'Wed', hours: 0, level: 0 },
+  { label: 'Thu', hours: 0, level: 0 }, { label: 'Fri', hours: 0, level: 0 },
+  { label: 'Sat', hours: 0, level: 0 }, { label: 'Sun', hours: 0, level: 0 }
+];
+
+const defaultStudyTime = {
+  "Biology": 0,
+  "Economics": 0,
+  "Mathematics": 0,
+  "General Study": 0
+};
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   user, setUser, modules, groups, setModules, setGroups, setIsUploadOpen, setIsGroupModalOpen,
   studyTools, dashboardTab, setDashboardTab, selectedGroupId, setSelectedGroupId,
   activeQuizModule, setActiveQuizModule, isSidebarCollapsed: isCollapsed, setView, handleLogout,
+  invitations, onAcceptInvitation, onDeclineInvitation,
+  notifications, onMarkNotificationRead, onMarkAllNotificationsRead, onRefreshNotifications,
+  onFileDropped,
 }) => {
   const [activeTool, setActiveTool] = useState<ActiveTool | null>(null);
+  const [moduleToDelete, setModuleToDelete] = useState<Module | null>(null);
+  const [moduleScores, setModuleScores] = useState<{ [moduleId: number]: string }>(() => {
+    const stored = localStorage.getItem('lumio-module-scores');
+    return stored ? JSON.parse(stored) : {};
+  });
 
   // Wrap setDashboardTab so switching away from 'tools' clears the active inline tool
   const handleSetDashboardTab = (tab: DashboardTab) => {
@@ -57,21 +91,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     if (v === 'tools') setActiveTool(null);
     else setView(v);
   };
-  const [level, setLevel] = useState<number>(() => {
-    const saved = localStorage.getItem('lumio_user_level');
-    return saved ? parseInt(saved, 10) : 1;
-  });
-  const [xp, setXp] = useState<number>(() => {
-    const saved = localStorage.getItem('lumio_user_xp');
-    return saved ? parseInt(saved, 10) : 0;
-  });
-  const [quizHistory, setQuizHistory] = useState<number[]>(() => {
-    const saved = localStorage.getItem('lumio_quiz_history');
-    return saved ? JSON.parse(saved) : [65, 80, 70, 95, 75, 90];
-  });
+  const [level, setLevel] = useState<number>(user.level || 1);
+  const [xp, setXp] = useState<number>(user.xp || 0);
+  const [quizHistory, setQuizHistory] = useState<number[]>(user.quizHistory || []);
   const [insightsTab, setInsightsTab] = useState<'performance' | 'time'>('performance');
-
-  useEffect(() => { localStorage.setItem('lumio_quiz_history', JSON.stringify(quizHistory)); }, [quizHistory]);
 
   const drawQuizHistoryPath = () => {
     if (quizHistory.length < 2) return null;
@@ -97,77 +120,209 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     { id: 'change_school', text: 'Set your school in settings tab', points: 30, actionType: 'custom' }
   ];
 
-  const [quests, setQuests] = useState<StudyQuest[]>(() => {
-    const savedQuests = localStorage.getItem('lumio_quests');
-    const savedDate = localStorage.getItem('lumio_quests_date');
-    const todayStr = new Date().toDateString();
-    if (savedQuests && savedDate === todayStr) {
-      try { return JSON.parse(savedQuests) as StudyQuest[]; }
-      catch (e) { console.error('Failed to parse saved quests', e); }
+  const [quests, setQuests] = useState<StudyQuest[]>(user.quests || []);
+
+  useEffect(() => {
+    if (user) {
+      setLevel(user.level || 1);
+      setXp(user.xp || 0);
+      setQuizHistory(user.quizHistory || []);
+      setQuests(user.quests || []);
     }
-    const shuffled = [...questPool].sort(() => 0.5 - Math.random());
-    const selected = shuffled.slice(0, 3).map(q => ({ ...q, completed: false }));
-    localStorage.setItem('lumio_quests_date', todayStr);
-    localStorage.setItem('lumio_quests', JSON.stringify(selected));
-    return selected;
-  });
+  }, [user]);
 
   const [showLevelUp, setShowLevelUp] = useState(false);
   const [questToast, setQuestToast] = useState<{ text: string; points: number } | null>(null);
 
-  useEffect(() => { localStorage.setItem('lumio_user_level', level.toString()); }, [level]);
-  useEffect(() => { localStorage.setItem('lumio_user_xp', xp.toString()); }, [xp]);
-  useEffect(() => { localStorage.setItem('lumio_quests', JSON.stringify(quests)); }, [quests]);
+  const syncProfile = (updatedFields: Partial<User>) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    const payload: any = {};
+    if (updatedFields.level !== undefined) payload.level = updatedFields.level;
+    if (updatedFields.xp !== undefined) payload.xp = updatedFields.xp;
+    if (updatedFields.streak !== undefined) payload.streak = updatedFields.streak;
+    if (updatedFields.quizzesCount !== undefined) payload.quizzes_count = updatedFields.quizzesCount;
+    if (updatedFields.quizHistory !== undefined) payload.quiz_history = updatedFields.quizHistory;
+    if (updatedFields.studyTime !== undefined) payload.study_time = updatedFields.studyTime;
+    if (updatedFields.heatmapData !== undefined) payload.heatmap_data = updatedFields.heatmapData;
+    if (updatedFields.focusAreas !== undefined) payload.focus_areas = updatedFields.focusAreas;
+    if (updatedFields.spacedRecall !== undefined) payload.spaced_recall = updatedFields.spacedRecall;
+    if (updatedFields.quests !== undefined) payload.quests = updatedFields.quests;
+    if (updatedFields.questsDate !== undefined) payload.quests_date = updatedFields.questsDate;
+
+    fetch('http://127.0.0.1:8000/api/auth/profile', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(payload)
+    })
+    .then(res => {
+      if (!res.ok) throw new Error('Failed to update profile');
+      return res.json();
+    })
+    .then(data => {
+      setUser({
+        name: data.name,
+        email: data.email,
+        avatar: data.avatar,
+        school: data.school,
+        username: data.username,
+        bio: data.bio,
+        gradeLevel: data.grade_level,
+        studyGoal: data.study_goal,
+        studyLanguage: data.study_language,
+        streakGoal: data.streak_goal,
+        timezone: data.timezone,
+        is_verified: data.is_verified,
+        level: data.level,
+        xp: data.xp,
+        streak: data.streak,
+        quizzesCount: data.quizzes_count,
+        quizHistory: data.quiz_history,
+        studyTime: data.study_time,
+        heatmapData: data.heatmap_data,
+        focusAreas: data.focus_areas,
+        spacedRecall: data.spaced_recall,
+        quests: data.quests,
+        questsDate: data.quests_date,
+        lastCheckIn: data.last_check_in,
+      });
+    })
+    .catch(err => console.error('Error syncing profile:', err));
+  };
+
+  const handleStreakCheckIn = () => {
+    const todayStr = new Date().toDateString();
+    if (user.lastCheckIn === todayStr) return;
+    
+    const newStreak = (user.streak !== undefined ? user.streak : 5) + 1;
+    let newXp = xp + 10;
+    let newLevel = level;
+    const xpNeeded = newLevel * 100;
+    if (newXp >= xpNeeded) {
+      newLevel += 1;
+      newXp = newXp - xpNeeded;
+      setShowLevelUp(true);
+      setLevel(newLevel);
+    }
+    setXp(newXp);
+    
+    syncProfile({
+      streak: newStreak,
+      level: newLevel,
+      xp: newXp,
+      lastCheckIn: todayStr
+    });
+    showQuestToast("Daily Check-in Complete!", 10);
+  };
+
+  const handleLogStudyHour = (dayIndex: number) => {
+    const currentHeatmap = [...(user.heatmapData || defaultHeatmap)];
+    
+    if (dayIndex < 0 || dayIndex >= currentHeatmap.length) return;
+    
+    const dayObj = { ...currentHeatmap[dayIndex] };
+    if (dayObj.hours >= 8) return;
+    
+    dayObj.hours += 1;
+    if (dayObj.hours === 0) dayObj.level = 0;
+    else if (dayObj.hours <= 2) dayObj.level = 1;
+    else if (dayObj.hours <= 4) dayObj.level = 2;
+    else if (dayObj.hours <= 6) dayObj.level = 3;
+    else dayObj.level = 4;
+    
+    currentHeatmap[dayIndex] = dayObj;
+    
+    const currentStudyTime = { ...(user.studyTime || defaultStudyTime) };
+    currentStudyTime["General Study"] = (currentStudyTime["General Study"] || 0) + 1;
+    
+    syncProfile({
+      heatmapData: currentHeatmap,
+      studyTime: currentStudyTime
+    });
+  };
+
+  useEffect(() => {
+    const todayStr = new Date().toDateString();
+    if (!user.quests || user.quests.length === 0 || user.questsDate !== todayStr) {
+      const shuffled = [...questPool].sort(() => 0.5 - Math.random());
+      const selected = shuffled.slice(0, 3).map(q => ({ ...q, completed: false }));
+      setQuests(selected);
+      syncProfile({ quests: selected, questsDate: todayStr });
+    }
+  }, []);
 
   const showQuestToast = (text: string, points: number) => {
     setQuestToast({ text, points });
     setTimeout(() => setQuestToast(null), 3000);
   };
 
-  const gainXp = (points: number) => {
-    setXp(prevXp => {
-      const newXp = prevXp + points;
-      const xpNeeded = level * 100;
-      if (newXp >= xpNeeded) {
-        setLevel(l => l + 1);
-        setShowLevelUp(true);
-        return newXp - xpNeeded;
-      }
-      return newXp;
+  const gainXp = (points: number, updatedQuests: StudyQuest[]) => {
+    let newXp = xp + points;
+    let newLevel = level;
+    const xpNeeded = newLevel * 100;
+    
+    if (newXp >= xpNeeded) {
+      newLevel += 1;
+      newXp = newXp - xpNeeded;
+      setShowLevelUp(true);
+      setLevel(newLevel);
+    }
+    setXp(newXp);
+    
+    syncProfile({
+      level: newLevel,
+      xp: newXp,
+      quests: updatedQuests
     });
+  };
+
+  const checkAndCompleteQuest = (
+    currentQuests: StudyQuest[],
+    actionType: 'ask_ai' | 'view_settings' | 'complete_quiz' | 'study_group' | 'custom',
+    customId?: string
+  ): { updatedQuests: StudyQuest[]; pointsGained: number } | null => {
+    const targetQuestIndex = currentQuests.findIndex(q =>
+      (customId ? q.id === customId : q.actionType === actionType) && !q.completed
+    );
+    if (targetQuestIndex === -1) return null;
+    const updated = [...currentQuests];
+    updated[targetQuestIndex] = { ...updated[targetQuestIndex], completed: true };
+    const quest = updated[targetQuestIndex];
+    return { updatedQuests: updated, pointsGained: quest.points };
   };
 
   const completeQuest = (actionType: 'ask_ai' | 'view_settings' | 'complete_quiz' | 'study_group' | 'custom', customId?: string) => {
-    setQuests(prevQuests => {
-      const targetQuestIndex = prevQuests.findIndex(q =>
-        (customId ? q.id === customId : q.actionType === actionType) && !q.completed
-      );
-      if (targetQuestIndex === -1) return prevQuests;
-      const updated = [...prevQuests];
-      updated[targetQuestIndex] = { ...updated[targetQuestIndex], completed: true };
-      const quest = updated[targetQuestIndex];
-      gainXp(quest.points);
-      showQuestToast(quest.text, quest.points);
-      return updated;
-    });
+    const result = checkAndCompleteQuest(quests, actionType, customId);
+    if (!result) return;
+    
+    const { updatedQuests, pointsGained } = result;
+    setQuests(updatedQuests);
+    
+    const completedQuestText = updatedQuests.find((q, idx) => q.completed && !quests[idx]?.completed)?.text || "";
+    showQuestToast(completedQuestText, pointsGained);
+    gainXp(pointsGained, updatedQuests);
   };
 
   const handleToggleQuest = (id: string) => {
-    setQuests(prevQuests => {
-      const quest = prevQuests.find(q => q.id === id);
-      if (!quest || quest.completed) return prevQuests;
-      const updated = prevQuests.map(q => q.id === id ? { ...q, completed: true } : q);
-      gainXp(quest.points);
-      showQuestToast(quest.text, quest.points);
-      return updated;
-    });
+    const quest = quests.find(q => q.id === id);
+    if (!quest || quest.completed) return;
+    
+    const updated = quests.map(q => q.id === id ? { ...q, completed: true } : q);
+    setQuests(updated);
+    showQuestToast(quest.text, quest.points);
+    gainXp(quest.points, updated);
   };
 
   const handleRollNewQuests = () => {
     const shuffled = [...questPool].sort(() => 0.5 - Math.random());
     const selected = shuffled.slice(0, 3).map(q => ({ ...q, completed: false }));
+    const todayStr = new Date().toDateString();
     setQuests(selected);
-    localStorage.setItem('lumio_quests_date', new Date().toDateString());
+    syncProfile({ quests: selected, questsDate: todayStr });
   };
 
   const calculateDaysRemaining = (targetDateStr: string) => {
@@ -320,22 +475,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [notifSounds, setNotifSounds] = useState(false);
   const [notifEmails, setNotifEmails] = useState(true);
 
-  const spacedRepetitionList = [
-    { id: 1, name: 'Cell Biology & Genetics - Chapter 3', subject: 'Biology', dueIn: '2 hours', progress: 85 },
-    { id: 2, name: 'Introduction to Microeconomics', subject: 'Economics', dueIn: '1 day', progress: 60 },
-    { id: 3, name: 'Calculus I - Integration Outlines', subject: 'Mathematics', dueIn: '3 days', progress: 45 }
-  ];
-
-  const heatmapData = [
-    { label: 'Mon', hours: 3, level: 2 }, { label: 'Tue', hours: 0, level: 0 },
-    { label: 'Wed', hours: 5, level: 3 }, { label: 'Thu', hours: 2, level: 1 },
-    { label: 'Fri', hours: 1, level: 1 }, { label: 'Sat', hours: 0, level: 0 },
-    { label: 'Sun', hours: 4, level: 3 }, { label: 'Mon', hours: 2, level: 1 },
-    { label: 'Tue', hours: 6, level: 4 }, { label: 'Wed', hours: 1, level: 1 },
-    { label: 'Thu', hours: 3, level: 2 }, { label: 'Fri', hours: 4, level: 3 },
-    { label: 'Sat', hours: 0, level: 0 }, { label: 'Sun', hours: 5, level: 4 }
-  ];
-
   const getActivityColor = (level: number) => {
     switch (level) {
       case 0: return 'rgba(255, 255, 255, 0.04)';
@@ -403,9 +542,53 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     });
     setQuizScore(score);
     setShowQuizResults(true);
-    completeQuest('complete_quiz');
+
+    if (!isGroupQuizMode) {
+      const storedScores = localStorage.getItem('lumio-module-scores');
+      const scoresObj = storedScores ? JSON.parse(storedScores) : {};
+      scoresObj[activeQuizModule.id] = `${score}/${activeQuizModule.questions.length}`;
+      localStorage.setItem('lumio-module-scores', JSON.stringify(scoresObj));
+      setModuleScores(scoresObj);
+    }
+    
     const percent = Math.round((score / activeQuizModule.questions.length) * 100);
-    setQuizHistory(prev => [...prev, percent]);
+    const newHistory = [...quizHistory, percent];
+    setQuizHistory(newHistory);
+    
+    const newQuizzesCount = (user.quizzesCount || 0) + 1;
+    
+    const result = checkAndCompleteQuest(quests, 'complete_quiz');
+    if (result) {
+      const { updatedQuests, pointsGained } = result;
+      setQuests(updatedQuests);
+      
+      const completedQuestText = updatedQuests.find((q, idx) => q.completed && !quests[idx]?.completed)?.text || "";
+      showQuestToast(completedQuestText, pointsGained);
+      
+      let newXp = xp + pointsGained;
+      let newLevel = level;
+      const xpNeeded = newLevel * 100;
+      if (newXp >= xpNeeded) {
+        newLevel += 1;
+        newXp = newXp - xpNeeded;
+        setShowLevelUp(true);
+        setLevel(newLevel);
+      }
+      setXp(newXp);
+      
+      syncProfile({
+        level: newLevel,
+        xp: newXp,
+        quests: updatedQuests,
+        quizHistory: newHistory,
+        quizzesCount: newQuizzesCount
+      });
+    } else {
+      syncProfile({
+        quizHistory: newHistory,
+        quizzesCount: newQuizzesCount
+      });
+    }
 
     if (isGroupQuizMode && selectedGroupId !== null) {
       const totalQuestions = activeQuizModule.questions.length;
@@ -437,6 +620,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   };
 
   const handleDeleteModule = (id: number) => {
+    const targetModule = modules.find(m => m.id === id);
+    if (targetModule) {
+      setModuleToDelete(targetModule);
+    }
+  };
+
+  const confirmDeleteModule = () => {
+    if (!moduleToDelete) return;
+    const id = moduleToDelete.id;
+
+    // Clean up score
+    const storedScores = localStorage.getItem('lumio-module-scores');
+    if (storedScores) {
+      const scoresObj = JSON.parse(storedScores);
+      delete scoresObj[id];
+      localStorage.setItem('lumio-module-scores', JSON.stringify(scoresObj));
+      setModuleScores(scoresObj);
+    }
+
     const token = localStorage.getItem('token');
     if (token) {
       fetch(`http://127.0.0.1:8000/api/modules/${id}`, {
@@ -447,6 +649,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         if (!res.ok) throw new Error('Failed to delete module');
         setModules(modules.filter(m => m.id !== id));
         if (activeQuizModule?.id === id) setActiveQuizModule(null);
+        setModuleToDelete(null);
       })
       .catch(err => {
         console.error('Error deleting module:', err);
@@ -455,6 +658,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     } else {
       setModules(modules.filter(m => m.id !== id));
       if (activeQuizModule?.id === id) setActiveQuizModule(null);
+      setModuleToDelete(null);
     }
   };
 
@@ -539,6 +743,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           setActiveQuizModule={handleExitQuiz}
           user={user}
           completeQuest={completeQuest}
+          invitationCount={invitations.length}
         />
       </div>
 
@@ -609,8 +814,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     aiSearchQuery={aiSearchQuery}
                     aiResponse={aiResponse}
                     isAiLoading={isAiLoading}
-                    spacedRepetitionList={spacedRepetitionList}
-                    heatmapData={heatmapData}
+                    spacedRepetitionList={user.spacedRecall || []}
+                    heatmapData={user.heatmapData || defaultHeatmap}
                     subjects={subjects}
                     pathData={pathData}
                     setInsightsTab={setInsightsTab}
@@ -628,6 +833,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     handleRollNewQuests={handleRollNewQuests}
                     handleAiSearch={handleAiSearch}
                     getActivityColor={getActivityColor}
+                    handleStreakCheckIn={handleStreakCheckIn}
+                    handleLogStudyHour={handleLogStudyHour}
                   />
                 )}
 
@@ -641,6 +848,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     startQuiz={startQuiz}
                     handleDeleteModule={handleDeleteModule}
                     setIsUploadOpen={setIsUploadOpen}
+                    moduleScores={moduleScores}
+                    onFileDropped={onFileDropped}
                   />
                 )}
 
@@ -653,6 +862,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     startGroupQuiz={startGroupQuiz}
                     completeQuest={completeQuest}
                     setIsGroupModalOpen={setIsGroupModalOpen}
+                    modules={modules}
+                    setGroups={setGroups}
+                    invitations={invitations}
+                    onAcceptInvitation={onAcceptInvitation}
+                    onDeclineInvitation={onDeclineInvitation}
                   />
                 )}
 
@@ -665,6 +879,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     startGroupQuiz={startGroupQuiz}
                     completeQuest={completeQuest}
                     setIsGroupModalOpen={setIsGroupModalOpen}
+                    modules={modules}
+                    setGroups={setGroups}
+                    invitations={invitations}
+                    onAcceptInvitation={onAcceptInvitation}
+                    onDeclineInvitation={onDeclineInvitation}
                   />
                 )}
 
@@ -688,6 +907,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     setNewExamPriority={setNewExamPriority}
                     handleAddExam={handleAddExam}
                     handleDeleteExam={handleDeleteExam}
+                  />
+                )}
+
+                {dashboardTab === 'notifications' && selectedGroupId === null && (
+                  <NotificationsPanel
+                    notifications={notifications}
+                    invitations={invitations}
+                    onAcceptInvitation={onAcceptInvitation}
+                    onDeclineInvitation={onDeclineInvitation}
+                    onMarkAsRead={onMarkNotificationRead}
+                    onMarkAllAsRead={onMarkAllNotificationsRead}
+                    onRefresh={onRefreshNotifications}
                   />
                 )}
 
@@ -766,6 +997,54 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <button onClick={() => setShowLevelUp(false)} className="btn btn-primary relative z-2 w-full py-3 text-[0.9rem] font-bold rounded-xl h-auto border-0 cursor-pointer transition-all duration-200 hover:bg-primary-hover hover:-translate-y-0.5 hover:shadow-glow-primary-btn-hover">
                     Keep Studying
                   </button>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <AnimatePresence>
+            {moduleToDelete && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-[rgba(5,5,5,0.7)] backdrop-blur-sm z-10000 flex items-center justify-center p-4"
+              >
+                <motion.div
+                  initial={{ scale: 0.95, y: 20 }}
+                  animate={{ scale: 1, y: 0 }}
+                  exit={{ scale: 0.95, y: 20 }}
+                  transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+                  className="bg-card border border-line rounded-2xl p-6 max-w-md w-full shadow-2xl relative overflow-hidden"
+                >
+                  <div className="flex gap-4">
+                    <div className="bg-danger/10 text-danger p-3 rounded-full h-12 w-12 flex items-center justify-center shrink-0 border border-danger-line">
+                      <AlertTriangle size={24} />
+                    </div>
+                    <div className="flex flex-col gap-1 w-full text-left">
+                      <h3 className="text-xl font-bold text-ink">Delete Study Module?</h3>
+                      <p className="text-sm text-ink-muted leading-relaxed mt-2">
+                        Are you sure you want to delete <span className="font-semibold text-ink">"{moduleToDelete.name}"</span>? This will permanently remove the study module and all of its generated quiz questions. This action cannot be undone.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 justify-end mt-6">
+                    <button
+                      type="button"
+                      onClick={() => setModuleToDelete(null)}
+                      className="inline-flex items-center justify-center py-2.5 px-5 rounded-xl font-semibold text-sm transition-all duration-200 cursor-pointer bg-transparent border border-line text-ink hover:bg-input hover:border-line-strong select-none"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={confirmDeleteModule}
+                      className="inline-flex items-center justify-center py-2.5 px-5 rounded-xl font-semibold text-sm transition-all duration-200 cursor-pointer bg-danger text-white border border-danger hover:bg-danger/90 hover:shadow-[0_4px_12px_rgba(239,68,68,0.2)] select-none"
+                    >
+                      Delete Module
+                    </button>
+                  </div>
                 </motion.div>
               </motion.div>
             )}

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List, Dict, Set, Any
 import json
 import jwt
@@ -21,17 +21,115 @@ def get_groups(current_user: models.User = Depends(auth.get_current_user), db: S
 def create_group(group_in: schemas.StudyGroupCreate, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     db_group = models.StudyGroup(name=group_in.name, creator_id=current_user.id)
     db_group.members.append(current_user)
+    db.add(db_group)
+    db.flush()  # flush so db_group.id is available for invitations
     
-    # Add other invited members
+    # Send invitations to other members instead of adding directly
     for email in group_in.members:
         invited_user = db.query(models.User).filter(models.User.email == email.strip()).first()
-        if invited_user and invited_user not in db_group.members:
-            db_group.members.append(invited_user)
+        if invited_user and invited_user != current_user and invited_user not in db_group.members:
+            invitation = models.GroupInvitation(
+                group_id=db_group.id,
+                inviter_id=current_user.id,
+                invitee_id=invited_user.id,
+                status='pending',
+                created_at=datetime.utcnow()
+            )
+            db.add(invitation)
+            notif = models.Notification(
+                user_id=invited_user.id,
+                type="group_invite",
+                title=f"Group Invitation from {current_user.name}",
+                message=f"You've been invited to join \"{group_in.name}\"",
+                related_type="invitation"
+            )
+            db.add(notif)
             
-    db.add(db_group)
     db.commit()
     db.refresh(db_group)
     return db_group
+
+@router.get("/invitations", response_model=List[schemas.GroupInvitationOut])
+def get_my_invitations(
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    invitations = db.query(models.GroupInvitation).options(
+        joinedload(models.GroupInvitation.inviter),
+        joinedload(models.GroupInvitation.group)
+    ).filter(
+        models.GroupInvitation.invitee_id == current_user.id,
+        models.GroupInvitation.status == 'pending'
+    ).all()
+    return [
+        schemas.GroupInvitationOut(
+            id=inv.id,
+            group_id=inv.group_id,
+            group_name=inv.group.name,
+            inviter_name=inv.inviter.name,
+            inviter_avatar=inv.inviter.avatar,
+            status=inv.status,
+            created_at=inv.created_at.strftime("%b %d, %Y")
+        )
+        for inv in invitations
+    ]
+
+
+@router.post("/invitations/{invitation_id}/accept", response_model=schemas.StudyGroupOut)
+def accept_invitation(
+    invitation_id: int,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    invitation = db.query(models.GroupInvitation).filter(
+        models.GroupInvitation.id == invitation_id,
+        models.GroupInvitation.invitee_id == current_user.id,
+        models.GroupInvitation.status == 'pending'
+    ).first()
+    if not invitation:
+        raise HTTPException(status_code=404, detail="Invitation not found")
+
+    group = db.query(models.StudyGroup).filter(models.StudyGroup.id == invitation.group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group no longer exists")
+
+    invitation.status = 'accepted'
+    if current_user not in group.members:
+        group.members.append(current_user)
+
+    # Notify the inviter that their invitation was accepted
+    notif = models.Notification(
+        user_id=invitation.inviter_id,
+        type="group_invite_accepted",
+        title=f"{current_user.name} accepted your invitation",
+        message=f"{current_user.name} has joined \"{group.name}\"",
+        related_id=group.id,
+        related_type="group"
+    )
+    db.add(notif)
+    db.commit()
+    db.refresh(group)
+    return group
+
+
+@router.post("/invitations/{invitation_id}/decline")
+def decline_invitation(
+    invitation_id: int,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    invitation = db.query(models.GroupInvitation).filter(
+        models.GroupInvitation.id == invitation_id,
+        models.GroupInvitation.invitee_id == current_user.id,
+        models.GroupInvitation.status == 'pending'
+    ).first()
+    if not invitation:
+        raise HTTPException(status_code=404, detail="Invitation not found")
+
+    invitation.status = 'declined'
+    db.commit()
+    return {"message": "Invitation declined"}
+
 
 @router.get("/{group_id}", response_model=schemas.StudyGroupOut)
 def get_group(group_id: int, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
@@ -43,23 +141,170 @@ def get_group(group_id: int, current_user: models.User = Depends(auth.get_curren
         raise HTTPException(status_code=403, detail="Not a member of this study group")
     return group
 
-@router.post("/{group_id}/members", response_model=schemas.StudyGroupOut)
-def add_member(group_id: int, member_email: str, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+@router.post("/{group_id}/invite", status_code=201)
+def invite_member(
+    group_id: int,
+    body: schemas.GroupInviteRequest,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
     group = db.query(models.StudyGroup).filter(models.StudyGroup.id == group_id).first()
     if not group:
         raise HTTPException(status_code=404, detail="Study group not found")
     if current_user not in group.members:
-        raise HTTPException(status_code=403, detail="Not authorized to manage this group")
-        
-    invited_user = db.query(models.User).filter(models.User.email == member_email.strip()).first()
-    if not invited_user:
-        raise HTTPException(status_code=404, detail="User with this email not found")
-        
-    if invited_user not in group.members:
-        group.members.append(invited_user)
-        db.commit()
-        db.refresh(group)
-    return group
+        raise HTTPException(status_code=403, detail="Not a member of this group")
+
+    invitee = db.query(models.User).filter(models.User.email == body.email.strip()).first()
+    if not invitee:
+        raise HTTPException(status_code=404, detail="No user found with that email")
+    if invitee.id == current_user.id:
+        raise HTTPException(status_code=400, detail="You cannot invite yourself")
+    if invitee in group.members:
+        raise HTTPException(status_code=400, detail="User is already a member of this group")
+
+    # Check for existing pending invitation
+    existing = db.query(models.GroupInvitation).filter(
+        models.GroupInvitation.group_id == group_id,
+        models.GroupInvitation.invitee_id == invitee.id,
+        models.GroupInvitation.status == 'pending'
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="An invitation has already been sent to this user")
+
+    invitation = models.GroupInvitation(
+        group_id=group_id,
+        inviter_id=current_user.id,
+        invitee_id=invitee.id,
+        status='pending',
+        created_at=datetime.utcnow()
+    )
+    db.add(invitation)
+
+    # Create notification for the invitee
+    notif = models.Notification(
+        user_id=invitee.id,
+        type="group_invite",
+        title=f"Group Invitation from {current_user.name}",
+        message=f"You've been invited to join \"{group.name}\"",
+        related_id=invitation.id,
+        related_type="invitation"
+    )
+    db.add(notif)
+    db.commit()
+    return {"message": f"Invitation sent to {invitee.name}"}
+
+
+@router.post("/{group_id}/leave")
+def leave_group(
+    group_id: int,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    group = db.query(models.StudyGroup).filter(models.StudyGroup.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Study group not found")
+    if current_user not in group.members:
+        raise HTTPException(status_code=403, detail="You are not a member of this group")
+
+    group.members.remove(current_user)
+
+    # If no members left, delete the group entirely
+    if len(group.members) == 0:
+        db.delete(group)
+
+    db.commit()
+    return {"message": "You have left the group"}
+
+
+@router.get("/{group_id}/members", response_model=schemas.GroupMembersWithPrefsOut)
+def get_group_members_with_prefs(
+    group_id: int,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    group = db.query(models.StudyGroup).filter(models.StudyGroup.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Study group not found")
+    if current_user not in group.members:
+        raise HTTPException(status_code=403, detail="Not a member of this group")
+
+    members_out = []
+    for member in group.members:
+        pref = db.query(models.GroupNotificationPref).filter(
+            models.GroupNotificationPref.group_id == group_id,
+            models.GroupNotificationPref.user_id == member.id
+        ).first()
+        members_out.append(schemas.GroupMemberWithPrefOut(
+            name=member.name,
+            email=member.email,
+            avatar=member.avatar,
+            online=member.online,
+            notifications_enabled=pref.enabled if pref else True
+        ))
+    return schemas.GroupMembersWithPrefsOut(
+        group_id=group.id,
+        group_name=group.name,
+        members=members_out
+    )
+
+
+@router.post("/{group_id}/notifications/toggle", response_model=schemas.GroupNotificationPrefOut)
+def toggle_group_notifications(
+    group_id: int,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    group = db.query(models.StudyGroup).filter(models.StudyGroup.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Study group not found")
+    if current_user not in group.members:
+        raise HTTPException(status_code=403, detail="Not a member of this group")
+
+    pref = db.query(models.GroupNotificationPref).filter(
+        models.GroupNotificationPref.group_id == group_id,
+        models.GroupNotificationPref.user_id == current_user.id
+    ).first()
+
+    if pref:
+        pref.enabled = not pref.enabled
+    else:
+        pref = models.GroupNotificationPref(
+            group_id=group_id,
+            user_id=current_user.id,
+            enabled=False
+        )
+        db.add(pref)
+
+    db.commit()
+    db.refresh(pref)
+    return schemas.GroupNotificationPrefOut(
+        group_id=pref.group_id,
+        enabled=pref.enabled
+    )
+
+
+@router.get("/{group_id}/notification-pref", response_model=schemas.GroupNotificationPrefOut)
+def get_group_notification_pref(
+    group_id: int,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    group = db.query(models.StudyGroup).filter(models.StudyGroup.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Study group not found")
+    if current_user not in group.members:
+        raise HTTPException(status_code=403, detail="Not a member of this group")
+
+    pref = db.query(models.GroupNotificationPref).filter(
+        models.GroupNotificationPref.group_id == group_id,
+        models.GroupNotificationPref.user_id == current_user.id
+    ).first()
+
+    return schemas.GroupNotificationPrefOut(
+        group_id=group_id,
+        enabled=pref.enabled if pref else True
+    )
+
 
 @router.post("/{group_id}/share-module/{module_id}", response_model=schemas.StudyGroupOut)
 def share_module(group_id: int, module_id: int, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
@@ -75,6 +320,18 @@ def share_module(group_id: int, module_id: int, current_user: models.User = Depe
         
     if module not in group.modules:
         group.modules.append(module)
+        # Notify all group members except the sharer
+        for member in group.members:
+            if member.id != current_user.id:
+                notif = models.Notification(
+                    user_id=member.id,
+                    type="module_shared",
+                    title=f"{current_user.name} shared a module",
+                    message=f"\"{module.name}\" shared in \"{group.name}\"",
+                    related_id=module.id,
+                    related_type="module"
+                )
+                db.add(notif)
         db.commit()
         db.refresh(group)
     return group

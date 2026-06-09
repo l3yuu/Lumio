@@ -174,10 +174,10 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({
 
       {!showQuizResults ? (
         <>
-          {activeQuizModule.questions.map((q) => (
+          {activeQuizModule.questions.map((q, index) => (
             <div className="mb-10" key={q.id}>
               <div className="text-xl leading-snug mb-5 font-bold">
-                {q.id}. {q.question}
+                {index + 1}. {q.question}
               </div>
               <div className="flex flex-col gap-3">
                 {q.options.map((option, optIdx) => (
@@ -280,13 +280,13 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({
 
           <div className="text-left mb-12">
             <h5 className="text-[1.2rem] mb-6 border-b border-line pb-2">Question Review</h5>
-            {activeQuizModule.questions.map((q) => {
+            {activeQuizModule.questions.map((q, index) => {
               const selected = selectedAnswers[q.id];
               const correct = q.correctAnswerIndex;
               return (
                 <div className="mb-10" key={q.id}>
                   <div className="text-xl leading-snug mb-5 font-bold text-[1.15rem]">
-                    {q.id}. {q.question}
+                    {index + 1}. {q.question}
                   </div>
                   <div className="flex flex-col gap-3">
                     {q.options.map((option, optIdx) => {

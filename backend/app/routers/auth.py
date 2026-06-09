@@ -129,8 +129,79 @@ def login(login_data: schemas.LoginRequest, request: Request, db: Session = Depe
     access_token = auth.create_access_token(data={"user_id": user.id, "email": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
 
+@router.post("/google", response_model=schemas.Token)
+def google_login(login_data: schemas.GoogleLoginRequest, db: Session = Depends(get_db)):
+    import requests
+    token = login_data.token
+    try:
+        response = requests.get(f"https://oauth2.googleapis.com/tokeninfo?id_token={token}", timeout=10)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Failed to reach Google token validation service: {str(e)}"
+        )
+        
+    if response.status_code != 200:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid Google ID Token"
+        )
+        
+    id_info = response.json()
+    email = id_info.get("email")
+    email_verified = id_info.get("email_verified")
+    name = id_info.get("name")
+    avatar = id_info.get("picture")
+    
+    if not email or email_verified not in (True, "true"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Google account email must be verified"
+        )
+        
+    user = db.query(models.User).filter(models.User.email == email).first()
+    
+    if not user:
+        import secrets
+        random_pwd = secrets.token_hex(16)
+        hashed_pwd = auth.get_password_hash(random_pwd)
+        
+        user = models.User(
+            email=email,
+            hashed_password=hashed_pwd,
+            name=name or email.split("@")[0],
+            avatar=avatar or "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&h=150&q=80",
+            is_verified=True
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    else:
+        # Always sync Google profile photo and display name on every login
+        if avatar:
+            user.avatar = avatar
+        if name:
+            user.name = name
+        db.commit()
+        db.refresh(user)
+        
+    access_token = auth.create_access_token(data={"user_id": user.id, "email": user.email})
+    return {"access_token": access_token, "token_type": "bearer"}
+
 @router.get("/me", response_model=schemas.UserOut)
-def get_me(current_user: models.User = Depends(auth.get_current_user)):
+def get_me(current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    # Reset daily quota if it's a new day
+    from datetime import datetime
+    today_str = datetime.utcnow().strftime("%Y-%m-%d")
+    st = current_user.study_time or {}
+    if not isinstance(st, dict):
+        st = {}
+    if st.get("quota_date") != today_str:
+        st["quota_date"] = today_str
+        st["quota_used"] = 0
+        current_user.study_time = {**st}
+        db.commit()
+        db.refresh(current_user)
     return current_user
 
 @router.put("/profile", response_model=schemas.UserOut)
@@ -159,6 +230,26 @@ def update_profile(user_update: schemas.UserUpdate, current_user: models.User = 
         current_user.level = user_update.level
     if user_update.xp is not None:
         current_user.xp = user_update.xp
+    if user_update.streak is not None:
+        current_user.streak = user_update.streak
+    if user_update.quizzes_count is not None:
+        current_user.quizzes_count = user_update.quizzes_count
+    if user_update.quiz_history is not None:
+        current_user.quiz_history = user_update.quiz_history
+    if user_update.study_time is not None:
+        current_user.study_time = user_update.study_time
+    if user_update.heatmap_data is not None:
+        current_user.heatmap_data = user_update.heatmap_data
+    if user_update.focus_areas is not None:
+        current_user.focus_areas = user_update.focus_areas
+    if user_update.spaced_recall is not None:
+        current_user.spaced_recall = user_update.spaced_recall
+    if user_update.quests is not None:
+        current_user.quests = user_update.quests
+    if user_update.quests_date is not None:
+        current_user.quests_date = user_update.quests_date
+    if user_update.last_check_in is not None:
+        current_user.last_check_in = user_update.last_check_in
         
     db.commit()
     db.refresh(current_user)
@@ -177,3 +268,11 @@ def delete_account(current_user: models.User = Depends(auth.get_current_user), d
     db.delete(current_user)
     db.commit()
     return {"message": "Account deleted"}
+
+@router.post("/heartbeat")
+def heartbeat(current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    """Called periodically by the client to mark the user as online."""
+    from datetime import datetime
+    current_user.last_seen = datetime.utcnow()
+    db.commit()
+    return {"status": "ok"}

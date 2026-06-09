@@ -242,6 +242,51 @@
 .animate-spin-slow { animation: spin-slow 2.5s linear infinite; }
 
 @layer components {
+  /* Button Styles */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    font-size: 0.875rem;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    cursor: pointer;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn-primary {
+    background-color: var(--color-primary);
+    color: var(--color-ink-on-primary);
+    border-color: var(--color-primary);
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background-color: var(--color-primary-hover);
+    border-color: var(--color-primary-hover);
+    box-shadow: var(--shadow-glow-primary-btn);
+  }
+
+  .btn-outline {
+    background-color: transparent;
+    border-color: var(--color-line);
+    color: var(--color-ink);
+  }
+
+  .btn-outline:hover:not(:disabled) {
+    background-color: var(--color-glass-strong);
+    border-color: var(--color-line-strong);
+  }
+
   /* Custom scrollbar for dashboard main content */
   .scrollbar-thin {
     scrollbar-width: thin;

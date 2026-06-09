@@ -90,7 +90,32 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       return res.json();
     })
     .then(data => {
-      setUser({ ...user, ...data });
+      setUser({
+        name: data.name,
+        email: data.email,
+        avatar: data.avatar,
+        school: data.school,
+        username: data.username,
+        bio: data.bio,
+        gradeLevel: data.grade_level,
+        studyGoal: data.study_goal,
+        studyLanguage: data.study_language,
+        streakGoal: data.streak_goal,
+        timezone: data.timezone,
+        is_verified: data.is_verified,
+        level: data.level,
+        xp: data.xp,
+        streak: data.streak,
+        quizzesCount: data.quizzes_count,
+        quizHistory: data.quiz_history,
+        studyTime: data.study_time,
+        heatmapData: data.heatmap_data,
+        focusAreas: data.focus_areas,
+        spacedRecall: data.spaced_recall,
+        quests: data.quests,
+        questsDate: data.quests_date,
+        lastCheckIn: data.last_check_in,
+      });
       completeQuest('custom', 'custom_avatar');
       showToast('success', 'Profile updated successfully!');
     })
@@ -168,7 +193,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
           <div className="flex items-center gap-6 flex-wrap">
             <div className="relative shrink-0">
               {draft.avatar ? (
-                <img src={draft.avatar} alt={draft.name} className="w-20 h-20 rounded-full object-cover border-2 border-primary shadow-[0_0_14px_rgba(62,207,142,0.25)]" />
+                <img src={draft.avatar} alt={draft.name} referrerPolicy="no-referrer" className="w-20 h-20 rounded-full object-cover border-2 border-primary shadow-[0_0_14px_rgba(62,207,142,0.25)]" />
               ) : (
                 <div className="w-20 h-20 rounded-full bg-primary text-ink-on-primary flex items-center justify-center text-3xl font-bold">
                   {draft.name.charAt(0).toUpperCase()}

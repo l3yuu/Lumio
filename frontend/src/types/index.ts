@@ -16,7 +16,18 @@ export type View =
 
 export type AuthTab = 'login' | 'signup';
 
-export type DashboardTab = 'overview' | 'modules' | 'groups' | 'tools' | 'settings' | 'calendar';
+export type DashboardTab = 'overview' | 'modules' | 'groups' | 'tools' | 'settings' | 'calendar' | 'notifications';
+
+export interface Notification {
+  id: number;
+  type: string;
+  title: string;
+  message?: string;
+  related_id?: number;
+  related_type?: string;
+  is_read: boolean;
+  created_at: string;
+}
 
 export interface User {
   name: string;
@@ -31,6 +42,18 @@ export interface User {
   streakGoal?: number;
   timezone?: string;
   is_verified?: boolean;
+  level: number;
+  xp: number;
+  streak?: number;
+  quizzesCount?: number;
+  quizHistory?: number[];
+  studyTime?: { [key: string]: number };
+  heatmapData?: { label: string; hours: number; level: number }[];
+  focusAreas?: { concept: string; subject: string; score: number; desc: string }[];
+  spacedRecall?: { id: number; name: string; subject: string; dueIn: string; progress: number }[];
+  quests?: StudyQuest[];
+  questsDate?: string;
+  lastCheckIn?: string;
 }
 
 export interface QuizQuestion {
@@ -48,11 +71,14 @@ export interface Module {
   questionsCount: number;
   questions: QuizQuestion[];
   subject?: string;
+  sourceFilename?: string;
+  hasSourceFile?: boolean;
 }
 
 export interface GroupMember {
   name: string;
   email: string;
+  avatar?: string;
   online: boolean;
 }
 
@@ -78,6 +104,16 @@ export interface StudyGroup {
   members: GroupMember[];
   modules: Module[];
   quizSessions: GroupQuizSession[];
+}
+
+export interface GroupInvitation {
+  id: number;
+  group_id: number;
+  group_name: string;
+  inviter_name: string;
+  inviter_avatar?: string;
+  status: string;
+  created_at: string;
 }
 
 export interface StudyQuest {
@@ -111,6 +147,8 @@ export interface ModuleResponse {
   date: string;
   size: string;
   subject?: string;
+  source_filename?: string;
+  has_source_file?: boolean;
   questionsCount?: number;
   questions?: QuizQuestionResponse[];
 }
@@ -152,6 +190,18 @@ export interface UserResponse {
   streak_goal?: number;
   timezone?: string;
   is_verified?: boolean;
+  level: number;
+  xp: number;
+  streak?: number;
+  quizzes_count?: number;
+  quiz_history?: number[];
+  study_time?: { [key: string]: number };
+  heatmap_data?: { label: string; hours: number; level: number }[];
+  focus_areas?: { concept: string; subject: string; score: number; desc: string }[];
+  spaced_recall?: { id: number; name: string; subject: string; dueIn: string; progress: number }[];
+  quests?: StudyQuest[];
+  quests_date?: string;
+  last_check_in?: string;
 }
 
 export interface ExamDeadline {

@@ -60,28 +60,20 @@ def run_tests():
     else:
         print(f"Get Profile: FAILED ({r.status_code}) - {r.text}")
 
-    # 5. Create Module & Questions
+    # 5. Create Module via Form Data
     module_payload = {
         "name": "General Chemistry",
         "subject": "Chemistry",
         "size": "2.4 MB",
-        "questions": [
-            {
-                "question": "What is the atomic number of Hydrogen?",
-                "options": ["1", "2", "6", "8"],
-                "correct_answer_index": 0
-            },
-            {
-                "question": "What is the molecular formula of water?",
-                "options": ["CO2", "H2O", "NaCl", "CH4"],
-                "correct_answer_index": 1
-            }
-        ]
+        "text_content": "This is sample chemistry text content."
     }
-    r = requests.post(f"{BASE_URL}/api/modules", json=module_payload, headers=headers)
+    headers_multipart = {
+        "Authorization": f"Bearer {token}"
+    }
+    r = requests.post(f"{BASE_URL}/api/modules", data=module_payload, headers=headers_multipart)
     if r.status_code == 200:
         module_data = r.json()
-        print(f"Create Module: SUCCESS - Created module ID {module_data['id']} with {len(module_data['questions'])} questions")
+        print(f"Create Module: SUCCESS - Created module ID {module_data['id']} with {len(module_data.get('questions', []))} questions")
         module_id = module_data["id"]
     else:
         print(f"Create Module: FAILED ({r.status_code}) - {r.text}")
@@ -94,6 +86,48 @@ def run_tests():
         print(f"Retrieve Modules: SUCCESS - Found {len(modules)} modules")
     else:
         print(f"Retrieve Modules: FAILED ({r.status_code}) - {r.text}")
+
+    # 6a. Register secondary user
+    secondary_email = f"test_sec_{int(time.time())}@example.com"
+    payload_sec = {
+        "email": secondary_email,
+        "password": test_password,
+        "name": "Second Student",
+        "school": "Test University"
+    }
+    r = requests.post(f"{BASE_URL}/api/auth/register", json=payload_sec)
+    if r.status_code != 200:
+        print(f"Register Secondary User: FAILED ({r.status_code}) - {r.text}")
+
+    # 6b. Create Group
+    group_payload = {
+        "name": "Chemistry Study Circle",
+        "members": [secondary_email]
+    }
+    r = requests.post(f"{BASE_URL}/api/groups", json=group_payload, headers=headers)
+    if r.status_code == 200:
+        group_data = r.json()
+        print(f"Create Group: SUCCESS - Created group '{group_data['name']}' with {len(group_data['members'])} members")
+        group_id = group_data["id"]
+    else:
+        print(f"Create Group: FAILED ({r.status_code}) - {r.text}")
+        return
+
+    # 6c. Get Groups
+    r = requests.get(f"{BASE_URL}/api/groups", headers=headers)
+    if r.status_code == 200:
+        groups_list = r.json()
+        print(f"Retrieve Groups: SUCCESS - Found {len(groups_list)} groups")
+    else:
+        print(f"Retrieve Groups: FAILED ({r.status_code}) - {r.text}")
+
+    # 6d. Share Module with Group
+    r = requests.post(f"{BASE_URL}/api/groups/{group_id}/share-module/{module_id}", headers=headers)
+    if r.status_code == 200:
+        group_data = r.json()
+        print(f"Share Module: SUCCESS - Group now has {len(group_data['modules'])} shared modules")
+    else:
+        print(f"Share Module: FAILED ({r.status_code}) - {r.text}")
 
     # 7. Delete Module
     r = requests.delete(f"{BASE_URL}/api/modules/{module_id}", headers=headers)

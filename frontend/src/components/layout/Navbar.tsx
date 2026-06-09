@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sun, Moon, Menu, X, ChevronRight, Sparkles, HelpCircle, Layers, Settings, Bell, FileText, Users, Calendar } from 'lucide-react';
-import type { User, View, AuthTab, DashboardTab, Module } from '../../types';
+import type { User, View, AuthTab, DashboardTab, Module, Notification, GroupInvitation } from '../../types';
 
 interface NavbarProps {
   theme: 'dark' | 'light';
@@ -19,6 +19,12 @@ interface NavbarProps {
   setDashboardTab: (tab: DashboardTab) => void;
   onToggleSidebar: () => void;
   isSidebarCollapsed?: boolean;
+  notifications?: Notification[];
+  invitations?: GroupInvitation[];
+  onMarkNotificationRead?: (id: number) => void;
+  onMarkAllNotificationsRead?: () => void;
+  onAcceptInvitation?: (id: number) => void;
+  onDeclineInvitation?: (id: number) => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -36,6 +42,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   dashboardTab,
   setDashboardTab,
   onToggleSidebar,
+  notifications = [],
+  invitations = [],
+  onMarkNotificationRead,
+  onMarkAllNotificationsRead,
+  onAcceptInvitation,
+  onDeclineInvitation,
 }) => {
   const [notifOpen, setNotifOpen] = React.useState(false);
   const [userMenuOpen, setUserMenuOpen] = React.useState(false);
@@ -191,35 +203,86 @@ export const Navbar: React.FC<NavbarProps> = ({
                   aria-expanded={notifOpen}
                 >
                   <Bell size={20} />
-                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary rounded-full animate-[pulse-green_2s_infinite]"></span>
+                  {(notifications.some(n => !n.is_read) || invitations.length > 0) && (
+                    <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary rounded-full animate-[pulse-green_2s_infinite]"></span>
+                  )}
                 </button>
-                <div className={`absolute top-full left-auto right-0 translate-y-2.5 w-[320px] p-0 bg-app/95 backdrop-blur-2xl border border-line rounded-xl shadow-lg transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] z-[1010] flex flex-col gap-0 ${
+                <div className={`absolute top-full left-auto right-0 translate-y-2.5 w-[360px] p-0 bg-app/95 backdrop-blur-2xl border border-line rounded-xl shadow-lg transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] z-[1010] flex flex-col gap-0 ${
                   notifOpen
                     ? 'opacity-100 visible pointer-events-auto translate-y-1'
                     : 'opacity-0 invisible pointer-events-none'
                 }`}>
-                  <div className="p-2 px-4 pb-3 border-b border-line flex justify-between items-center mb-1 font-semibold text-[0.9rem] text-ink">
+                  <div className="p-3 px-4 border-b border-line flex justify-between items-center font-semibold text-[0.9rem] text-ink">
                     <span>Notifications</span>
-                    <button onClick={() => setNotifOpen(false)} className="bg-transparent border-0 text-primary text-xs cursor-pointer py-0.5 px-1 font-medium transition-opacity duration-150 hover:opacity-80">Mark all as read</button>
+                    <div className="flex gap-2">
+                      {onMarkAllNotificationsRead && (notifications.some(n => !n.is_read) || invitations.length > 0) && (
+                        <button onClick={() => { onMarkAllNotificationsRead(); }} className="bg-transparent border-0 text-primary text-xs cursor-pointer py-0.5 px-1 font-medium transition-opacity duration-150 hover:opacity-80">Mark all as read</button>
+                      )}
+                    </div>
                   </div>
 
-                  <div onClick={() => setNotifOpen(false)} className="p-3 px-4 flex flex-col gap-1 border-b border-line cursor-pointer transition-colors duration-150 hover:bg-glass last:border-b-0">
-                    <div className="text-sm font-semibold text-ink">Alex Johnson posted a new module</div>
-                    <div className="text-xs text-ink-muted">"Limits & Continuity" in Study Circle</div>
-                    <div className="text-[0.7rem] text-ink-muted mt-0.5">10 mins ago</div>
+                  <div className="max-h-[360px] overflow-y-auto">
+                    {/* Pending invitations */}
+                    {invitations.map(inv => (
+                      <div key={`inv-${inv.id}`} className="p-3 px-4 flex flex-col gap-1.5 border-b border-line transition-colors duration-150 hover:bg-glass last:border-b-0">
+                        <div className="text-sm font-semibold text-ink flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-blue-400 shrink-0"></span>
+                          {inv.inviter_name} invited you
+                        </div>
+                        <div className="text-xs text-ink-muted">Join "{inv.group_name}"</div>
+                        <div className="flex gap-2 mt-1">
+                          <button
+                            onClick={() => { onAcceptInvitation?.(inv.id); setNotifOpen(false); }}
+                            className="text-xs font-semibold bg-primary text-ink-on-primary px-2.5 py-1 rounded-lg border-0 cursor-pointer transition-all hover:bg-primary-hover"
+                          >
+                            Accept
+                          </button>
+                          <button
+                            onClick={() => { onDeclineInvitation?.(inv.id); setNotifOpen(false); }}
+                            className="text-xs font-semibold bg-transparent text-ink-muted border border-line px-2.5 py-1 rounded-lg cursor-pointer transition-all hover:text-ink hover:bg-glass"
+                          >
+                            Decline
+                          </button>
+                        </div>
+                        <div className="text-[0.65rem] text-ink-muted mt-0.5">{inv.created_at}</div>
+                      </div>
+                    ))}
+
+                    {/* System notifications */}
+                    {notifications.length === 0 && invitations.length === 0 ? (
+                      <div className="p-6 text-center text-sm text-ink-muted">No notifications yet</div>
+                    ) : (
+                      notifications.slice(0, 10).map(n => (
+                        <div
+                          key={n.id}
+                          onClick={() => {
+                            if (onMarkNotificationRead && !n.is_read) onMarkNotificationRead(n.id);
+                            setNotifOpen(false);
+                          }}
+                          className={`p-3 px-4 flex flex-col gap-0.5 border-b border-line cursor-pointer transition-colors duration-150 hover:bg-glass last:border-b-0 ${!n.is_read ? 'bg-primary-soft/10' : ''}`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className={`text-sm font-semibold ${!n.is_read ? 'text-ink' : 'text-ink-muted'}`}>{n.title}</span>
+                            {!n.is_read && <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0"></span>}
+                          </div>
+                          {n.message && <div className="text-xs text-ink-muted line-clamp-1">{n.message}</div>}
+                          <div className="text-[0.65rem] text-ink-muted/60 mt-0.5">{n.created_at}</div>
+                        </div>
+                      ))
+                    )}
                   </div>
 
-                  <div onClick={() => setNotifOpen(false)} className="p-3 px-4 flex flex-col gap-1 border-b border-line cursor-pointer transition-colors duration-150 hover:bg-glass last:border-b-0">
-                    <div className="text-sm font-semibold text-ink">Sarah Miller finished Chapter 3 Quiz</div>
-                    <div className="text-xs text-ink-muted">Scored 3/3 (100%) in 45s</div>
-                    <div className="text-[0.7rem] text-ink-muted mt-0.5">1 hour ago</div>
-                  </div>
-
-                  <div onClick={() => setNotifOpen(false)} className="p-3 px-4 flex flex-col gap-1 border-b border-line cursor-pointer transition-colors duration-150 hover:bg-glass last:border-b-0">
-                    <div className="text-sm font-semibold text-ink">Upcoming Session: Biology 101</div>
-                    <div className="text-xs text-ink-muted">Group quiz session starts in 15 minutes</div>
-                    <div className="text-[0.7rem] text-ink-muted mt-0.5">2 hours ago</div>
-                  </div>
+                  {/* Footer link to full notifications panel */}
+                  {setDashboardTab && (
+                    <div className="p-2 border-t border-line">
+                      <button
+                        onClick={() => { setView('dashboard'); setDashboardTab('notifications'); setNotifOpen(false); setActiveQuizModule(null); setSelectedGroupId(null); }}
+                        className="w-full text-center text-xs font-medium text-primary bg-transparent border-0 cursor-pointer py-1.5 rounded-lg transition-colors hover:bg-primary-soft"
+                      >
+                        View all notifications
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -237,6 +300,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <img
                       src={user.avatar}
                       alt={user.name}
+                      referrerPolicy="no-referrer"
                       className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm object-cover border-[1.5px] border-line flex-shrink-0"
                     />
                   ) : (
@@ -373,6 +437,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       {([
                         { tab: 'overview' as const, icon: <Layers size={18} />, label: 'Overview Panels' },
                         { tab: 'modules'  as const, icon: <FileText size={18} />, label: 'My Study Modules' },
+                        { tab: 'notifications' as const, icon: <Bell size={18} />, label: 'Notifications' },
                         { tab: 'groups'   as const, icon: <Users size={18} />, label: 'Collaborative Circles' },
                         { tab: 'tools'    as const, icon: <Sparkles size={18} />, label: 'Study Tools' },
                         { tab: 'calendar' as const, icon: <Calendar size={18} />, label: 'Exam Calendar' },

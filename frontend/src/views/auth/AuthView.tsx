@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Mail, Eye, EyeOff, Check, AlertTriangle } from 'lucide-react';
 import type { View, AuthTab, User, UserResponse } from '../../types';
@@ -16,6 +16,18 @@ const mapUser = (data: UserResponse): User => ({
   streakGoal: data.streak_goal,
   timezone: data.timezone,
   is_verified: data.is_verified,
+  level: data.level,
+  xp: data.xp,
+  streak: data.streak,
+  quizzesCount: data.quizzes_count,
+  quizHistory: data.quiz_history,
+  studyTime: data.study_time,
+  heatmapData: data.heatmap_data,
+  focusAreas: data.focus_areas,
+  spacedRecall: data.spaced_recall,
+  quests: data.quests,
+  questsDate: data.quests_date,
+  lastCheckIn: data.last_check_in,
 });
 
 type AuthScreen = 'login' | 'signup' | 'verify' | 'forgot' | 'forgot-sent' | 'reset';
@@ -216,6 +228,95 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
       showToast('error', err.message);
     });
   };
+
+  const handleGoogleCredentialResponse = useCallback((response: { credential: string }) => {
+    setLoading(true);
+    fetch('http://127.0.0.1:8000/api/auth/google', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: response.credential })
+    })
+    .then(async res => {
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new HttpError(data?.detail || 'Google sign in failed', res.status);
+      }
+      return data;
+    })
+    .then(data => {
+      if (!data) return;
+      const token = data.access_token;
+      fetch('http://127.0.0.1:8000/api/auth/me', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      .then(res => res.json())
+      .then(userData => {
+        onLoginSuccess(mapUser(userData), token);
+      });
+    })
+    .catch(err => {
+      setLoading(false);
+      showToast('error', err.message);
+    });
+  }, [onLoginSuccess]);
+
+  useEffect(() => {
+    if (screen !== 'login' && screen !== 'signup') return;
+    
+    interface GoogleWindow extends Window {
+      google?: {
+        accounts: {
+          id: {
+            initialize: (options: { client_id: string; callback: (res: { credential: string }) => void }) => void;
+            renderButton: (element: HTMLElement, options: { theme?: string; size?: string; width?: number; type?: string; shape?: string; text?: string; logo_alignment?: string }) => void;
+          };
+        };
+      };
+    }
+
+    const initializeGoogleSignIn = () => {
+      const google = (window as GoogleWindow).google;
+      if (google && google.accounts) {
+        try {
+          const client_id = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+          google.accounts.id.initialize({
+            client_id: client_id,
+            callback: handleGoogleCredentialResponse,
+          });
+          const btnElem = document.getElementById("google-signin-button");
+          if (btnElem) {
+            google.accounts.id.renderButton(btnElem, {
+              theme: "outline",
+              size: "large",
+              width: btnElem.clientWidth || 380,
+              type: "standard",
+              shape: "rectangular",
+              text: "continue_with",
+              logo_alignment: "left"
+            });
+          }
+        } catch (e) {
+          console.error("Failed to initialize Google Sign-In:", e);
+        }
+      }
+    };
+
+    const google = (window as GoogleWindow).google;
+    if (google && google.accounts) {
+      initializeGoogleSignIn();
+      return;
+    }
+
+    const timer = setInterval(() => {
+      const g = (window as GoogleWindow).google;
+      if (g && g.accounts) {
+        clearInterval(timer);
+        initializeGoogleSignIn();
+      }
+    }, 500);
+
+    return () => clearInterval(timer);
+  }, [screen, handleGoogleCredentialResponse]);
 
   const formContent = () => {
     /* ── Forgot sent ── */
@@ -449,56 +550,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
           </p>
         </div>
 
-        {/* Google */}
-        <button
-          type="button"
-          className="flex items-center justify-center w-full gap-3 text-xs px-3 py-2 rounded-md font-medium transition-all duration-200 border border-line text-ink cursor-pointer bg-card hover:bg-input hover:border-line-strong mb-3"
-          onClick={() => {
-            const googlePayload = {
-              email: 'student@gmail.com',
-              password: 'google_mock_password_123',
-              name: 'Google Student',
-              school: 'State University'
-            };
-            // Try to login, if fails try to register
-            fetch('http://127.0.0.1:8000/api/auth/login', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email: googlePayload.email, password: googlePayload.password })
-            })
-            .then(res => {
-              if (res.ok) return res.json();
-              // Try to register
-              return fetch('http://127.0.0.1:8000/api/auth/register', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(googlePayload)
-              }).then(r => r.json());
-            })
-            .then(data => {
-              const token = data.access_token;
-              fetch('http://127.0.0.1:8000/api/auth/me', {
-                headers: { 'Authorization': `Bearer ${token}` }
-              })
-              .then(res => res.json())
-              .then(userData => {
-                onLoginSuccess(mapUser(userData), token);
-              });
-            })
-            .catch(err => {
-              console.error(err);
-              showToast('error', 'Google login simulation failed');
-            });
-          }}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24">
-            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22c-.87-2.6-2.87-4.53-6.19-4.53z"/>
-            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-          </svg>
-          Continue with Google
-        </button>
+        <div id="google-signin-button" className="w-full flex justify-center mb-3"></div>
 
         <div className="flex items-center text-center text-ink-muted text-xs my-2 before:content-[''] before:flex-1 before:border-b before:border-line after:content-[''] after:flex-1 after:border-b after:border-line">
           <span className="px-3">or</span>

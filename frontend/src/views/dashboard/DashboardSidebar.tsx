@@ -12,15 +12,8 @@ interface DashboardSidebarProps {
   setActiveQuizModule: (mod: Module | null) => void;
   user: User;
   completeQuest: (actionType: 'view_settings') => void;
+  invitationCount: number;
 }
-
-const items: { tab: DashboardTab; icon: React.ReactNode; label: string; matches: (tab: DashboardTab, gid: number | null) => boolean }[] = [
-  { tab: 'overview', icon: <Layers size={18} />, label: 'Overview Panels', matches: (tab, gid) => tab === 'overview' && gid === null },
-  { tab: 'modules', icon: <FileText size={18} />, label: 'My Study Modules', matches: (tab, gid) => tab === 'modules' && gid === null },
-  { tab: 'groups', icon: <Users size={18} />, label: 'Collaborative Circles', matches: (tab, gid) => tab === 'groups' || gid !== null },
-  { tab: 'tools', icon: <Sparkles size={18} />, label: 'Study Tools', matches: (tab, gid) => tab === 'tools' && gid === null },
-  { tab: 'calendar', icon: <Calendar size={18} />, label: 'Exam Calendar', matches: (tab, gid) => tab === 'calendar' && gid === null },
-];
 
 export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
   isCollapsed,
@@ -31,7 +24,15 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
   setActiveQuizModule,
   user,
   completeQuest,
+  invitationCount,
 }) => {
+  const items: { tab: DashboardTab; icon: React.ReactNode; label: string; matches: (tab: DashboardTab, gid: number | null) => boolean; badge: number }[] = [
+    { tab: 'overview', icon: <Layers size={18} />, label: 'Overview Panels', matches: (tab, gid) => tab === 'overview' && gid === null, badge: 0 },
+    { tab: 'modules', icon: <FileText size={18} />, label: 'My Study Modules', matches: (tab, gid) => tab === 'modules' && gid === null, badge: 0 },
+    { tab: 'groups', icon: <Users size={18} />, label: 'Collaborative Circles', matches: (tab, gid) => tab === 'groups' || gid !== null, badge: invitationCount },
+    { tab: 'tools', icon: <Sparkles size={18} />, label: 'Study Tools', matches: (tab, gid) => tab === 'tools' && gid === null, badge: 0 },
+    { tab: 'calendar', icon: <Calendar size={18} />, label: 'Exam Calendar', matches: (tab, gid) => tab === 'calendar' && gid === null, badge: 0 },
+  ];
   const btnClass = (isActive: boolean) =>
     `group flex items-center gap-3 border-0 bg-transparent text-left cursor-pointer transition-all duration-150 rounded-lg no-underline font-medium text-[0.875rem] max-md:w-auto max-md:whitespace-nowrap max-md:py-2.5 max-md:px-4 max-md:shrink-0 max-md:justify-center max-md:text-[0.85rem]
       ${isCollapsed
@@ -44,7 +45,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
       }`;
 
   const iconClass = (isActive: boolean) =>
-    `flex items-center justify-center transition-all duration-150 shrink-0 [&_svg]:shrink-0
+    `relative flex items-center justify-center transition-all duration-150 shrink-0 [&_svg]:shrink-0
       ${isCollapsed
         ? `w-10 h-10 rounded-xl ${isActive ? 'bg-primary-soft text-primary shadow-glow-primary-soft' : 'text-ink-muted group-hover:bg-glass-strong group-hover:text-ink'}`
         : `${isActive ? 'text-primary' : 'text-ink-muted group-hover:text-ink'}`
@@ -73,6 +74,12 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
         >
           <div className={iconClass(item.matches(dashboardTab, selectedGroupId))}>
             {item.icon}
+            {/* Badge for unread count */}
+            {item.badge !== undefined && item.badge > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[0.6rem] font-bold flex items-center justify-center leading-none">
+                {item.badge > 9 ? '9+' : item.badge}
+              </span>
+            )}
           </div>
           <span className={labelClass()}>{item.label}</span>
         </button>

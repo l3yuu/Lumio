@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  Sparkles, HelpCircle, Layers, UploadCloud, Timer
+  Sparkles, HelpCircle, Layers, UploadCloud, Timer, FileText, X, Loader2
 } from 'lucide-react'
 
 import { Navbar } from './components/layout/Navbar'
@@ -23,7 +23,7 @@ import { CondenserTool } from './views/tools/CondenserTool'
 import { PomodoroTool } from './views/tools/PomodoroTool'
 import { DashboardView } from './views/dashboard/DashboardView'
 
-import type { View, AuthTab, DashboardTab, User, Module, StudyGroup, UserResponse, ModuleResponse, QuizQuestionResponse, GroupQuizSessionResponse, GroupQuizRankResponse, StudyGroupResponse } from './types'
+import type { View, AuthTab, DashboardTab, User, Module, StudyGroup, GroupInvitation, UserResponse, ModuleResponse, QuizQuestionResponse, GroupQuizSessionResponse, GroupQuizRankResponse, StudyGroupResponse, Notification } from './types'
 
 const mapUser = (data: UserResponse): User => ({
   name: data.name,
@@ -38,6 +38,18 @@ const mapUser = (data: UserResponse): User => ({
   streakGoal: data.streak_goal,
   timezone: data.timezone,
   is_verified: data.is_verified,
+  level: data.level,
+  xp: data.xp,
+  streak: data.streak,
+  quizzesCount: data.quizzes_count,
+  quizHistory: data.quiz_history,
+  studyTime: data.study_time,
+  heatmapData: data.heatmap_data,
+  focusAreas: data.focus_areas,
+  spacedRecall: data.spaced_recall,
+  quests: data.quests,
+  questsDate: data.quests_date,
+  lastCheckIn: data.last_check_in,
 });
 
 const mapModule = (m: ModuleResponse): Module => ({
@@ -46,6 +58,8 @@ const mapModule = (m: ModuleResponse): Module => ({
   date: m.date,
   size: m.size,
   subject: m.subject || 'General',
+  sourceFilename: m.source_filename,
+  hasSourceFile: m.has_source_file,
   questionsCount: m.questionsCount !== undefined ? m.questionsCount : (m.questions ? m.questions.length : 0),
   questions: m.questions ? m.questions.map((q: QuizQuestionResponse) => ({
     id: q.id,
@@ -58,7 +72,12 @@ const mapModule = (m: ModuleResponse): Module => ({
 const mapGroup = (g: StudyGroupResponse): StudyGroup => ({
   id: g.id,
   name: g.name,
-  members: g.members || [],
+  members: (g.members || []).map(m => ({
+    name: m.name,
+    email: m.email,
+    avatar: m.avatar,
+    online: m.online,
+  })),
   modules: g.modules ? g.modules.map(mapModule) : [],
   quizSessions: g.quiz_sessions ? g.quiz_sessions.map((s: GroupQuizSessionResponse) => ({
     id: s.id,
@@ -112,10 +131,30 @@ function App() {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [newModuleName, setNewModuleName] = useState('');
   const [newModuleContent, setNewModuleContent] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isModalDragOver, setIsModalDragOver] = useState(false);
+  const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
 
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupMember, setNewGroupMember] = useState('');
+
+  // Invitations
+  const [invitations, setInvitations] = useState<GroupInvitation[]>([]);
+
+  // Notifications
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  const fetchNotifications = () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    fetch('http://127.0.0.1:8000/api/notifications', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    .then(res => res.json())
+    .then(data => setNotifications(data))
+    .catch(err => console.error('Error fetching notifications:', err));
+  };
 
   // Modules list
   const [modules, setModules] = useState<Module[]>([
@@ -288,6 +327,20 @@ function App() {
         .then(res => res.json())
         .then(data => setGroups(data.map(mapGroup)))
         .catch(err => console.error('Error fetching groups:', err));
+
+        // Fetch pending invitations
+        fetch('http://127.0.0.1:8000/api/groups/invitations', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        .then(async res => {
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.detail || 'Failed');
+          if (!Array.isArray(data)) throw new Error('Invalid response');
+          setInvitations(data);
+        })
+        .catch(err => console.error('Error fetching invitations:', err));
+
+        fetchNotifications();
       })
       .catch(() => {
         localStorage.removeItem('token');
@@ -317,8 +370,117 @@ function App() {
     .then(res => res.json())
     .then(data => setGroups(data.map(mapGroup)))
     .catch(err => console.error('Error fetching groups:', err));
+
+    // Fetch pending invitations
+    fetch('http://127.0.0.1:8000/api/groups/invitations', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    .then(async res => {
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.detail || 'Failed');
+      if (!Array.isArray(data)) throw new Error('Invalid response');
+      setInvitations(data);
+    })
+    .catch(err => console.error('Error fetching invitations:', err));
+
+    fetchNotifications();
+  };
+
+  // Heartbeat — keeps the current user marked as online every 60s
+  useEffect(() => {
+    if (!user) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    const ping = () =>
+      fetch('http://127.0.0.1:8000/api/auth/heartbeat', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      }).catch(() => {});
+    ping(); // immediate ping on login
+    const id = setInterval(ping, 60_000);
+    return () => clearInterval(id);
+  }, [user]);
+
+  const handleAcceptInvitation = (invitationId: number) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    fetch(`http://127.0.0.1:8000/api/groups/invitations/${invitationId}/accept`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    .then(async res => {
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.detail || 'Failed to accept invitation');
+      return data;
+    })
+    .then(newGroup => {
+      // Add the new group if not already in list
+      setGroups(prev => prev.some(g => g.id === newGroup.id) ? prev.map(g => g.id === newGroup.id ? mapGroup(newGroup) : g) : [mapGroup(newGroup), ...prev]);
+      setInvitations(prev => prev.filter(i => i.id !== invitationId));
+    })
+    .catch(err => alert(err.message));
+  };
+
+  const handleDeclineInvitation = (invitationId: number) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    fetch(`http://127.0.0.1:8000/api/groups/invitations/${invitationId}/decline`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    .then(res => {
+      if (!res.ok) throw new Error('Failed to decline invitation');
+      setInvitations(prev => prev.filter(i => i.id !== invitationId));
+    })
+    .catch(err => alert(err.message));
   };
   
+  const handleMarkNotificationRead = (notificationId: number) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    fetch(`http://127.0.0.1:8000/api/notifications/${notificationId}/read`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    .then(res => {
+      if (!res.ok) throw new Error('Failed to mark as read');
+      setNotifications(prev => prev.map(n => n.id === notificationId ? { ...n, is_read: true } : n));
+    })
+    .catch(err => console.error('Error marking notification as read:', err));
+  };
+
+  const handleMarkAllNotificationsRead = () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    fetch('http://127.0.0.1:8000/api/notifications/read-all', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    .then(res => {
+      if (!res.ok) throw new Error('Failed to mark all as read');
+      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+    })
+    .catch(err => console.error('Error marking all as read:', err));
+  };
+
+  const handleRefreshNotifications = () => {
+    fetchNotifications();
+    // Also refresh invitations
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch('http://127.0.0.1:8000/api/groups/invitations', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      .then(async res => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.detail || 'Failed');
+        if (!Array.isArray(data)) throw new Error('Invalid response');
+        setInvitations(data);
+      })
+      .catch(err => console.error('Error refreshing invitations:', err));
+    }
+  };
+
   // Sync theme to document on every change
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -371,55 +533,96 @@ function App() {
     setView('landing');
   };
 
+  const handleFileSelection = (file: File) => {
+    setSelectedFile(file);
+    if (!newModuleName) {
+      const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+      setNewModuleName(baseName);
+    }
+    if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          setNewModuleContent(event.target.result as string);
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  const handleFileDropped = (file: File) => {
+    handleFileSelection(file);
+    setIsUploadOpen(true);
+  };
+
   // Add a new module
   const handleAddModule = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newModuleName) return;
+    if (!newModuleName || isGeneratingQuiz) return;
 
     const token = localStorage.getItem('token');
     if (!token) return;
 
-    const mockQuestions = [
-      {
-        question: `Based on your module "${newModuleName}": What is the core mechanism outlined in the uploaded text?`,
-        options: ['Optimal efficiency through iteration', 'Random system distribution', 'Linear thermal cooling', 'Static variable constant allocation'],
-        correctAnswerIndex: 0
-      },
-      {
-        question: `According to your document: Which factor is critical to success?`,
-        options: ['Manual input updates', 'Automated study quiz generation', 'External reference imports', 'Zero value configuration defaults'],
-        correctAnswerIndex: 1
-      }
-    ];
+    const formData = new FormData();
+    formData.append('name', newModuleName);
+    formData.append('subject', 'General');
+    
+    if (selectedFile) {
+      formData.append('file', selectedFile);
+      formData.append('size', `${(selectedFile.size / (1024 * 1024)).toFixed(1)} MB`);
+    } else {
+      formData.append('size', `${(Math.random() * 3 + 1).toFixed(1)} MB`);
+    }
 
-    const payload = {
-      name: newModuleName,
-      subject: 'General',
-      size: `${(Math.random() * 3 + 1).toFixed(1)} MB`,
-      questions: mockQuestions
-    };
+    if (newModuleContent) {
+      formData.append('text_content', newModuleContent);
+    }
+
+    setIsGeneratingQuiz(true);
 
     fetch('http://127.0.0.1:8000/api/modules', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify(payload)
+      body: formData
     })
-    .then(res => {
-      if (!res.ok) throw new Error('Failed to create module');
-      return res.json();
+    .then(async res => {
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        if (res.status === 429) {
+          throw new Error(data?.detail || 'Daily quiz generation limit reached.');
+        }
+        throw new Error(data?.detail || 'Failed to create module');
+      }
+      return data;
     })
     .then(newModule => {
       setModules([mapModule(newModule), ...modules]);
       setNewModuleName('');
       setNewModuleContent('');
+      setSelectedFile(null);
       setIsUploadOpen(false);
+
+      // Refetch user profile to update quota state
+      const token = localStorage.getItem('token');
+      if (token) {
+        fetch('http://127.0.0.1:8000/api/auth/me', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        .then(res => res.ok ? res.json() : null)
+        .then(userData => {
+          if (userData) setUser(mapUser(userData));
+        })
+        .catch(err => console.error('Error refreshing user details:', err));
+      }
     })
     .catch(err => {
       console.error(err);
-      alert('Error creating module on backend');
+      alert(err.message || 'Error creating module on backend');
+    })
+    .finally(() => {
+      setIsGeneratingQuiz(false);
     });
   };
 
@@ -488,6 +691,12 @@ function App() {
             setDashboardTab={setDashboardTab}
             onToggleSidebar={handleToggleSidebar}
             isSidebarCollapsed={isSidebarCollapsed}
+            notifications={notifications}
+            invitations={invitations}
+            onMarkNotificationRead={handleMarkNotificationRead}
+            onMarkAllNotificationsRead={handleMarkAllNotificationsRead}
+            onAcceptInvitation={handleAcceptInvitation}
+            onDeclineInvitation={handleDeclineInvitation}
           />
         )}
 
@@ -589,54 +798,180 @@ function App() {
               isSidebarCollapsed={isSidebarCollapsed}
               setView={setView}
               handleLogout={handleLogout}
+              invitations={invitations}
+              onAcceptInvitation={handleAcceptInvitation}
+              onDeclineInvitation={handleDeclineInvitation}
+              notifications={notifications}
+              onMarkNotificationRead={handleMarkNotificationRead}
+              onMarkAllNotificationsRead={handleMarkAllNotificationsRead}
+              onRefreshNotifications={handleRefreshNotifications}
+              onFileDropped={handleFileDropped}
             />
           )}
         </main>
 
         {/* Add Module Modal */}
-        {isUploadOpen && (
-          <div className="fixed inset-0 bg-[rgba(5,5,5,0.7)] backdrop-blur-sm z-3000 flex items-center justify-center p-4">
-            <div className="bg-card border border-line rounded-2xl p-8 max-w-140 w-full shadow-lg">
-              <h3 className="text-2xl mb-6">Upload Study Module</h3>
+        {isUploadOpen && (() => {
+          const isQuotaExceeded = 5 - (user?.studyTime?.quota_used || 0) <= 0;
+          const remainingQuotas = Math.max(0, 5 - (user?.studyTime?.quota_used || 0));
+          return (
+            <div className="fixed inset-0 bg-[rgba(5,5,5,0.7)] backdrop-blur-sm z-3000 flex items-center justify-center p-4">
+              <div className="bg-card border border-line rounded-2xl p-8 max-w-140 w-full shadow-lg max-h-[90vh] flex flex-col">
+                <h3 className="text-2xl mb-6 shrink-0">Upload Study Module</h3>
 
-              <form onSubmit={handleAddModule}>
-                <div className="flex flex-col gap-2 mb-4">
-                  <label className="text-[0.9rem] font-semibold text-ink">Module Name</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. History Midterm Prep"
-                    className="w-full py-2 px-3 bg-input border border-line rounded-md text-ink text-sm transition-all duration-150 outline-none focus:border-primary focus:bg-app"
-                    value={newModuleName}
-                    onChange={(e) => setNewModuleName(e.target.value)}
-                    required
-                  />
-                </div>
+                <form onSubmit={handleAddModule} className="flex flex-col flex-1 overflow-hidden">
+                  <div className="flex-1 overflow-y-auto pr-1 min-h-0 space-y-4 pb-2">
+                    {/* Daily Quota Indicator */}
+                    <div className="p-3.5 bg-app border border-line rounded-xl flex justify-between items-center text-xs">
+                      <span className="text-ink-muted font-medium">Daily AI Generation Quota</span>
+                      <span className={`font-bold ${isQuotaExceeded ? 'text-danger' : 'text-primary'}`}>
+                        {remainingQuotas} / 5 remaining today
+                      </span>
+                    </div>
 
-                <div className="border-2 border-dashed border-line rounded-lg p-8 text-center cursor-pointer bg-app flex flex-col items-center gap-3 mb-6 hover:border-primary" onClick={() => document.getElementById('file-loader')?.click()}>
-                  <UploadCloud size={32} color="var(--primary)" />
-                  <span className="font-semibold text-[0.95rem]">Choose a file or drag it here</span>
-                  <span className="text-[0.8rem] text-ink-muted">PDF, TXT, DOCX up to 10MB</span>
-                  <input type="file" id="file-loader" className="hidden" onChange={() => { if(!newModuleName) setNewModuleName('Uploaded Study Note'); }} />
-                </div>
+                    {isQuotaExceeded && (
+                      <div className="p-3.5 bg-danger-soft border border-danger-line rounded-xl text-xs text-danger font-semibold leading-relaxed">
+                        ⚠️ You have reached your daily limit of 5 quiz generations. Please wait until tomorrow or upgrade to Pro to unlock unlimited study modules.
+                      </div>
+                    )}
 
-                <div className="flex flex-col gap-2 mb-4">
-                  <label className="text-[0.9rem] font-semibold text-ink">Paste Text Content (Optional)</label>
-                  <textarea
-                    placeholder="Paste lecture transcription or syllabus outlines..."
-                    className="w-full py-3 px-4 bg-input border border-line rounded-md text-ink text-sm transition-all duration-150 outline-none focus:border-primary focus:bg-app min-h-25 resize-y"
-                    value={newModuleContent}
-                    onChange={(e) => setNewModuleContent(e.target.value)}
-                  />
-                </div>
+                    <div className="flex flex-col gap-2">
+                      <label className="text-[0.9rem] font-semibold text-ink">Module Name</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. History Midterm Prep"
+                        className="w-full py-2 px-3 bg-input border border-line rounded-md text-ink text-sm transition-all duration-150 outline-none focus:border-primary focus:bg-app disabled:opacity-60 disabled:cursor-not-allowed"
+                        value={newModuleName}
+                        onChange={(e) => setNewModuleName(e.target.value)}
+                        required
+                        disabled={isGeneratingQuiz || isQuotaExceeded}
+                      />
+                    </div>
 
-                <div className="flex gap-4 justify-end mt-6">
-                  <button type="button" onClick={() => setIsUploadOpen(false)} className="inline-flex items-center justify-center gap-2 py-2.5 px-5 rounded-md font-semibold text-sm transition-all duration-200 no-underline cursor-pointer bg-transparent border border-line text-ink hover:bg-input hover:border-line-strong">Cancel</button>
-                  <button type="submit" className="inline-flex items-center justify-center gap-2 py-2.5 px-5 rounded-md font-semibold text-sm transition-all duration-200 no-underline cursor-pointer bg-primary text-ink-on-primary border border-primary hover:bg-primary-hover hover:border-primary-hover hover:shadow-glow-primary-btn">Generate Quiz</button>
-                </div>
-              </form>
+                    <div
+                      onDragOver={(e) => {
+                        if (isGeneratingQuiz || isQuotaExceeded) return;
+                        e.preventDefault();
+                        setIsModalDragOver(true);
+                      }}
+                      onDragLeave={() => {
+                        if (isGeneratingQuiz || isQuotaExceeded) return;
+                        setIsModalDragOver(false);
+                      }}
+                      onDrop={(e) => {
+                        if (isGeneratingQuiz || isQuotaExceeded) return;
+                        e.preventDefault();
+                        setIsModalDragOver(false);
+                        const file = e.dataTransfer.files?.[0];
+                        if (file) handleFileSelection(file);
+                      }}
+                      onClick={() => {
+                        if (!isGeneratingQuiz && !isQuotaExceeded) {
+                          document.getElementById('file-loader')?.click();
+                        }
+                      }}
+                      className={`border-2 border-dashed rounded-xl p-8 text-center bg-app flex flex-col items-center justify-center gap-3 transition-all duration-200 select-none ${
+                        isGeneratingQuiz || isQuotaExceeded
+                          ? 'border-line bg-input opacity-60 cursor-not-allowed'
+                          : isModalDragOver
+                            ? 'border-primary bg-primary-soft/20 scale-[1.01] shadow-glow-primary-soft cursor-pointer'
+                            : selectedFile
+                              ? 'border-primary/50 bg-primary-soft/5 hover:bg-primary-soft/10 hover:border-primary cursor-pointer'
+                              : 'border-line hover:border-primary cursor-pointer'
+                      }`}
+                    >
+                      <input
+                        type="file"
+                        id="file-loader"
+                        className="hidden"
+                        accept=".pdf,.txt,.docx"
+                        disabled={isGeneratingQuiz || isQuotaExceeded}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleFileSelection(file);
+                        }}
+                      />
+                      {selectedFile ? (
+                        <div className="flex flex-col items-center gap-2 w-full">
+                          <div className="flex items-center gap-3 bg-card border border-line rounded-xl p-4 w-full relative">
+                            <div className="bg-primary-soft text-primary p-2.5 rounded-lg">
+                              <FileText size={24} />
+                            </div>
+                            <div className="flex flex-col items-start overflow-hidden text-left pr-8 w-full">
+                              <span className="font-semibold text-sm text-ink truncate w-full">{selectedFile.name}</span>
+                              <span className="text-[0.75rem] text-ink-muted">{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</span>
+                            </div>
+                            {!isGeneratingQuiz && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedFile(null);
+                                }}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 bg-transparent border-0 text-ink-muted hover:text-danger p-1 transition-colors cursor-pointer"
+                                title="Remove file"
+                              >
+                                <X size={18} />
+                              </button>
+                            )}
+                          </div>
+                          <span className="text-[0.75rem] text-primary font-medium">
+                            {isGeneratingQuiz ? 'Generating practice questions using AI...' : 'File attached successfully! Click "Generate Quiz" below to start.'}
+                          </span>
+                        </div>
+                      ) : (
+                        <>
+                          <UploadCloud size={32} color="var(--primary)" />
+                          <span className="font-semibold text-[0.95rem]">Choose a file or drag it here</span>
+                          <span className="text-[0.8rem] text-ink-muted">PDF, TXT, DOCX up to 10MB</span>
+                        </>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <label className="text-[0.9rem] font-semibold text-ink">Paste Text Content (Optional)</label>
+                      <textarea
+                        placeholder="Paste lecture transcription or syllabus outlines..."
+                        className="w-full py-3 px-4 bg-input border border-line rounded-md text-ink text-sm transition-all duration-150 outline-none focus:border-primary focus:bg-app min-h-25 resize-y disabled:opacity-60 disabled:cursor-not-allowed"
+                        value={newModuleContent}
+                        onChange={(e) => setNewModuleContent(e.target.value)}
+                        disabled={isGeneratingQuiz || isQuotaExceeded}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-4 justify-end mt-6 shrink-0 pt-4 border-t border-line">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsUploadOpen(false);
+                        setSelectedFile(null);
+                      }}
+                      disabled={isGeneratingQuiz}
+                      className="inline-flex items-center justify-center gap-2 py-2.5 px-5 rounded-md font-semibold text-sm transition-all duration-200 no-underline cursor-pointer bg-transparent border border-line text-ink hover:bg-input hover:border-line-strong disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isGeneratingQuiz || !newModuleName || isQuotaExceeded}
+                      className="inline-flex items-center justify-center gap-2 py-2.5 px-5 rounded-md font-semibold text-sm transition-all duration-200 no-underline cursor-pointer bg-primary text-ink-on-primary border border-primary hover:bg-primary-hover hover:border-primary-hover hover:shadow-glow-primary-btn disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none"
+                    >
+                      {isGeneratingQuiz ? (
+                        <>
+                          <Loader2 className="animate-spin" size={16} />
+                          Generating...
+                        </>
+                      ) : (
+                        'Generate Quiz'
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Create Group Modal */}
         {isGroupModalOpen && (

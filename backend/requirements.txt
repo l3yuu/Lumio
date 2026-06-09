@@ -11,3 +11,5 @@ pyjwt
 websockets
 email-validator
 requests
+google-genai
+pypdf

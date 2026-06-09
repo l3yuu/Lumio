@@ -1,5 +1,7 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Table, Text, JSON
+import os
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Table, Text, JSON, DateTime
 from sqlalchemy.orm import relationship
+from datetime import datetime
 from .database import Base
 
 # Association Tables
@@ -38,6 +40,44 @@ class User(Base):
     is_verified = Column(Boolean, default=False)
     verification_code = Column(String(6), nullable=True)
     reset_code = Column(String(6), nullable=True)
+    streak = Column(Integer, default=0)
+    quizzes_count = Column(Integer, default=0)
+    quiz_history = Column(JSON, default=lambda: [])
+    study_time = Column(JSON, default=lambda: {
+        "Biology": 0,
+        "Economics": 0,
+        "Mathematics": 0,
+        "General Study": 0
+    })
+    heatmap_data = Column(JSON, default=lambda: [
+        {"label": "Mon", "hours": 0, "level": 0},
+        {"label": "Tue", "hours": 0, "level": 0},
+        {"label": "Wed", "hours": 0, "level": 0},
+        {"label": "Thu", "hours": 0, "level": 0},
+        {"label": "Fri", "hours": 0, "level": 0},
+        {"label": "Sat", "hours": 0, "level": 0},
+        {"label": "Sun", "hours": 0, "level": 0},
+        {"label": "Mon", "hours": 0, "level": 0},
+        {"label": "Tue", "hours": 0, "level": 0},
+        {"label": "Wed", "hours": 0, "level": 0},
+        {"label": "Thu", "hours": 0, "level": 0},
+        {"label": "Fri", "hours": 0, "level": 0},
+        {"label": "Sat", "hours": 0, "level": 0},
+        {"label": "Sun", "hours": 0, "level": 0}
+    ])
+    focus_areas = Column(JSON, default=lambda: [])
+    spaced_recall = Column(JSON, default=lambda: [])
+    quests = Column(JSON, default=lambda: [])
+    quests_date = Column(String(50), default="")
+    last_check_in = Column(String(50), default="")
+    last_seen = Column(DateTime, nullable=True)
+
+    @property
+    def online(self) -> bool:
+        from datetime import datetime, timedelta
+        if self.last_seen is None:
+            return False
+        return datetime.utcnow() - self.last_seen < timedelta(minutes=2)
 
     modules = relationship("Module", back_populates="owner", cascade="all, delete-orphan")
     exams = relationship("ExamDeadline", back_populates="owner", cascade="all, delete-orphan")
@@ -52,6 +92,13 @@ class Module(Base):
     size = Column(String(50), nullable=False)
     subject = Column(String(100), nullable=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    source_content = Column(Text, nullable=True)
+    source_filename = Column(String(255), nullable=True)
+    source_file_path = Column(String(500), nullable=True)
+
+    @property
+    def has_source_file(self) -> bool:
+        return bool(self.source_file_path) and os.path.exists(self.source_file_path)
 
     owner = relationship("User", back_populates="modules")
     questions = relationship("QuizQuestion", back_populates="module", cascade="all, delete-orphan")
@@ -117,3 +164,43 @@ class QuizRanking(Base):
     user_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
 
     session = relationship("QuizSession", back_populates="rankings")
+
+class GroupInvitation(Base):
+    __tablename__ = "group_invitations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    group_id = Column(Integer, ForeignKey('study_groups.id', ondelete='CASCADE'), nullable=False)
+    inviter_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    invitee_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    status = Column(String(20), default='pending')  # pending, accepted, declined
+    created_at = Column(DateTime, nullable=False)
+
+    group = relationship("StudyGroup")
+    inviter = relationship("User", foreign_keys=[inviter_id])
+    invitee = relationship("User", foreign_keys=[invitee_id])
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    type = Column(String(50), nullable=False)  # group_invite, group_invite_accepted, module_shared, quiz_completed, etc.
+    title = Column(String(255), nullable=False)
+    message = Column(Text, nullable=True)
+    related_id = Column(Integer, nullable=True)      # e.g. group_id, invitation_id, module_id
+    related_type = Column(String(50), nullable=True) # e.g. "group", "invitation", "module"
+    is_read = Column(Boolean, default=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    user = relationship("User", foreign_keys=[user_id])
+
+
+class GroupNotificationPref(Base):
+    __tablename__ = "group_notification_prefs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    group_id = Column(Integer, ForeignKey('study_groups.id', ondelete='CASCADE'), nullable=False)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    enabled = Column(Boolean, default=True)
+

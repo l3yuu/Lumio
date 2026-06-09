@@ -39,6 +39,8 @@ interface OverviewPanelProps {
   handleRollNewQuests: () => void;
   handleAiSearch: (e: React.FormEvent) => void;
   getActivityColor: (level: number) => string;
+  handleStreakCheckIn: () => void;
+  handleLogStudyHour: (dayIndex: number) => void;
 }
 
 export const OverviewPanel: React.FC<OverviewPanelProps> = ({
@@ -48,7 +50,9 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
   setInsightsTab, setIsAddingExam, setNewExamTitle, setNewExamSubject, setNewExamDate,
   setNewExamPriority, setAiSearchQuery, setDashboardTab, setSelectedSubject,
   handleAddExam, handleDeleteExam, handleToggleQuest, handleRollNewQuests, handleAiSearch, getActivityColor,
+  handleStreakCheckIn, handleLogStudyHour,
 }) => {
+  const [isCheckInOpen, setIsCheckInOpen] = React.useState(false);
   return (
     <>
       <div className="bg-[linear-gradient(135deg,rgba(62,207,142,0.06)_0%,rgba(6,182,212,0.04)_100%)] border border-line rounded-xl px-7 py-6 mb-2">
@@ -61,19 +65,31 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
       <div className="grid grid-cols-[1.2fr_1fr] gap-6 mb-0 max-md:grid-cols-1">
         <div className="flex flex-col gap-6">
           <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-            <div className="bg-card border border-line rounded-xl flex flex-col gap-1 p-4">
+            <div 
+              onClick={() => setIsCheckInOpen(true)}
+              className="bg-card border border-line rounded-xl flex flex-col gap-1 p-4 cursor-pointer hover:scale-[1.02] hover:border-primary transition-all duration-200 select-none"
+              title="Click to claim your daily check-in"
+            >
               <div className="bg-primary-soft text-primary p-2 rounded-lg w-fit mb-1"><Flame size={16} /></div>
-              <div className="text-2xl font-bold tracking-tight">5</div>
+              <div className="text-2xl font-bold tracking-tight">{user.streak !== undefined ? user.streak : 5}</div>
               <div className="text-[0.7rem] text-ink-muted font-medium uppercase tracking-wider">Day Streak</div>
             </div>
-            <div className="bg-card border border-line rounded-xl flex flex-col gap-1 p-4">
+            <div 
+              onClick={() => setDashboardTab('groups')}
+              className="bg-card border border-line rounded-xl flex flex-col gap-1 p-4 cursor-pointer hover:scale-[1.02] hover:border-primary transition-all duration-200 select-none"
+              title="Click to view Collaborative Circles"
+            >
               <div className="bg-cyan-soft-2 text-accent-cyan p-2 rounded-lg w-fit mb-1"><Users size={16} /></div>
               <div className="text-2xl font-bold tracking-tight">{groupsCount}</div>
               <div className="text-[0.7rem] text-ink-muted font-medium uppercase tracking-wider">Circles</div>
             </div>
-            <div className="bg-card border border-line rounded-xl flex flex-col gap-1 p-4">
+            <div 
+              onClick={() => setDashboardTab('modules')}
+              className="bg-card border border-line rounded-xl flex flex-col gap-1 p-4 cursor-pointer hover:scale-[1.02] hover:border-primary transition-all duration-200 select-none"
+              title="Click to view My Study Modules"
+            >
               <div className="bg-success/10 text-primary p-2 rounded-lg w-fit mb-1"><Trophy size={16} /></div>
-              <div className="text-2xl font-bold tracking-tight">12</div>
+              <div className="text-2xl font-bold tracking-tight">{user.quizzesCount !== undefined ? user.quizzesCount : 12}</div>
               <div className="text-[0.7rem] text-ink-muted font-medium uppercase tracking-wider">Quizzes</div>
             </div>
           </div>
@@ -86,7 +102,12 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
             <div className="flex items-center gap-1.5 flex-wrap">
               {heatmapData.map((data, index) => (
                 <div key={index} className="flex flex-col items-center flex-1 min-w-8">
-                  <div style={{ width: '100%', height: '36px', borderRadius: '6px', background: getActivityColor(data.level), border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', color: data.level > 2 ? '#121212' : 'var(--text-primary)', fontWeight: 'bold', transition: 'all 0.2s ease' }} title={`${data.hours} study hours on ${data.label}`}>
+                  <div 
+                    onClick={() => handleLogStudyHour(index)}
+                    className="cursor-pointer hover:scale-[1.08] hover:shadow-pop transition-all duration-150"
+                    style={{ width: '100%', height: '36px', borderRadius: '6px', background: getActivityColor(data.level), border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', color: data.level > 2 ? '#121212' : 'var(--text-primary)', fontWeight: 'bold' }} 
+                    title={`${data.hours} study hours on ${data.label}. Click to log 1 hour.`}
+                  >
                     {data.hours > 0 && `${data.hours}h`}
                   </div>
                   <span className="text-[0.7rem] text-ink-muted mt-1">{data.label}</span>
@@ -237,21 +258,25 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
                 <p className="text-[0.8rem] text-ink-muted mb-5">Breakdown of study hours spent per subject category.</p>
                 <div className="flex flex-col gap-3.5">
                   {[
-                    { subject: 'Biology', hours: 14, color: 'linear-gradient(90deg, #3ECF8E, #30B378)' },
-                    { subject: 'Economics', hours: 9, color: 'linear-gradient(90deg, #f59e0b, #d97706)' },
-                    { subject: 'Mathematics', hours: 6, color: 'linear-gradient(90deg, #06b6d4, #0891b2)' },
-                    { subject: 'General Study', hours: 4, color: 'linear-gradient(90deg, #a855f7, #9333ea)' },
-                  ].map((item, idx) => (
-                    <div key={idx} className="flex flex-col">
-                      <div className="flex justify-between text-[0.75rem] mb-1.5">
-                        <span className="font-semibold text-ink">{item.subject}</span>
-                        <span className="text-ink-muted text-[0.7rem]">{item.hours} hours ({Math.round((item.hours / 33) * 100)}%)</span>
+                    { subject: 'Biology', hours: user.studyTime?.Biology !== undefined ? user.studyTime.Biology : 14, color: 'linear-gradient(90deg, #3ECF8E, #30B378)' },
+                    { subject: 'Economics', hours: user.studyTime?.Economics !== undefined ? user.studyTime.Economics : 9, color: 'linear-gradient(90deg, #f59e0b, #d97706)' },
+                    { subject: 'Mathematics', hours: user.studyTime?.Mathematics !== undefined ? user.studyTime.Mathematics : 6, color: 'linear-gradient(90deg, #06b6d4, #0891b2)' },
+                    { subject: 'General Study', hours: user.studyTime?.['General Study'] !== undefined ? user.studyTime['General Study'] : 4, color: 'linear-gradient(90deg, #a855f7, #9333ea)' },
+                  ].map((item, idx, arr) => {
+                    const total = arr.reduce((sum, i) => sum + i.hours, 0);
+                    const max = Math.max(...arr.map(i => i.hours));
+                    return (
+                      <div key={idx} className="flex flex-col">
+                        <div className="flex justify-between text-[0.75rem] mb-1.5">
+                          <span className="font-semibold text-ink">{item.subject}</span>
+                          <span className="text-ink-muted text-[0.7rem]">{item.hours} hours ({total > 0 ? Math.round((item.hours / total) * 100) : 0}%)</span>
+                        </div>
+                        <div className="h-1.5 bg-ink-tint-1 rounded-sm overflow-hidden border border-ink-soft">
+                          <div className="h-full rounded-sm transition-all duration-500" style={{ width: `${max > 0 ? (item.hours / max) * 100 : 0}%`, background: item.color }}></div>
+                        </div>
                       </div>
-                      <div className="h-1.5 bg-ink-tint-1 rounded-sm overflow-hidden border border-ink-soft">
-                        <div className="h-full rounded-sm transition-all duration-500" style={{ width: `${(item.hours / 14) * 100}%`, background: item.color }}></div>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -261,21 +286,24 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
                 <Target size={14} className="text-warning" /> Recommended Focus Areas
               </div>
               <div className="flex flex-col gap-3">
-                {[
-                  { concept: 'Mitochondria function', subject: 'Biology', score: 60, desc: 'Scores are low in Quiz 1. Review flashcards.' },
-                  { concept: 'Law of Demand curves', subject: 'Economics', score: 70, desc: 'Practice study modules to lift core concepts.' }
-                ].map((rec, i) => (
-                  <div key={i} className="flex items-center justify-between gap-4 p-2.5 px-3 bg-amber-bg border border-amber-border rounded-lg transition-all duration-200 hover:bg-amber-border hover:border-amber-border-strong hover:-translate-y-px">
-                    <div className="grow">
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        <span className="text-[0.8rem] font-bold text-ink">{rec.concept}</span>
-                        <span className="text-[0.65rem] font-semibold bg-warning-soft text-warning py-0.5 px-1.5 rounded border border-warning-line">{rec.score}% accuracy</span>
-                      </div>
-                      <p className="text-[0.75rem] text-ink-muted m-0">{rec.desc}</p>
-                    </div>
-                    <button onClick={() => { setDashboardTab('modules'); setSelectedSubject(rec.subject); }} className="btn btn-outline px-2 py-1 text-[0.7rem] h-6 shrink-0" type="button">Review</button>
+                {!user.focusAreas || user.focusAreas.length === 0 ? (
+                  <div className="text-center p-4 text-ink-muted text-[0.8rem] bg-ink-soft rounded-lg border border-line">
+                    No recommended focus areas yet. Complete quizzes to identify concepts that need review!
                   </div>
-                ))}
+                ) : (
+                  user.focusAreas.map((rec, i) => (
+                    <div key={i} className="flex items-center justify-between gap-4 p-2.5 px-3 bg-amber-bg border border-amber-border rounded-lg transition-all duration-200 hover:bg-amber-border hover:border-amber-border-strong hover:-translate-y-px">
+                      <div className="grow">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <span className="text-[0.8rem] font-bold text-ink">{rec.concept}</span>
+                          <span className="text-[0.65rem] font-semibold bg-warning-soft text-warning py-0.5 px-1.5 rounded border border-warning-line">{rec.score}% accuracy</span>
+                        </div>
+                        <p className="text-[0.75rem] text-ink-muted m-0">{rec.desc}</p>
+                      </div>
+                      <button onClick={() => { setDashboardTab('modules'); setSelectedSubject(rec.subject); }} className="btn btn-outline px-2 py-1 text-[0.7rem] h-6 shrink-0" type="button">Review</button>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>
@@ -355,22 +383,91 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
             <h3 className="text-[0.95rem] font-semibold mb-4 flex items-center gap-2 m-0">
               <Clock size={16} className="text-primary" /> Spaced Recall Calendar
             </h3>
-            <div className="flex flex-col gap-3">
-              {spacedRepetitionList.map((item) => (
-                <div key={item.id} className="flex items-center justify-between p-3 bg-app border border-line rounded-lg">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[0.85rem] font-semibold text-ink">{item.name}</span>
-                    <span className="text-[0.7rem] text-ink-muted">Recall Strength: {item.progress}%</span>
-                  </div>
-                  <span style={{ fontSize: '0.7rem', background: item.dueIn.includes('hours') ? 'rgba(239, 68, 68, 0.1)' : 'rgba(255, 255, 255, 0.05)', color: item.dueIn.includes('hours') ? '#ef4444' : 'var(--text-secondary)', border: '1px solid currentColor', borderRadius: '4px', padding: '0.15rem 0.4rem', fontWeight: 'bold' }}>
-                    Due in {item.dueIn}
-                  </span>
-                </div>
-              ))}
-            </div>
+             <div className="flex flex-col gap-3">
+               {spacedRepetitionList.length === 0 ? (
+                 <div className="text-center p-4 text-ink-muted text-[0.8rem] bg-ink-soft rounded-lg border border-line">
+                   No recall modules scheduled. Upload a module or create study items to start spaced repetition!
+                 </div>
+               ) : (
+                 spacedRepetitionList.map((item) => (
+                   <div key={item.id} className="flex items-center justify-between p-3 bg-app border border-line rounded-lg">
+                     <div className="flex flex-col gap-0.5">
+                       <span className="text-[0.85rem] font-semibold text-ink">{item.name}</span>
+                       <span className="text-[0.7rem] text-ink-muted">Recall Strength: {item.progress}%</span>
+                     </div>
+                     <span style={{ fontSize: '0.7rem', background: item.dueIn.includes('hours') ? 'rgba(239, 68, 68, 0.1)' : 'rgba(255, 255, 255, 0.05)', color: item.dueIn.includes('hours') ? '#ef4444' : 'var(--text-secondary)', border: '1px solid currentColor', borderRadius: '4px', padding: '0.15rem 0.4rem', fontWeight: 'bold' }}>
+                       Due in {item.dueIn}
+                     </span>
+                   </div>
+                 ))
+               )}
+             </div>
           </div>
         </div>
       </div>
+
+      <AnimatePresence>
+        {isCheckInOpen && (
+          <div className="fixed inset-0 bg-[rgba(5,5,5,0.7)] backdrop-blur-sm z-3000 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-card border border-line rounded-2xl p-8 max-w-105 w-full shadow-lg relative text-center"
+            >
+              <div className="flex items-center justify-center mx-auto mb-4 bg-primary-soft text-primary p-3 rounded-full w-14 h-14">
+                <Flame size={28} />
+              </div>
+              <h3 className="text-xl font-bold mb-2">Daily Streak Check-in</h3>
+              <p className="text-ink-muted text-sm mb-6">
+                Keep your momentum going! Claim your daily check-in to build your study streak and earn XP.
+              </p>
+              
+              <div className="bg-app border border-line rounded-xl p-4 mb-6 flex justify-around">
+                <div>
+                  <div className="text-2xl font-bold text-primary">{user.streak !== undefined ? user.streak : 5}</div>
+                  <div className="text-[0.7rem] text-ink-muted uppercase font-semibold">Current Streak</div>
+                </div>
+                <div className="border-r border-line"></div>
+                <div>
+                  <div className="text-2xl font-bold text-accent-cyan">{user.lastCheckIn === new Date().toDateString() ? 'Claimed' : 'Not Claimed'}</div>
+                  <div className="text-[0.7rem] text-ink-muted uppercase font-semibold">Status</div>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <button
+                  type="button"
+                  onClick={() => setIsCheckInOpen(false)}
+                  className="btn btn-outline flex-1 py-2"
+                >
+                  Close
+                </button>
+                {user.lastCheckIn === new Date().toDateString() ? (
+                  <button
+                    type="button"
+                    disabled
+                    className="btn btn-primary flex-1 py-2 opacity-50 cursor-not-allowed"
+                  >
+                    Claimed Today
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleStreakCheckIn();
+                      setIsCheckInOpen(false);
+                    }}
+                    className="btn btn-primary flex-1 py-2"
+                  >
+                    Check In (+10 XP)
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </>
   );
 };

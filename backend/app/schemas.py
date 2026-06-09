@@ -24,6 +24,16 @@ class UserUpdate(BaseModel):
     streak_goal: Optional[int] = None
     level: Optional[int] = None
     xp: Optional[int] = None
+    streak: Optional[int] = None
+    quizzes_count: Optional[int] = None
+    quiz_history: Optional[List[int]] = None
+    study_time: Optional[dict] = None
+    heatmap_data: Optional[List[dict]] = None
+    focus_areas: Optional[List[dict]] = None
+    spaced_recall: Optional[List[dict]] = None
+    quests: Optional[List[dict]] = None
+    quests_date: Optional[str] = None
+    last_check_in: Optional[str] = None
 
 class UserOut(UserBase):
     id: int
@@ -37,6 +47,16 @@ class UserOut(UserBase):
     study_language: Optional[str] = None
     timezone: Optional[str] = None
     streak_goal: Optional[int] = None
+    streak: Optional[int] = None
+    quizzes_count: Optional[int] = None
+    quiz_history: Optional[List[int]] = None
+    study_time: Optional[dict] = None
+    heatmap_data: Optional[List[dict]] = None
+    focus_areas: Optional[List[dict]] = None
+    spaced_recall: Optional[List[dict]] = None
+    quests: Optional[List[dict]] = None
+    quests_date: Optional[str] = None
+    last_check_in: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -80,10 +100,18 @@ class ModuleOut(ModuleBase):
     id: int
     date: str
     user_id: int
+    source_filename: Optional[str] = None
+    has_source_file: bool = False
     questions: List[QuizQuestionOut]
 
     class Config:
         from_attributes = True
+
+
+class ModuleSourceOut(BaseModel):
+    id: int
+    source_filename: Optional[str] = None
+    source_content: Optional[str] = None
 
 
 # --- EXAM SCHEMAS ---
@@ -110,6 +138,7 @@ class ExamOut(ExamBase):
 class GroupMemberOut(BaseModel):
     name: str
     email: str
+    avatar: Optional[str] = None
     online: bool
 
     class Config:
@@ -155,6 +184,22 @@ class StudyGroupOut(BaseModel):
     class Config:
         from_attributes = True
 
+class GroupInviteRequest(BaseModel):
+    email: str
+
+class GroupInvitationOut(BaseModel):
+    id: int
+    group_id: int
+    group_name: str
+    inviter_name: str
+    inviter_avatar: Optional[str] = None
+    status: str
+    created_at: str
+
+    class Config:
+        from_attributes = True
+
+
 class VerifyRequest(BaseModel):
     email: EmailStr
     code: str
@@ -177,3 +222,46 @@ class ChangePasswordRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+
+class GoogleLoginRequest(BaseModel):
+    token: str
+
+
+class NotificationOut(BaseModel):
+    id: int
+    type: str
+    title: str
+    message: Optional[str] = None
+    related_id: Optional[int] = None
+    related_type: Optional[str] = None
+    is_read: bool
+    created_at: str
+
+    class Config:
+        from_attributes = True
+
+
+# --- GROUP NOTIFICATION PREFERENCE SCHEMAS ---
+class GroupNotificationPrefOut(BaseModel):
+    group_id: int
+    enabled: bool
+
+    class Config:
+        from_attributes = True
+
+
+class GroupMemberWithPrefOut(BaseModel):
+    name: str
+    email: str
+    avatar: Optional[str] = None
+    online: bool
+    notifications_enabled: bool = True
+
+    class Config:
+        from_attributes = True
+
+
+class GroupMembersWithPrefsOut(BaseModel):
+    group_id: int
+    group_name: str
+    members: List[GroupMemberWithPrefOut]
