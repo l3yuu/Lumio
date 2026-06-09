@@ -96,40 +96,42 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Write frontend .env.production from GitHub Secrets
+        run: |
+          cat > frontend/.env.production << EOF
+          VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }}
+          VITE_WS_BASE_URL=${{ secrets.VITE_WS_BASE_URL }}
+          VITE_GOOGLE_CLIENT_ID=${{ secrets.VITE_GOOGLE_CLIENT_ID }}
+          EOF
+          echo "Generated frontend/.env.production:"
+          cat frontend/.env.production
+
+      - name: Build frontend
+        run: npm run build
+        working-directory: frontend
+
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
 
-      - name: Pull Vercel Environment Information
+      - name: Pull Vercel Project Info
         run: vercel pull --yes --environment=production --token=$VERCEL_TOKEN
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
-      - name: Copy Env Variables to Frontend
-        run: cp .vercel/.env.production.local frontend/.env.production
-
-      - name: Verify Env Variables
-        run: |
-          if [ -f frontend/.env.production ]; then
-            echo "Found frontend/.env.production"
-            if grep -q "VITE_GOOGLE_CLIENT_ID" frontend/.env.production; then
-              echo "VITE_GOOGLE_CLIENT_ID is defined in .env.production."
-            else
-              echo "::warning::VITE_GOOGLE_CLIENT_ID is NOT defined in .env.production! Check Vercel Dashboard env settings."
-            fi
-          else
-            echo "::warning::frontend/.env.production was not created!"
-          fi
-
-      - name: Build Project Artifacts
-        run: vercel build --prod --token=$VERCEL_TOKEN
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-
-      - name: Deploy Project Artifacts to Vercel
+      - name: Deploy to Vercel
         run: vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
