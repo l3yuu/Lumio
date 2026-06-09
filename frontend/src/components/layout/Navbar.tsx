@@ -72,7 +72,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     <nav className="navbar fixed top-0 left-0 right-0 z-50 w-full border-b border-line bg-app/85 backdrop-blur-xl">
       <div className={
         !user
-          ? "max-w-[1200px] w-full mx-auto py-3 px-6 lg:px-8 flex justify-between items-center"
+          ? "max-w-300 w-full mx-auto py-3 px-6 lg:px-8 flex justify-between items-center"
           : view === 'dashboard'
             ? "max-w-full w-full mx-auto py-3 pl-6 pr-6 lg:pl-0 lg:pr-6 flex justify-between items-center"
             : "max-w-full w-full mx-auto py-3 px-6 flex justify-between items-center"
@@ -88,7 +88,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
 
           {view === 'dashboard' && user ? (
-            <div className="hidden lg:flex items-center justify-center shrink-0 w-[72px]">
+            <div className="hidden lg:flex items-center justify-center shrink-0 w-18">
               <motion.button
                 onClick={onToggleSidebar}
                 aria-label="Toggle Sidebar"
@@ -116,7 +116,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <li>
               <button
                 onClick={() => { setView('landing'); setActiveQuizModule(null); }}
-                className={`text-ink no-underline font-medium text-sm transition-colors duration-150 bg-transparent border-0 cursor-pointer py-2 px-3 flex items-center hover:!text-primary ${view === 'landing' ? '!text-primary' : ''}`}
+                className={`text-ink no-underline font-medium text-sm transition-colors duration-150 bg-transparent border-0 cursor-pointer py-2 px-3 flex items-center hover:text-primary! ${view === 'landing' ? 'text-primary!' : ''}`}
               >
                 Home
               </button>
@@ -124,7 +124,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <li>
               <button
                 onClick={() => { setView('how-it-works'); setActiveQuizModule(null); }}
-                className={`text-ink no-underline font-medium text-sm transition-colors duration-150 bg-transparent border-0 cursor-pointer py-2 px-3 flex items-center hover:!text-primary ${view === 'how-it-works' ? '!text-primary' : ''}`}
+                className={`text-ink no-underline font-medium text-sm transition-colors duration-150 bg-transparent border-0 cursor-pointer py-2 px-3 flex items-center hover:text-primary! ${view === 'how-it-works' ? 'text-primary!' : ''}`}
               >
                 How it Works
               </button>
@@ -132,17 +132,17 @@ export const Navbar: React.FC<NavbarProps> = ({
             <li className="relative inline-block group">
               <button
                 onClick={() => { setView('tools'); setActiveQuizModule(null); }}
-                className={`flex items-center gap-1 bg-transparent border-0 cursor-pointer py-2 px-3 font-medium text-[0.95rem] text-ink transition-colors duration-200 hover:!text-primary group-hover:!text-primary ${['tools', 'flashcards', 'essay-grader', 'condenser'].includes(view) ? '!text-primary' : ''}`}
+                className={`flex items-center gap-1 bg-transparent border-0 cursor-pointer py-2 px-3 font-medium text-[0.95rem] text-ink transition-colors duration-200 hover:text-primary! group-hover:text-primary! ${['tools', 'flashcards', 'essay-grader', 'condenser'].includes(view) ? 'text-primary!' : ''}`}
               >
                 Study Tools
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="transition-transform duration-200 group-hover:rotate-180"><polyline points="6 9 12 15 18 9"></polyline></svg>
               </button>
-              <div className="absolute top-full left-1/2 -translate-x-1/2 translate-y-2.5 w-[280px] bg-app/95 backdrop-blur-2xl border border-line rounded-xl p-3 shadow-lg opacity-0 invisible pointer-events-none transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] z-[1010] flex flex-col gap-1 group-hover:opacity-100 group-hover:visible group-hover:pointer-events-auto group-hover:translate-x-[-50%] group-hover:translate-y-1">
+              <div className="absolute top-full left-1/2 -translate-x-1/2 translate-y-2.5 w-70 bg-app/95 backdrop-blur-2xl border border-line rounded-xl p-3 shadow-lg opacity-0 invisible pointer-events-none transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] z-1010 flex flex-col gap-1 group-hover:opacity-100 group-hover:visible group-hover:pointer-events-auto group-hover:translate-x-[-50%] group-hover:translate-y-1">
                 <button
                   onClick={() => { setView('flashcards'); setActiveQuizModule(null); }}
                   className="flex items-start gap-3 p-3 rounded-lg bg-transparent border-0 text-ink text-left cursor-pointer transition-all duration-200 w-full hover:bg-ink-tint-3"
                 >
-                  <Sparkles size={16} className="text-primary flex-shrink-0 mt-0.5" />
+                  <Sparkles size={16} className="text-primary shrink-0 mt-0.5" />
                   <div className="flex flex-col gap-0.5">
                     <span className="text-sm font-semibold text-ink">Flashcard Generator</span>
                     <span className="text-xs text-ink-muted leading-snug">Automatic spaced repetition cards</span>
@@ -152,7 +152,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={() => { setView('essay-grader'); setActiveQuizModule(null); }}
                   className="flex items-start gap-3 p-3 rounded-lg bg-transparent border-0 text-ink text-left cursor-pointer transition-all duration-200 w-full hover:bg-ink-tint-3"
                 >
-                  <HelpCircle size={16} className="text-primary flex-shrink-0 mt-0.5" />
+                  <HelpCircle size={16} className="text-primary shrink-0 mt-0.5" />
                   <div className="flex flex-col gap-0.5">
                     <span className="text-sm font-semibold text-ink">AI Essay Grader</span>
                     <span className="text-xs text-ink-muted leading-snug">Feedback synced to grading rubrics</span>
@@ -162,7 +162,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={() => { setView('condenser'); setActiveQuizModule(null); }}
                   className="flex items-start gap-3 p-3 rounded-lg bg-transparent border-0 text-ink text-left cursor-pointer transition-all duration-200 w-full hover:bg-ink-tint-3"
                 >
-                  <Layers size={16} className="text-primary flex-shrink-0 mt-0.5" />
+                  <Layers size={16} className="text-primary shrink-0 mt-0.5" />
                   <div className="flex flex-col gap-0.5">
                     <span className="text-sm font-semibold text-ink">Document Condenser</span>
                     <span className="text-xs text-ink-muted leading-snug">Summarize large books & drafts</span>
@@ -173,7 +173,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <li>
               <button
                 onClick={() => { setView('docs'); setActiveQuizModule(null); }}
-                className={`text-ink no-underline font-medium text-sm transition-colors duration-150 bg-transparent border-0 cursor-pointer py-2 px-3 flex items-center hover:!text-primary ${view === 'docs' ? '!text-primary' : ''}`}
+                className={`text-ink no-underline font-medium text-sm transition-colors duration-150 bg-transparent border-0 cursor-pointer py-2 px-3 flex items-center hover:text-primary! ${view === 'docs' ? 'text-primary!' : ''}`}
               >
                 Docs
               </button>
@@ -181,7 +181,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <li>
               <button
                 onClick={() => { setView('pricing'); setActiveQuizModule(null); }}
-                className={`text-ink no-underline font-medium text-sm transition-colors duration-150 bg-transparent border-0 cursor-pointer py-2 px-3 flex items-center hover:!text-primary ${view === 'pricing' ? '!text-primary' : ''}`}
+                className={`text-ink no-underline font-medium text-sm transition-colors duration-150 bg-transparent border-0 cursor-pointer py-2 px-3 flex items-center hover:text-primary! ${view === 'pricing' ? 'text-primary!' : ''}`}
               >
                 Pricing
               </button>
@@ -207,7 +207,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary rounded-full animate-[pulse-green_2s_infinite]"></span>
                   )}
                 </button>
-                <div className={`absolute top-full left-auto right-0 translate-y-2.5 w-[360px] p-0 bg-app/95 backdrop-blur-2xl border border-line rounded-xl shadow-lg transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] z-[1010] flex flex-col gap-0 ${
+                <div className={`absolute top-full left-auto right-0 translate-y-2.5 w-90 p-0 bg-app/95 backdrop-blur-2xl border border-line rounded-xl shadow-lg transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] z-1010 flex flex-col gap-0 ${
                   notifOpen
                     ? 'opacity-100 visible pointer-events-auto translate-y-1'
                     : 'opacity-0 invisible pointer-events-none'
@@ -221,7 +221,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </div>
                   </div>
 
-                  <div className="max-h-[360px] overflow-y-auto">
+                  <div className="max-h-90 overflow-y-auto">
                     {/* Pending invitations */}
                     {invitations.map(inv => (
                       <div key={`inv-${inv.id}`} className="p-3 px-4 flex flex-col gap-1.5 border-b border-line transition-colors duration-150 hover:bg-glass last:border-b-0">
@@ -301,15 +301,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                       src={user.avatar}
                       alt={user.name}
                       referrerPolicy="no-referrer"
-                      className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm object-cover border-[1.5px] border-line flex-shrink-0"
+                      className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm object-cover border-[1.5px] border-line shrink-0"
                     />
                   ) : (
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm object-cover border-[1.5px] border-line flex-shrink-0 bg-primary text-ink-on-primary">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm object-cover border-[1.5px] border-line shrink-0 bg-primary text-ink-on-primary">
                       {user.name.charAt(0).toUpperCase()}
                     </div>
                   )}
                 </button>
-                <div className={`absolute top-full left-auto right-0 translate-y-2.5 w-[280px] bg-app/95 backdrop-blur-2xl border border-line rounded-xl p-3 shadow-lg transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] z-[1010] flex flex-col gap-1 ${
+                <div className={`absolute top-full left-auto right-0 translate-y-2.5 w-70 bg-app/95 backdrop-blur-2xl border border-line rounded-xl p-3 shadow-lg transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] z-1010 flex flex-col gap-1 ${
                   userMenuOpen
                     ? 'opacity-100 visible pointer-events-auto translate-y-1'
                     : 'opacity-0 invisible pointer-events-none'
@@ -327,7 +327,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       setSelectedGroupId(null);
                       setUserMenuOpen(false);
                     }}
-                    className="flex items-start gap-3 p-3 rounded-lg bg-transparent border-0 text-ink text-left cursor-pointer transition-all duration-200 w-full hover:bg-ink-tint-3 flex items-center gap-2 p-2 px-3"
+                    className="flex items-start gap-3 p-3 rounded-lg bg-transparent border-0 text-ink text-left cursor-pointer transition-all duration-200 w-full hover:bg-ink-tint-3 px-3"
                   >
                     <Settings size={16} />
                     <span className="text-sm">Profile Settings</span>
@@ -338,7 +338,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       toggleTheme();
                       setUserMenuOpen(false);
                     }}
-                    className="flex items-start gap-3 p-3 rounded-lg bg-transparent border-0 text-ink text-left cursor-pointer transition-all duration-200 w-full hover:bg-ink-tint-3 flex items-center gap-2 p-2 px-3"
+                    className="flex items-start gap-3 p-3 rounded-lg bg-transparent border-0 text-ink text-left cursor-pointer transition-all duration-200 w-full hover:bg-ink-tint-3 px-3"
                   >
                     {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
                     <span className="text-sm">{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
@@ -351,7 +351,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       handleLogout();
                       setUserMenuOpen(false);
                     }}
-                    className="flex items-start gap-3 p-3 rounded-lg bg-transparent border-0 text-ink text-left cursor-pointer transition-all duration-200 w-full hover:bg-ink-tint-3 flex items-center gap-2 p-2 px-3 text-danger"
+                    className="flex items-start gap-3 p-3 rounded-lg bg-transparent border-0 text-ink text-left cursor-pointer transition-all duration-200 w-full hover:bg-ink-tint-3 px-3"
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
                     <span className="text-sm">Logout</span>
@@ -373,8 +373,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
               </a>
-              <button onClick={() => { setAuthTab('login'); setView('auth'); }} className="inline-flex items-center gap-2 text-sm px-4 py-2 rounded-md font-medium transition-all duration-150 border border-transparent no-underline cursor-pointer bg-transparent border-line text-ink hover:bg-input hover:border-line-strong">Login</button>
-              <button onClick={() => { setAuthTab('signup'); setView('auth'); }} className="inline-flex items-center gap-2 text-sm px-4 py-2 rounded-md font-medium transition-all duration-150 border border-transparent no-underline cursor-pointer bg-primary text-ink-on-primary border-primary hover:bg-primary-hover hover:border-primary-hover">Sign Up</button>
+              <button onClick={() => { setAuthTab('login'); setView('auth'); }} className="inline-flex items-center gap-2 text-sm px-4 py-2 rounded-md font-medium transition-all duration-150 border border-transparent no-underline cursor-pointer bg-transparent text-ink hover:bg-input hover:border-line-strong">Login</button>
+              <button onClick={() => { setAuthTab('signup'); setView('auth'); }} className="inline-flex items-center gap-2 text-sm px-4 py-2 rounded-md font-medium transition-all duration-150 border border-transparent no-underline cursor-pointer bg-primary text-ink-on-primary hover:bg-primary-hover hover:border-primary-hover">Sign Up</button>
             </>
           )}
         </div>
@@ -392,7 +392,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.25 }}
-              className="fixed inset-0 z-[1999] bg-black/50 backdrop-blur-sm lg:hidden"
+              className="fixed inset-0 z-1999 bg-black/50 backdrop-blur-sm lg:hidden"
               onClick={() => setMobileMenuOpen(false)}
             />
 
@@ -403,10 +403,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ type: 'spring', damping: 28, stiffness: 280 }}
-              className="fixed top-0 left-0 h-screen w-[85vw] max-w-[340px] bg-app z-[2000] flex flex-col overflow-hidden shadow-2xl lg:hidden"
+              className="fixed top-0 left-0 h-screen w-[85vw] max-w-85 bg-app z-2000 flex flex-col overflow-hidden shadow-2xl lg:hidden"
             >
               {/* Header */}
-              <div className="h-16 px-6 flex justify-between items-center border-b border-line flex-shrink-0">
+              <div className="h-16 px-6 flex justify-between items-center border-b border-line shrink-0">
                 <button
                   onClick={() => { setView(user ? 'dashboard' : 'landing'); setActiveQuizModule(null); setSelectedGroupId(null); setMobileMenuOpen(false); }}
                   className="flex items-center gap-2 no-underline text-ink text-xl font-bold tracking-[-0.03em] bg-transparent border-0 cursor-pointer p-0 leading-none"
@@ -522,7 +522,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <button onClick={() => { toggleTheme(); }} className="bg-transparent border-0 text-ink-muted cursor-pointer flex items-center gap-2 px-3 py-2 rounded-md transition-colors duration-150 hover:text-ink hover:bg-input w-full">
                         {theme === 'dark' ? <><Sun size={18} /><span>Light Mode</span></> : <><Moon size={18} /><span>Dark Mode</span></>}
                       </button>
-                      <button onClick={() => { setAuthTab('signup'); setView('auth'); setMobileMenuOpen(false); }} className="inline-flex items-center gap-2 text-sm px-4 py-3.5 rounded-md font-bold transition-all duration-150 border border-transparent cursor-pointer bg-primary text-ink-on-primary border-primary hover:bg-primary-hover w-full justify-center">Sign Up</button>
+                      <button onClick={() => { setAuthTab('signup'); setView('auth'); setMobileMenuOpen(false); }} className="inline-flex items-center gap-2 text-sm px-4 py-3.5 rounded-md font-bold transition-all duration-150 border border-transparent cursor-pointer bg-primary text-ink-on-primary hover:bg-primary-hover w-full justify-center">Sign Up</button>
                       <button onClick={() => { setAuthTab('login'); setView('auth'); setMobileMenuOpen(false); }} className="inline-flex items-center gap-2 text-sm px-4 py-3.5 rounded-md font-medium transition-all duration-150 border border-line cursor-pointer bg-transparent text-ink hover:bg-input hover:border-line-strong w-full justify-center">Login</button>
                     </div>
                   </>
