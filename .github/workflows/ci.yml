@@ -122,6 +122,10 @@ jobs:
 
       - name: Trigger Render Deployment
         run: |
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "::error::RENDER_DEPLOY_HOOK_URL secret is missing! Please add it in your GitHub Repository Settings."
+            exit 1
+          fi
           curl -f -X POST "$RENDER_DEPLOY_HOOK_URL"
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
