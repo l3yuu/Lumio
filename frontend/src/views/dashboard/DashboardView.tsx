@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, Zap, AlertTriangle } from 'lucide-react';
 import type { User, Module, StudyGroup, GroupInvitation, GroupQuizSession, GroupQuizRank, DashboardTab, View, StudyQuest, ExamDeadline, ExamDeadlineResponse, StudyGroupResponse, Notification } from '../../types';
+import { API_BASE_URL } from '../../config';
 
 import { DashboardSidebar } from './DashboardSidebar';
 import { OverviewPanel } from './OverviewPanel';
@@ -191,7 +192,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     if (updatedFields.quests !== undefined) payload.quests = updatedFields.quests;
     if (updatedFields.questsDate !== undefined) payload.quests_date = updatedFields.questsDate;
 
-    fetch('http://127.0.0.1:8000/api/auth/profile', {
+    fetch(`${API_BASE_URL}/api/auth/profile`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -399,7 +400,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
-      fetch('http://127.0.0.1:8000/api/exams', {
+      fetch(`${API_BASE_URL}/api/exams`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       .then(res => {
@@ -437,7 +438,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         raw_date: newExamDate,
         priority: newExamPriority
       };
-      fetch('http://127.0.0.1:8000/api/exams', {
+      fetch(`${API_BASE_URL}/api/exams`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -481,7 +482,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const handleDeleteExam = (id: number) => {
     const token = localStorage.getItem('token');
     if (token) {
-      fetch(`http://127.0.0.1:8000/api/exams/${id}`, {
+      fetch(`${API_BASE_URL}/api/exams/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       })
@@ -679,7 +680,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
     const token = localStorage.getItem('token');
     if (token) {
-      fetch(`http://127.0.0.1:8000/api/modules/${id}`, {
+      fetch(`${API_BASE_URL}/api/modules/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       })
@@ -703,7 +704,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const refetchGroups = () => {
     const token = localStorage.getItem('token');
     if (token) {
-      fetch('http://127.0.0.1:8000/api/groups', {
+      fetch(`${API_BASE_URL}/api/groups`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       .then(res => res.json())

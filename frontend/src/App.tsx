@@ -22,6 +22,7 @@ import { EssayGraderTool } from './views/tools/EssayGraderTool'
 import { CondenserTool } from './views/tools/CondenserTool'
 import { PomodoroTool } from './views/tools/PomodoroTool'
 import { DashboardView } from './views/dashboard/DashboardView'
+import { API_BASE_URL } from './config'
 
 import type { View, AuthTab, DashboardTab, User, Module, StudyGroup, GroupInvitation, UserResponse, ModuleResponse, QuizQuestionResponse, GroupQuizSessionResponse, GroupQuizRankResponse, StudyGroupResponse, Notification } from './types'
 
@@ -148,7 +149,7 @@ function App() {
   const fetchNotifications = () => {
     const token = localStorage.getItem('token');
     if (!token) return;
-    fetch('http://127.0.0.1:8000/api/notifications', {
+    fetch(`${API_BASE_URL}/api/notifications`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     .then(res => res.json())
@@ -301,7 +302,7 @@ function App() {
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
-      fetch('http://127.0.0.1:8000/api/auth/me', {
+      fetch(`${API_BASE_URL}/api/auth/me`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       .then(res => {
@@ -313,7 +314,7 @@ function App() {
         setView('dashboard');
         
         // Fetch modules
-        fetch('http://127.0.0.1:8000/api/modules', {
+        fetch(`${API_BASE_URL}/api/modules`, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
         .then(res => res.json())
@@ -321,7 +322,7 @@ function App() {
         .catch(err => console.error('Error fetching modules:', err));
 
         // Fetch groups
-        fetch('http://127.0.0.1:8000/api/groups', {
+        fetch(`${API_BASE_URL}/api/groups`, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
         .then(res => res.json())
@@ -329,7 +330,7 @@ function App() {
         .catch(err => console.error('Error fetching groups:', err));
 
         // Fetch pending invitations
-        fetch('http://127.0.0.1:8000/api/groups/invitations', {
+        fetch(`${API_BASE_URL}/api/groups/invitations`, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
         .then(async res => {
@@ -356,7 +357,7 @@ function App() {
     setView('dashboard');
     
     // Fetch modules
-    fetch('http://127.0.0.1:8000/api/modules', {
+    fetch(`${API_BASE_URL}/api/modules`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     .then(res => res.json())
@@ -364,7 +365,7 @@ function App() {
     .catch(err => console.error('Error fetching modules:', err));
 
     // Fetch groups
-    fetch('http://127.0.0.1:8000/api/groups', {
+    fetch(`${API_BASE_URL}/api/groups`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     .then(res => res.json())
@@ -372,7 +373,7 @@ function App() {
     .catch(err => console.error('Error fetching groups:', err));
 
     // Fetch pending invitations
-    fetch('http://127.0.0.1:8000/api/groups/invitations', {
+    fetch(`${API_BASE_URL}/api/groups/invitations`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     .then(async res => {
@@ -392,7 +393,7 @@ function App() {
     const token = localStorage.getItem('token');
     if (!token) return;
     const ping = () =>
-      fetch('http://127.0.0.1:8000/api/auth/heartbeat', {
+      fetch(`${API_BASE_URL}/api/auth/heartbeat`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       }).catch(() => {});
@@ -404,7 +405,7 @@ function App() {
   const handleAcceptInvitation = (invitationId: number) => {
     const token = localStorage.getItem('token');
     if (!token) return;
-    fetch(`http://127.0.0.1:8000/api/groups/invitations/${invitationId}/accept`, {
+    fetch(`${API_BASE_URL}/api/groups/invitations/${invitationId}/accept`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}` }
     })
@@ -424,7 +425,7 @@ function App() {
   const handleDeclineInvitation = (invitationId: number) => {
     const token = localStorage.getItem('token');
     if (!token) return;
-    fetch(`http://127.0.0.1:8000/api/groups/invitations/${invitationId}/decline`, {
+    fetch(`${API_BASE_URL}/api/groups/invitations/${invitationId}/decline`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}` }
     })
@@ -438,7 +439,7 @@ function App() {
   const handleMarkNotificationRead = (notificationId: number) => {
     const token = localStorage.getItem('token');
     if (!token) return;
-    fetch(`http://127.0.0.1:8000/api/notifications/${notificationId}/read`, {
+    fetch(`${API_BASE_URL}/api/notifications/${notificationId}/read`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}` }
     })
@@ -452,7 +453,7 @@ function App() {
   const handleMarkAllNotificationsRead = () => {
     const token = localStorage.getItem('token');
     if (!token) return;
-    fetch('http://127.0.0.1:8000/api/notifications/read-all', {
+    fetch(`${API_BASE_URL}/api/notifications/read-all`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}` }
     })
@@ -468,7 +469,7 @@ function App() {
     // Also refresh invitations
     const token = localStorage.getItem('token');
     if (token) {
-      fetch('http://127.0.0.1:8000/api/groups/invitations', {
+      fetch(`${API_BASE_URL}/api/groups/invitations`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       .then(async res => {
@@ -580,7 +581,7 @@ function App() {
 
     setIsGeneratingQuiz(true);
 
-    fetch('http://127.0.0.1:8000/api/modules', {
+    fetch(`${API_BASE_URL}/api/modules`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`
@@ -607,7 +608,7 @@ function App() {
       // Refetch user profile to update quota state
       const token = localStorage.getItem('token');
       if (token) {
-        fetch('http://127.0.0.1:8000/api/auth/me', {
+        fetch(`${API_BASE_URL}/api/auth/me`, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
         .then(res => res.ok ? res.json() : null)
@@ -639,7 +640,7 @@ function App() {
       members: newGroupMember ? [newGroupMember] : []
     };
 
-    fetch('http://127.0.0.1:8000/api/groups', {
+    fetch(`${API_BASE_URL}/api/groups`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

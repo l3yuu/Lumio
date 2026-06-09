@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, ChevronRight, X, Users, Mail, Check, Settings, Bell } from 'lucide-react';
 import type { User, Module, StudyGroup, GroupInvitation, StudyGroupResponse, ModuleResponse, QuizQuestionResponse, GroupQuizSessionResponse, GroupQuizRankResponse } from '../../types';
+import { API_BASE_URL } from '../../config';
 
 interface GroupsPanelProps {
   groups: StudyGroup[];
@@ -48,7 +49,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
     if (!groupSettingsOpen || selectedGroupId === null) return;
     const token = localStorage.getItem('token');
     if (!token) return;
-    fetch(`http://127.0.0.1:8000/api/groups/${selectedGroupId}/notification-pref`, {
+    fetch(`${API_BASE_URL}/api/groups/${selectedGroupId}/notification-pref`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     .then(res => res.ok ? res.json() : null)
@@ -63,7 +64,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
     const token = localStorage.getItem('token');
     if (!token) return;
     setIsTogglingNotifs(true);
-    fetch(`http://127.0.0.1:8000/api/groups/${selectedGroupId}/notifications/toggle`, {
+    fetch(`${API_BASE_URL}/api/groups/${selectedGroupId}/notifications/toggle`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}` }
     })
@@ -82,7 +83,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
     if (!token) return;
 
     setIsLeaving(true);
-    fetch(`http://127.0.0.1:8000/api/groups/${activeGroup.id}/leave`, {
+    fetch(`${API_BASE_URL}/api/groups/${activeGroup.id}/leave`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}` }
     })
@@ -111,7 +112,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
     setInviteError('');
     setInviteSuccess(false);
 
-    fetch(`http://127.0.0.1:8000/api/groups/${activeGroup.id}/invite`, {
+    fetch(`${API_BASE_URL}/api/groups/${activeGroup.id}/invite`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -146,7 +147,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
     if (!token) return;
 
     setIsSharing(true);
-    fetch(`http://127.0.0.1:8000/api/groups/${activeGroup.id}/share-module/${selectedModuleId}`, {
+    fetch(`${API_BASE_URL}/api/groups/${activeGroup.id}/share-module/${selectedModuleId}`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`

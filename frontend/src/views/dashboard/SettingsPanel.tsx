@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, AlertTriangle, Globe, BookOpen, Target, Clock, User as UserIcon, AtSign, Trash2, ShieldAlert, LogOut, ShieldCheck } from 'lucide-react';
 import type { User, Module } from '../../types';
+import { API_BASE_URL } from '../../config';
 
 interface SettingsPanelProps {
   user: User;
@@ -69,7 +70,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const handleSaveProfile = () => {
     const token = localStorage.getItem('token');
     if (!token) return;
-    fetch('http://127.0.0.1:8000/api/auth/profile', {
+    fetch(`${API_BASE_URL}/api/auth/profile`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify({
@@ -125,7 +126,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const handleDeleteModules = () => {
     const token = localStorage.getItem('token');
     if (!token) return;
-    fetch('http://127.0.0.1:8000/api/modules', {
+    fetch(`${API_BASE_URL}/api/modules`, {
       method: 'DELETE',
       headers: { 'Authorization': `Bearer ${token}` }
     })
@@ -144,7 +145,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     }
     const token = localStorage.getItem('token');
     if (!token) return;
-    fetch('http://127.0.0.1:8000/api/auth/account', {
+    fetch(`${API_BASE_URL}/api/auth/account`, {
       method: 'DELETE',
       headers: { 'Authorization': `Bearer ${token}` }
     })
@@ -455,7 +456,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             }
             setPasswordLoading(true);
             const token = localStorage.getItem('token');
-            fetch('http://127.0.0.1:8000/api/auth/change-password', {
+            fetch(`${API_BASE_URL}/api/auth/change-password`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
               body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })

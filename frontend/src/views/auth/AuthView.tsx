@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Mail, Eye, EyeOff, Check, AlertTriangle } from 'lucide-react';
 import type { View, AuthTab, User, UserResponse } from '../../types';
+import { API_BASE_URL } from '../../config';
 
 const mapUser = (data: UserResponse): User => ({
   name: data.name,
@@ -110,7 +111,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
       ? { email: formEmail, password: formPassword, name: formName }
       : { email: formEmail, password: formPassword };
 
-    fetch(`http://127.0.0.1:8000${endpoint}`, {
+    fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -134,7 +135,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
         return;
       }
       
-      fetch('http://127.0.0.1:8000/api/auth/me', {
+      fetch(`${API_BASE_URL}/api/auth/me`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       .then(res => res.json())
@@ -153,7 +154,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
     e.preventDefault();
     if (!resetEmail) return;
     setResetMessage('');
-    fetch('http://127.0.0.1:8000/api/auth/forgot-password', {
+    fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: resetEmail })
@@ -176,7 +177,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
     e.preventDefault();
     if (!resetCode || !resetPassword) return;
     setResetMessage('');
-    fetch('http://127.0.0.1:8000/api/auth/reset-password', {
+    fetch(`${API_BASE_URL}/api/auth/reset-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: resetEmail, code: resetCode, new_password: resetPassword })
@@ -201,7 +202,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
   const handleVerifySubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!verifyCode) return;
-    fetch('http://127.0.0.1:8000/api/auth/verify', {
+    fetch(`${API_BASE_URL}/api/auth/verify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: verifyEmail, code: verifyCode })
@@ -215,7 +216,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
     })
     .then(() => {
       const token = pendingToken;
-      fetch('http://127.0.0.1:8000/api/auth/me', {
+      fetch(`${API_BASE_URL}/api/auth/me`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       .then(res => res.json())
@@ -231,7 +232,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
 
   const handleGoogleCredentialResponse = useCallback((response: { credential: string }) => {
     setLoading(true);
-    fetch('http://127.0.0.1:8000/api/auth/google', {
+    fetch(`${API_BASE_URL}/api/auth/google`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token: response.credential })
@@ -246,7 +247,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
     .then(data => {
       if (!data) return;
       const token = data.access_token;
-      fetch('http://127.0.0.1:8000/api/auth/me', {
+      fetch(`${API_BASE_URL}/api/auth/me`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       .then(res => res.json())
@@ -402,7 +403,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
             <button
               type="button"
               onClick={() => {
-                fetch('http://127.0.0.1:8000/api/auth/resend-code', {
+                fetch(`${API_BASE_URL}/api/auth/resend-code`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ email: verifyEmail })

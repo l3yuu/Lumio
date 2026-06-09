@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, Play, Trash2, Zap, RotateCcw, FileText, X, ZoomIn, ZoomOut, Download, MessageSquare, AudioLines, Search } from 'lucide-react';
 import type { Module } from '../../types';
+import { API_BASE_URL } from '../../config';
 
 interface ModulesPanelProps {
   modules: Module[];
@@ -43,7 +44,7 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
     if (!token) return;
 
     if (m.sourceFilename?.toLowerCase().endsWith('.pdf')) {
-      fetch(`http://127.0.0.1:8000/api/modules/${m.id}/file`, {
+      fetch(`${API_BASE_URL}/api/modules/${m.id}/file`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       .then(res => {
@@ -54,7 +55,7 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
         setSourceFileUrl(URL.createObjectURL(blob));
       })
       .catch(() => {
-        fetch(`http://127.0.0.1:8000/api/modules/${m.id}/source`, {
+        fetch(`${API_BASE_URL}/api/modules/${m.id}/source`, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
         .then(res => res.ok ? res.json() : null)
@@ -65,7 +66,7 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
       })
       .finally(() => setIsLoadingSource(false));
     } else {
-      fetch(`http://127.0.0.1:8000/api/modules/${m.id}/source`, {
+      fetch(`${API_BASE_URL}/api/modules/${m.id}/source`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       .then(res => res.ok ? res.json() : null)

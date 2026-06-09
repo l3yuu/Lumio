@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Trophy, Clock } from 'lucide-react';
 import type { Module, StudyGroup, GroupQuizSession, GroupQuizRank, GroupQuizRankResponse } from '../../types';
+import { WS_BASE_URL } from '../../config';
 
 interface RosterMember {
   user_id: number;
@@ -62,7 +63,7 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({
     if (!token) return;
 
     // Connect to FastAPI WebSockets endpoint
-    const ws = new WebSocket(`ws://127.0.0.1:8000/api/groups/ws/${selectedGroupId}/quiz/${activeQuizModule.id}?token=${token}`);
+    const ws = new WebSocket(`${WS_BASE_URL}/api/groups/ws/${selectedGroupId}/quiz/${activeQuizModule.id}?token=${token}`);
     
     ws.onopen = () => {
       console.log('WebSocket connected to Group Quiz Room');
