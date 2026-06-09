@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect, BackgroundTasks
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Dict, Set, Any
 import json
@@ -18,7 +18,12 @@ def get_groups(current_user: models.User = Depends(auth.get_current_user), db: S
     return current_user.joined_groups
 
 @router.post("", response_model=schemas.StudyGroupOut)
-def create_group(group_in: schemas.StudyGroupCreate, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+def create_group(
+    group_in: schemas.StudyGroupCreate,
+    background_tasks: BackgroundTasks,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
     db_group = models.StudyGroup(name=group_in.name, creator_id=current_user.id)
     db_group.members.append(current_user)
     db.add(db_group)
@@ -44,6 +49,10 @@ def create_group(group_in: schemas.StudyGroupCreate, current_user: models.User =
                 related_type="invitation"
             )
             db.add(notif)
+            
+            # Send group invitation email
+            from ..email import send_group_invite_email
+            send_group_invite_email(background_tasks, invited_user.email, invited_user.name, current_user.name, group_in.name)
             
     db.commit()
     db.refresh(db_group)
@@ -145,6 +154,7 @@ def get_group(group_id: int, current_user: models.User = Depends(auth.get_curren
 def invite_member(
     group_id: int,
     body: schemas.GroupInviteRequest,
+    background_tasks: BackgroundTasks,
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -190,6 +200,11 @@ def invite_member(
         related_type="invitation"
     )
     db.add(notif)
+    
+    # Send group invitation email
+    from ..email import send_group_invite_email
+    send_group_invite_email(background_tasks, invitee.email, invitee.name, current_user.name, group.name)
+    
     db.commit()
     return {"message": f"Invitation sent to {invitee.name}"}
 

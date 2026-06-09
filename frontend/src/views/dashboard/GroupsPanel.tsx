@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, ChevronRight, X, Users, Mail, Check, Settings, Bell } from 'lucide-react';
-import type { User, Module, StudyGroup, GroupInvitation } from '../../types';
+import type { User, Module, StudyGroup, GroupInvitation, StudyGroupResponse, ModuleResponse, QuizQuestionResponse, GroupQuizSessionResponse, GroupQuizRankResponse } from '../../types';
 
 interface GroupsPanelProps {
   groups: StudyGroup[];
@@ -159,31 +159,31 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
       }
       return data;
     })
-    .then(updatedGroup => {
-      const mapped = {
+    .then((updatedGroup: StudyGroupResponse) => {
+      const mapped: StudyGroup = {
         id: updatedGroup.id,
         name: updatedGroup.name,
         members: updatedGroup.members || [],
-        modules: updatedGroup.modules ? updatedGroup.modules.map((m: any) => ({
+        modules: updatedGroup.modules ? updatedGroup.modules.map((m: ModuleResponse) => ({
           id: m.id,
           name: m.name,
           date: m.date,
           size: m.size,
           subject: m.subject || 'General',
           questionsCount: m.questionsCount !== undefined ? m.questionsCount : (m.questions ? m.questions.length : 0),
-          questions: m.questions ? m.questions.map((q: any) => ({
+          questions: m.questions ? m.questions.map((q: QuizQuestionResponse) => ({
             id: q.id,
             question: q.question,
             options: q.options,
             correctAnswerIndex: q.correct_answer_index
           })) : []
         })) : [],
-        quizSessions: updatedGroup.quiz_sessions ? updatedGroup.quiz_sessions.map((s: any) => ({
+        quizSessions: updatedGroup.quiz_sessions ? updatedGroup.quiz_sessions.map((s: GroupQuizSessionResponse) => ({
           id: s.id,
           moduleName: s.module_name,
           date: s.date,
           avgScore: s.avg_score,
-          rankings: s.rankings ? s.rankings.map((r: any) => ({
+          rankings: s.rankings ? s.rankings.map((r: GroupQuizRankResponse) => ({
             name: r.name,
             score: r.score,
             percentage: r.percentage,

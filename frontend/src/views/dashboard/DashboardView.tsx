@@ -65,6 +65,33 @@ const defaultStudyTime = {
   "General Study": 0
 };
 
+const questPool: Omit<StudyQuest, 'completed'>[] = [
+  { id: 'ask_ai', text: 'Query the AI Concept Tutor once', points: 50, actionType: 'ask_ai' },
+  { id: 'view_settings', text: 'Review your Account Profile settings', points: 30, actionType: 'view_settings' },
+  { id: 'complete_quiz', text: 'Complete any Practice Quiz', points: 70, actionType: 'complete_quiz' },
+  { id: 'study_group', text: 'Visit one of your study groups', points: 40, actionType: 'study_group' },
+  { id: 'add_exam', text: 'Add a new exam countdown', points: 30, actionType: 'custom' },
+  { id: 'custom_avatar', text: 'Choose or upload a new profile picture', points: 40, actionType: 'custom' },
+  { id: 'change_school', text: 'Set your school in settings tab', points: 30, actionType: 'custom' }
+];
+
+const getDeterministicDailyQuests = (userEmail: string, dateStr: string, pool: Omit<StudyQuest, 'completed'>[]): StudyQuest[] => {
+  let hash = 0;
+  const str = userEmail + dateStr;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const selected: StudyQuest[] = [];
+  const tempPool = [...pool];
+  for (let i = 0; i < 3; i++) {
+    if (tempPool.length === 0) break;
+    const index = Math.abs(hash + i) % tempPool.length;
+    selected.push({ ...tempPool[index], completed: false });
+    tempPool.splice(index, 1);
+  }
+  return selected;
+};
+
 export const DashboardView: React.FC<DashboardViewProps> = ({
   user, setUser, modules, groups, setModules, setGroups, setIsUploadOpen, setIsGroupModalOpen,
   studyTools, dashboardTab, setDashboardTab, selectedGroupId, setSelectedGroupId,
@@ -110,26 +137,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   };
   const pathData = drawQuizHistoryPath();
 
-  const questPool: Omit<StudyQuest, 'completed'>[] = [
-    { id: 'ask_ai', text: 'Query the AI Concept Tutor once', points: 50, actionType: 'ask_ai' },
-    { id: 'view_settings', text: 'Review your Account Profile settings', points: 30, actionType: 'view_settings' },
-    { id: 'complete_quiz', text: 'Complete any Practice Quiz', points: 70, actionType: 'complete_quiz' },
-    { id: 'study_group', text: 'Visit one of your study groups', points: 40, actionType: 'study_group' },
-    { id: 'add_exam', text: 'Add a new exam countdown', points: 30, actionType: 'custom' },
-    { id: 'custom_avatar', text: 'Choose or upload a new profile picture', points: 40, actionType: 'custom' },
-    { id: 'change_school', text: 'Set your school in settings tab', points: 30, actionType: 'custom' }
-  ];
+  const [quests, setQuests] = useState<StudyQuest[]>(() => {
+    const todayStr = new Date().toDateString();
+    if (!user.quests || user.quests.length === 0 || user.questsDate !== todayStr) {
+      return getDeterministicDailyQuests(user.email, todayStr, questPool);
+    }
+    return user.quests || [];
+  });
 
-  const [quests, setQuests] = useState<StudyQuest[]>(user.quests || []);
-
-  useEffect(() => {
-    if (user) {
-      setLevel(user.level || 1);
-      setXp(user.xp || 0);
-      setQuizHistory(user.quizHistory || []);
+  const [prevUser, setPrevUser] = useState<User>(user);
+  if (user !== prevUser) {
+    setPrevUser(user);
+    setLevel(user.level || 1);
+    setXp(user.xp || 0);
+    setQuizHistory(user.quizHistory || []);
+    const todayStr = new Date().toDateString();
+    if (!user.quests || user.quests.length === 0 || user.questsDate !== todayStr) {
+      setQuests(getDeterministicDailyQuests(user.email, todayStr, questPool));
+    } else {
       setQuests(user.quests || []);
     }
-  }, [user]);
+  }
 
   const [showLevelUp, setShowLevelUp] = useState(false);
   const [questToast, setQuestToast] = useState<{ text: string; points: number } | null>(null);
@@ -138,7 +166,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     const token = localStorage.getItem('token');
     if (!token) return;
 
-    const payload: any = {};
+    const payload: {
+      level?: number;
+      xp?: number;
+      streak?: number;
+      quizzes_count?: number;
+      quiz_history?: number[];
+      study_time?: { [key: string]: number };
+      heatmap_data?: { label: string; hours: number; level: number }[];
+      focus_areas?: { concept: string; subject: string; score: number; desc: string }[];
+      spaced_recall?: { id: number; name: string; subject: string; dueIn: string; progress: number }[];
+      quests?: StudyQuest[];
+      quests_date?: string;
+    } = {};
     if (updatedFields.level !== undefined) payload.level = updatedFields.level;
     if (updatedFields.xp !== undefined) payload.xp = updatedFields.xp;
     if (updatedFields.streak !== undefined) payload.streak = updatedFields.streak;
@@ -248,11 +288,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   useEffect(() => {
     const todayStr = new Date().toDateString();
     if (!user.quests || user.quests.length === 0 || user.questsDate !== todayStr) {
-      const shuffled = [...questPool].sort(() => 0.5 - Math.random());
-      const selected = shuffled.slice(0, 3).map(q => ({ ...q, completed: false }));
-      setQuests(selected);
-      syncProfile({ quests: selected, questsDate: todayStr });
+      syncProfile({ quests, questsDate: todayStr });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const showQuestToast = (text: string, points: number) => {
