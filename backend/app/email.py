@@ -111,7 +111,7 @@ def send_verification_email_sync(user_email: str, user_name: str, code: str):
     _send_smtp_email(user_email, subject, html_content, "Verification email")
 
 def send_verification_email(background_tasks: BackgroundTasks, user_email: str, user_name: str, code: str):
-    background_tasks.add_task(send_verification_email_sync, user_email, user_name, code)
+    send_verification_email_sync(user_email, user_name, code)
 
 def send_reset_code_email_sync(user_email: str, user_name: str, code: str):
     subject = "Reset your Lumio password"
@@ -142,7 +142,7 @@ def send_reset_code_email_sync(user_email: str, user_name: str, code: str):
     _send_smtp_email(user_email, subject, html_content, "Reset code email")
 
 def send_reset_code_email(background_tasks: BackgroundTasks, user_email: str, user_name: str, code: str):
-    background_tasks.add_task(send_reset_code_email_sync, user_email, user_name, code)
+    send_reset_code_email_sync(user_email, user_name, code)
 
 def send_welcome_email(background_tasks: BackgroundTasks, user_email: str, user_name: str):
     background_tasks.add_task(send_welcome_email_sync, user_email, user_name)
