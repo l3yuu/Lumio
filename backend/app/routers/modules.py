@@ -1,4 +1,3 @@
-from datetime import datetime
 import os
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Request
@@ -9,6 +8,7 @@ from ..database import get_db
 from .. import models, schemas, auth
 from ..quiz_generator import generate_quiz_questions
 from ..ratelimit import modules_limiter
+from ..time_utils import now_ph, today_ph_str
 
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "uploads")
 
@@ -51,7 +51,7 @@ def create_module(
     modules_limiter.record(limiter_key)
 
     # Enforce Daily Quota Limit of 5 quiz generations
-    today_str = datetime.utcnow().strftime("%Y-%m-%d")
+    today_str = today_ph_str()
     st = current_user.study_time or {}
     if not isinstance(st, dict):
         st = {}
@@ -87,7 +87,7 @@ def create_module(
     )
     
     # Format date nicely
-    date_str = datetime.utcnow().strftime("%b %d, %Y")
+    date_str = now_ph().strftime("%b %d, %Y")
     db_module = models.Module(
         name=name,
         date=date_str,

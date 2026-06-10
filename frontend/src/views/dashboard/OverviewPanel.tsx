@@ -3,6 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Search, MessageSquare, Sparkles, Clock, Calendar, Award, Zap, Target, Trophy, Users, Flame, Layers, Plus, Trash2, CheckCircle2, RotateCcw } from 'lucide-react';
 import type { User, StudyQuest, ExamDeadline, DashboardTab } from '../../types';
 
+const asStudyHours = (value: number | string | undefined, fallback: number) =>
+  typeof value === 'number' ? value : fallback;
+
 interface OverviewPanelProps {
   user: User;
   level: number;
@@ -258,10 +261,10 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
                 <p className="text-[0.8rem] text-ink-muted mb-5">Breakdown of study hours spent per subject category.</p>
                 <div className="flex flex-col gap-3.5">
                   {[
-                    { subject: 'Biology', hours: user.studyTime?.Biology !== undefined ? user.studyTime.Biology : 14, color: 'linear-gradient(90deg, #3ECF8E, #30B378)' },
-                    { subject: 'Economics', hours: user.studyTime?.Economics !== undefined ? user.studyTime.Economics : 9, color: 'linear-gradient(90deg, #f59e0b, #d97706)' },
-                    { subject: 'Mathematics', hours: user.studyTime?.Mathematics !== undefined ? user.studyTime.Mathematics : 6, color: 'linear-gradient(90deg, #06b6d4, #0891b2)' },
-                    { subject: 'General Study', hours: user.studyTime?.['General Study'] !== undefined ? user.studyTime['General Study'] : 4, color: 'linear-gradient(90deg, #a855f7, #9333ea)' },
+                    { subject: 'Biology', hours: asStudyHours(user.studyTime?.Biology, 14), color: 'linear-gradient(90deg, #3ECF8E, #30B378)' },
+                    { subject: 'Economics', hours: asStudyHours(user.studyTime?.Economics, 9), color: 'linear-gradient(90deg, #f59e0b, #d97706)' },
+                    { subject: 'Mathematics', hours: asStudyHours(user.studyTime?.Mathematics, 6), color: 'linear-gradient(90deg, #06b6d4, #0891b2)' },
+                    { subject: 'General Study', hours: asStudyHours(user.studyTime?.['General Study'], 4), color: 'linear-gradient(90deg, #a855f7, #9333ea)' },
                   ].map((item, idx, arr) => {
                     const total = arr.reduce((sum, i) => sum + i.hours, 0);
                     const max = Math.max(...arr.map(i => i.hours));

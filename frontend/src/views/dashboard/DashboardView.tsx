@@ -66,6 +66,9 @@ const defaultStudyTime = {
   "General Study": 0
 };
 
+const asStudyHours = (value: number | string | undefined, fallback = 0) =>
+  typeof value === 'number' ? value : fallback;
+
 const questPool: Omit<StudyQuest, 'completed'>[] = [
   { id: 'ask_ai', text: 'Query the AI Concept Tutor once', points: 50, actionType: 'ask_ai' },
   { id: 'view_settings', text: 'Review your Account Profile settings', points: 30, actionType: 'view_settings' },
@@ -173,7 +176,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       streak?: number;
       quizzes_count?: number;
       quiz_history?: number[];
-      study_time?: { [key: string]: number };
+      study_time?: { [key: string]: number | string };
       heatmap_data?: { label: string; hours: number; level: number }[];
       focus_areas?: { concept: string; subject: string; score: number; desc: string }[];
       spaced_recall?: { id: number; name: string; subject: string; dueIn: string; progress: number }[];
@@ -278,7 +281,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     currentHeatmap[dayIndex] = dayObj;
     
     const currentStudyTime = { ...(user.studyTime || defaultStudyTime) };
-    currentStudyTime["General Study"] = (currentStudyTime["General Study"] || 0) + 1;
+    currentStudyTime["General Study"] = asStudyHours(currentStudyTime["General Study"]) + 1;
     
     syncProfile({
       heatmapData: currentHeatmap,

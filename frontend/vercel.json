@@ -10,6 +10,19 @@
       ]
     }
   ],
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "lumio-c3dw6v8ri-leumars-projects.vercel.app"
+        }
+      ],
+      "destination": "https://lumio-henna-chi.vercel.app/$1",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ]

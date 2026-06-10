@@ -3,6 +3,7 @@ from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Table, Text
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from .database import Base
+from .time_utils import now_ph_naive
 
 # Association Tables
 group_members = Table(
@@ -194,7 +195,7 @@ class Notification(Base):
     related_id = Column(Integer, nullable=True)      # e.g. group_id, invitation_id, module_id
     related_type = Column(String(50), nullable=True) # e.g. "group", "invitation", "module"
     is_read = Column(Boolean, default=False)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=now_ph_naive)
 
     user = relationship("User", foreign_keys=[user_id])
 

@@ -47,7 +47,7 @@ export interface User {
   streak?: number;
   quizzesCount?: number;
   quizHistory?: number[];
-  studyTime?: { [key: string]: number };
+  studyTime?: { [key: string]: number | string };
   heatmapData?: { label: string; hours: number; level: number }[];
   focusAreas?: { concept: string; subject: string; score: number; desc: string }[];
   spacedRecall?: { id: number; name: string; subject: string; dueIn: string; progress: number }[];
@@ -195,7 +195,7 @@ export interface UserResponse {
   streak?: number;
   quizzes_count?: number;
   quiz_history?: number[];
-  study_time?: { [key: string]: number };
+  study_time?: { [key: string]: number | string };
   heatmap_data?: { label: string; hours: number; level: number }[];
   focus_areas?: { concept: string; subject: string; score: number; desc: string }[];
   spaced_recall?: { id: number; name: string; subject: string; dueIn: string; progress: number }[];

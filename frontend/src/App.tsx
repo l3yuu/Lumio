@@ -98,6 +98,29 @@ const mapGroup = (g: StudyGroupResponse): StudyGroup => ({
 // ⚡ Toggle this to true to show maintenance page across the entire site
 const MAINTENANCE_MODE = false;
 
+const getPhilippineDateKey = () => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+};
+
+const getDailyGenerationQuota = (studyTime?: { [key: string]: number | string }) => {
+  const quotaDate = typeof studyTime?.quota_date === 'string' ? studyTime.quota_date : '';
+  const quotaUsed = quotaDate === getPhilippineDateKey() && typeof studyTime?.quota_used === 'number'
+    ? studyTime.quota_used
+    : 0;
+  const remaining = Math.max(0, 5 - quotaUsed);
+  return {
+    remaining,
+    isExceeded: remaining <= 0,
+  };
+};
+
 function App() {
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     const saved = localStorage.getItem('theme');
@@ -813,8 +836,7 @@ function App() {
 
         {/* Add Module Modal */}
         {isUploadOpen && (() => {
-          const isQuotaExceeded = 5 - (user?.studyTime?.quota_used || 0) <= 0;
-          const remainingQuotas = Math.max(0, 5 - (user?.studyTime?.quota_used || 0));
+          const { remaining: remainingQuotas, isExceeded: isQuotaExceeded } = getDailyGenerationQuota(user?.studyTime);
           return (
             <div className="fixed inset-0 bg-[rgba(5,5,5,0.7)] backdrop-blur-sm z-3000 flex items-center justify-center p-4">
               <div className="bg-card border border-line rounded-2xl p-8 max-w-140 w-full shadow-lg max-h-[90vh] flex flex-col">

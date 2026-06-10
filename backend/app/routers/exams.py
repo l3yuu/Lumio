@@ -4,6 +4,7 @@ from typing import List
 from datetime import datetime
 from ..database import get_db
 from .. import models, schemas, auth
+from ..time_utils import now_ph
 
 router = APIRouter(prefix="/api/exams", tags=["exams"])
 
@@ -11,14 +12,14 @@ def calculate_days_remaining(target_date_str: str) -> int:
     try:
         # Standard raw date is YYYY-MM-DD
         target_date = datetime.strptime(target_date_str, "%Y-%m-%d").date()
-        today = datetime.utcnow().date()
+        today = now_ph().date()
         delta = target_date - today
         return max(0, delta.days)
     except Exception:
         # Fallback to formatting
         try:
             target_date = datetime.strptime(target_date_str, "%b %d, %Y").date()
-            today = datetime.utcnow().date()
+            today = now_ph().date()
             delta = target_date - today
             return max(0, delta.days)
         except Exception:

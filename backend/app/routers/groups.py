@@ -7,6 +7,7 @@ from datetime import datetime
 from ..database import get_db
 from .. import models, schemas, auth
 from ..config import settings
+from ..time_utils import now_ph, now_ph_naive
 
 router = APIRouter(prefix="/api/groups", tags=["groups"])
 
@@ -38,7 +39,7 @@ def create_group(
                 inviter_id=current_user.id,
                 invitee_id=invited_user.id,
                 status='pending',
-                created_at=datetime.utcnow()
+                created_at=now_ph_naive()
             )
             db.add(invitation)
             notif = models.Notification(
@@ -186,7 +187,7 @@ def invite_member(
         inviter_id=current_user.id,
         invitee_id=invitee.id,
         status='pending',
-        created_at=datetime.utcnow()
+        created_at=now_ph_naive()
     )
     db.add(invitation)
 
@@ -511,7 +512,7 @@ async def websocket_endpoint(websocket: WebSocket, group_id: int, module_id: int
                         db_session = models.QuizSession(
                             group_id=group_id,
                             module_name=module.name,
-                            date=datetime.utcnow().strftime("%b %d, %Y %H:%M"),
+                            date=now_ph().strftime("%b %d, %Y %H:%M"),
                             avg_score=f"{avg_score_int}%"
                         )
                         db.add(db_session)

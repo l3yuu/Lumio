@@ -43,10 +43,111 @@ def clean_extracted_text(text: str) -> str:
     return text.strip()
 
 
-def generate_mock_questions(module_name: str) -> List[dict]:
-    """Generates 10 high-quality mock questions as a local fallback."""
+def strip_module_boilerplate(text: str, module_name: str = "") -> str:
+    """Prefer lesson body text over covers, tables of contents, and module metadata."""
+    if not text:
+        return ""
+
+    module_words = {w.lower() for w in re.findall(r"[a-zA-Z]{4,}", module_name)}
+    boilerplate_patterns = [
+        r"^\s*(module|unit|chapter)\s*\d*[:.\-\s]*$",
+        r"^\s*(overview|introduction|table of contents|contents|learning objectives?)\s*$",
+        r"^\s*(what is this module about|about this module|module description)\s*$",
+        r"^\s*(at the end of this module|after studying this module|in this module,? you will)\b",
+        r"^\s*(page|lesson)\s+\d+\s*$",
+    ]
+
+    cleaned_lines = []
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if len(line) < 20:
+            continue
+        lower = line.lower()
+        if any(re.search(pattern, lower) for pattern in boilerplate_patterns):
+            continue
+
+        words = re.findall(r"[a-zA-Z]{3,}", lower)
+        if words:
+            module_word_hits = sum(1 for word in words if word in module_words)
+            if module_words and module_word_hits / max(len(words), 1) > 0.35:
+                continue
+
+        cleaned_lines.append(line)
+
+    cleaned = "\n".join(cleaned_lines)
+    return re.sub(r"\n{3,}", "\n\n", cleaned).strip()
+
+
+def build_lesson_excerpt(text: str, module_name: str = "", max_chars: int = 12000) -> str:
+    """Build an excerpt weighted toward teachable lesson facts instead of front matter."""
+    lesson_text = strip_module_boilerplate(text, module_name)
+    if len(lesson_text) <= max_chars:
+        return lesson_text
+
+    paragraphs = [p.strip() for p in re.split(r"\n\s*\n", lesson_text) if len(p.strip()) >= 80]
+    scored_paragraphs = []
+    concept_markers = re.compile(
+        r"\b(is|are|means|refers to|defined as|because|therefore|process|function|cause|effect|"
+        r"example|types?|components?|characteristics?|advantages?|disadvantages?|steps?|role)\b",
+        re.IGNORECASE,
+    )
+    for index, paragraph in enumerate(paragraphs):
+        words = re.findall(r"[A-Za-z]{4,}", paragraph)
+        unique_ratio = len(set(w.lower() for w in words)) / max(len(words), 1)
+        score = min(len(paragraph), 900) + (200 if concept_markers.search(paragraph) else 0) + int(unique_ratio * 100)
+        # Keep some early lesson context without letting cover pages dominate.
+        score -= max(index - 4, 0) * 3
+        scored_paragraphs.append((score, index, paragraph))
+
+    selected = sorted(scored_paragraphs, reverse=True)[:24]
+    selected.sort(key=lambda item: item[1])
+
+    excerpt = ""
+    for _, _, paragraph in selected:
+        if len(excerpt) + len(paragraph) + 2 > max_chars:
+            break
+        excerpt += paragraph + "\n\n"
+
+    return excerpt.strip() or lesson_text[:max_chars]
+
+
+def extract_study_sentences(text: str, limit: int = 10) -> List[str]:
+    """Pull factual-looking sentences for local fallback questions."""
+    sentences = re.split(r"(?<=[.!?])\s+", text.replace("\n", " "))
+    candidates = []
+    for sentence in sentences:
+        sentence = re.sub(r"\s+", " ", sentence).strip()
+        if not 60 <= len(sentence) <= 260:
+            continue
+        if sentence.count(",") > 8:
+            continue
+        if re.search(r"\b(module|lesson|page|activity|directions?)\b", sentence, re.IGNORECASE):
+            continue
+        if re.search(r"\b(is|are|means|refers to|because|therefore|process|function|cause|effect|consists of)\b", sentence, re.IGNORECASE):
+            candidates.append(sentence)
+        if len(candidates) >= limit:
+            break
+    return candidates
+
+
+def generate_mock_questions(module_name: str, text_content: Optional[str] = None) -> List[dict]:
+    """Generates 10 local fallback questions, using lesson content when available."""
     logger.info(f"Generating mock questions as fallback for module: {module_name}")
-    return [
+    study_sentences = extract_study_sentences(build_lesson_excerpt(text_content or "", module_name, max_chars=8000))
+    questions = []
+    for index, sentence in enumerate(study_sentences[:10]):
+        questions.append({
+            "question": f"According to the lesson, which statement is accurate?",
+            "options": [
+                sentence,
+                f"The lesson says this topic is only about the module title, not its content.",
+                "The lesson states that definitions and examples are not important for understanding.",
+                "The lesson presents the topic as unrelated to any real concept or process."
+            ],
+            "correct_answer_index": 0
+        })
+
+    generic_questions = [
         {
             "question": f"What is the primary objective of studying '{module_name}'?",
             "options": ["Comprehensive mastery of core concepts", "Rote memorization of terms", "Superficial review of chapter headings", "Ignoring external applications"],
@@ -98,6 +199,7 @@ def generate_mock_questions(module_name: str) -> List[dict]:
             "correct_answer_index": 0
         }
     ]
+    return (questions + generic_questions)[:10]
 
 def generate_quiz_questions(module_name: str, text_content: Optional[str] = None, file_bytes: Optional[bytes] = None, file_filename: Optional[str] = None) -> tuple:
     """
@@ -140,7 +242,7 @@ def generate_quiz_questions(module_name: str, text_content: Optional[str] = None
         elif not extracted_text:
             logger.warning("No study content extracted. Using local mock questions fallback.")
             print("DEBUG: No study content extracted. Using local mock questions fallback.")
-        return generate_mock_questions(module_name), extracted_text
+        return generate_mock_questions(module_name, extracted_text), extracted_text
 
     # 4. Invoke Gemini API
     try:
@@ -150,18 +252,25 @@ def generate_quiz_questions(module_name: str, text_content: Optional[str] = None
         logger.info(f"Connecting to Gemini API to generate quiz for module: {module_name}")
         client = genai.Client(api_key=api_key)
         
+        lesson_excerpt = build_lesson_excerpt(extracted_text, module_name)
         prompt = f"""
 You are an expert academic tutor.
-Analyze the study text provided below and generate exactly 10 high-quality multiple choice questions (MCQs) to test a student's comprehension.
+Analyze the lesson content provided below and generate exactly 10 high-quality multiple choice questions (MCQs) to test a student's comprehension of what the lesson teaches.
 Each question must satisfy these requirements:
 - Have exactly 4 options.
 - Have exactly 1 correct option index (0 for first, 1 for second, 2 for third, 3 for fourth).
-- Be directly based on the facts and information present in the text.
+- Be directly based on facts, definitions, processes, examples, causes/effects, or comparisons present in the lesson content.
+- Ask about the concepts inside the lesson, not about the module title, file, author, objectives, instructions, table of contents, or "what the module is about".
+- Avoid questions that can be answered only from the module name.
+- Avoid generic study-skills questions.
 - Be clear, unambiguous, and educational.
 
-Study material text:
+Module title, for context only. Do not quiz about this title:
+{module_name}
+
+Lesson content to quiz from:
 ---
-{extracted_text[:12000]}
+{lesson_excerpt[:12000]}
 ---
 """
         response = client.models.generate_content(
@@ -190,8 +299,8 @@ Study material text:
                 return formatted_questions[:10], extracted_text
 
         logger.warning("Gemini API returned an empty or invalid response. Falling back to mock questions.")
-        return generate_mock_questions(module_name), extracted_text
+        return generate_mock_questions(module_name, extracted_text), extracted_text
 
     except Exception as e:
         logger.error(f"Exception during Gemini API call: {str(e)}")
-        return generate_mock_questions(module_name), extracted_text
+        return generate_mock_questions(module_name, extracted_text), extracted_text

@@ -4,6 +4,7 @@ from ..database import get_db
 from .. import models, schemas, auth
 from ..email import generate_verification_code, send_verification_email, send_welcome_email, send_reset_code_email
 from ..ratelimit import login_limiter, register_limiter, verify_limiter, resend_limiter, forgot_limiter, reset_limiter
+from ..time_utils import today_ph_str
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -193,8 +194,7 @@ def google_login(login_data: schemas.GoogleLoginRequest, db: Session = Depends(g
 @router.get("/me", response_model=schemas.UserOut)
 def get_me(current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     # Reset daily quota if it's a new day
-    from datetime import datetime
-    today_str = datetime.utcnow().strftime("%Y-%m-%d")
+    today_str = today_ph_str()
     st = current_user.study_time or {}
     if not isinstance(st, dict):
         st = {}
