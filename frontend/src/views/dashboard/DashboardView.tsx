@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, Zap, AlertTriangle } from 'lucide-react';
 import type { User, Module, StudyGroup, GroupInvitation, GroupQuizSession, GroupQuizRank, DashboardTab, View, StudyQuest, ExamDeadline, ExamDeadlineResponse, StudyGroupResponse, Notification } from '../../types';
@@ -106,38 +106,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 }) => {
   const [activeTool, setActiveTool] = useState<ActiveTool | null>(null);
   const [moduleToDelete, setModuleToDelete] = useState<Module | null>(null);
-  const [moduleScores, setModuleScores] = useState<{ [moduleId: number]: string }>(() => {
-    const stored = localStorage.getItem('lumio-module-scores');
-    return stored ? JSON.parse(stored) : {};
-  });
-
-  // Sync last scores from backend modules list into moduleScores local state and localStorage
-  useEffect(() => {
+  // Derive moduleScores map from modules list
+  const moduleScores = useMemo(() => {
+    const scores: { [moduleId: number]: string } = {};
     if (modules) {
-      setModuleScores(prev => {
-        const updated: { [moduleId: number]: string } = {};
-        let changed = false;
-        
-        modules.forEach(m => {
-          const score = m.lastScore || prev[m.id];
-          if (score) {
-            updated[m.id] = score;
-          }
-        });
-        
-        const keys1 = Object.keys(prev);
-        const keys2 = Object.keys(updated);
-        if (keys1.length !== keys2.length || keys1.some(k => prev[Number(k)] !== updated[Number(k)])) {
-          changed = true;
+      modules.forEach(m => {
+        if (m.lastScore) {
+          scores[m.id] = m.lastScore;
         }
-        
-        if (changed) {
-          localStorage.setItem('lumio-module-scores', JSON.stringify(updated));
-          return updated;
-        }
-        return prev;
       });
     }
+    return scores;
   }, [modules]);
 
   // Wrap setDashboardTab so switching away from 'tools' clears the active inline tool
@@ -295,7 +274,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   };
 
   const addStudyMinutes = (minutes: number, extraFields: Partial<User> = {}) => {
-    const currentStudyTime = { ...(user.studyTime || defaultStudyTime) };
+    const currentStudyTime: { [key: string]: number | string } = { ...(user.studyTime || defaultStudyTime) };
     const prevMinutes = typeof currentStudyTime["accumulated_minutes"] === 'number'
       ? currentStudyTime["accumulated_minutes"]
       : 0;

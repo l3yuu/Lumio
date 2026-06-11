@@ -185,11 +185,11 @@ export const PomodoroTool: React.FC<PomodoroToolProps> = ({ setView, onFocusSess
     : 628;
 
   return (
-    <div className="max-w-[720px] mx-auto py-12 px-6 pb-24">
+    <div className="max-w-180 mx-auto py-12 px-6 pb-24">
       {/* Back button */}
       <button
         onClick={() => setView('tools')}
-        className="inline-flex items-center justify-center gap-2 text-sm px-4 py-2 rounded-md font-medium transition-all duration-150 border border-transparent no-underline cursor-pointer bg-transparent border border-line text-ink hover:bg-input hover:border-line-strong mb-8 px-3 py-1.5 text-xs"
+        className="inline-flex items-center justify-center gap-2 text-sm px-4 py-2 rounded-md font-medium transition-all duration-150 border border-transparent no-underline cursor-pointer bg-transparent text-ink hover:bg-input hover:border-line-strong mb-8"
       >
         &larr; Back to Utilities
       </button>
@@ -204,7 +204,7 @@ export const PomodoroTool: React.FC<PomodoroToolProps> = ({ setView, onFocusSess
       {/* Main card */}
       <div className="bg-card border border-line rounded-xl p-8 mb-8 relative overflow-hidden shadow-lg flex flex-col items-center">
         {/* Mode tab selectors */}
-        <div className="flex gap-2 bg-app p-1 rounded-full border border-line mb-8 w-full max-w-[360px]">
+        <div className="flex gap-2 bg-app p-1 rounded-full border border-line mb-8 w-full max-w-90">
           {(['focus', 'shortBreak', 'longBreak'] as TimerMode[]).map((tab) => (
             <button
               key={tab}
@@ -221,7 +221,7 @@ export const PomodoroTool: React.FC<PomodoroToolProps> = ({ setView, onFocusSess
         </div>
 
         {/* Circular Progress Ring */}
-        <div className="relative w-[230px] h-[230px] flex items-center justify-center mb-8">
+        <div className="relative w-57.5 h-57.5 flex items-center justify-center mb-8">
           <svg className="w-full h-full -rotate-90" viewBox="0 0 220 220">
             {/* Background circle */}
             <circle
