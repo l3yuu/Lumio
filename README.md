@@ -34,7 +34,7 @@ uvicorn main:app --reload --port 8000
 ```bash
 npm run dev
 ```
-
+docker compose up -d
 The API will be available at `http://localhost:8000` and the frontend at `http://localhost:5173`.
 
 ## Features

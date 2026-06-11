@@ -129,6 +129,8 @@ def create_module(
     # Increment quota count and update study_time JSON
     st["quota_used"] = quota_used + 1
     current_user.study_time = {**st}
+    from sqlalchemy.orm.attributes import flag_modified
+    flag_modified(current_user, "study_time")
     
     db.commit()
     db.refresh(db_module)
@@ -150,6 +152,52 @@ def update_module_score(
         raise HTTPException(status_code=404, detail="Module not found")
 
     module.last_score = body.score
+    
+    # Update spaced recall scheduling
+    from sqlalchemy.orm.attributes import flag_modified
+    from ..time_utils import now_ph
+    from datetime import timedelta
+
+    spaced_list = list(current_user.spaced_recall or [])
+    found = False
+    
+    for item in spaced_list:
+        if item.get("id") == module.id:
+            # Advance progress
+            current_progress = item.get("progress", 20)
+            new_progress = min(100, current_progress + 20)
+            
+            # Determine new interval
+            if new_progress == 40:
+                days_delta = 3
+            elif new_progress == 60:
+                days_delta = 7
+            elif new_progress == 80:
+                days_delta = 14
+            else:
+                days_delta = 30
+                
+            item["progress"] = new_progress
+            item["due_at"] = (now_ph() + timedelta(days=days_delta)).isoformat()
+            item["reminder_sent"] = False
+            found = True
+            break
+            
+    if not found:
+        # Create new spaced recall item due tomorrow
+        new_item = {
+            "id": module.id,
+            "name": module.name,
+            "subject": module.subject or "General Study",
+            "progress": 20,
+            "due_at": (now_ph() + timedelta(days=1)).isoformat(),
+            "reminder_sent": False
+        }
+        spaced_list.append(new_item)
+        
+    current_user.spaced_recall = spaced_list
+    flag_modified(current_user, "spaced_recall")
+
     db.commit()
     db.refresh(module)
     return module

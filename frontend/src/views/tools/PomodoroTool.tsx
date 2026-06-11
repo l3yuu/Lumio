@@ -4,11 +4,12 @@ import type { View } from '../../types';
 
 interface PomodoroToolProps {
   setView: (view: View) => void;
+  onFocusSessionComplete?: (minutes: number) => void;
 }
 
 type TimerMode = 'focus' | 'shortBreak' | 'longBreak';
 
-export const PomodoroTool: React.FC<PomodoroToolProps> = ({ setView }) => {
+export const PomodoroTool: React.FC<PomodoroToolProps> = ({ setView, onFocusSessionComplete }) => {
   // Modes & Settings State
   const [mode, setMode] = useState<TimerMode>('focus');
   const [durations, setDurations] = useState({
@@ -89,6 +90,10 @@ export const PomodoroTool: React.FC<PomodoroToolProps> = ({ setView }) => {
     if (mode === 'focus') {
       setSessionsCompleted((prev) => prev + 1);
       setTotalFocusMinutes((prev) => prev + durations.focus);
+
+      if (onFocusSessionComplete) {
+        onFocusSessionComplete(durations.focus);
+      }
 
       if ((sessionsCompleted + 1) % 4 === 0) {
         switchMode('longBreak');

@@ -67,7 +67,8 @@ const mapModule = (m: ModuleResponse): Module => ({
     question: q.question,
     options: q.options,
     correctAnswerIndex: q.correct_answer_index
-  })) : []
+  })) : [],
+  lastScore: m.last_score
 });
 
 const mapGroup = (g: StudyGroupResponse): StudyGroup => ({
@@ -553,6 +554,7 @@ function App() {
 
   const handleLogout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('lumio-module-scores');
     setUser(null);
     setView('landing');
   };

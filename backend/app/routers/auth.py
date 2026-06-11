@@ -202,12 +202,15 @@ def get_me(current_user: models.User = Depends(auth.get_current_user), db: Sessi
         st["quota_date"] = today_str
         st["quota_used"] = 0
         current_user.study_time = {**st}
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(current_user, "study_time")
         db.commit()
         db.refresh(current_user)
     return current_user
 
 @router.put("/profile", response_model=schemas.UserOut)
 def update_profile(user_update: schemas.UserUpdate, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    from sqlalchemy.orm.attributes import flag_modified
     if user_update.name is not None:
         current_user.name = user_update.name
     if user_update.avatar is not None:
@@ -240,14 +243,19 @@ def update_profile(user_update: schemas.UserUpdate, current_user: models.User = 
         current_user.quiz_history = user_update.quiz_history
     if user_update.study_time is not None:
         current_user.study_time = user_update.study_time
+        flag_modified(current_user, "study_time")
     if user_update.heatmap_data is not None:
         current_user.heatmap_data = user_update.heatmap_data
+        flag_modified(current_user, "heatmap_data")
     if user_update.focus_areas is not None:
         current_user.focus_areas = user_update.focus_areas
+        flag_modified(current_user, "focus_areas")
     if user_update.spaced_recall is not None:
         current_user.spaced_recall = user_update.spaced_recall
+        flag_modified(current_user, "spaced_recall")
     if user_update.quests is not None:
         current_user.quests = user_update.quests
+        flag_modified(current_user, "quests")
     if user_update.quests_date is not None:
         current_user.quests_date = user_update.quests_date
     if user_update.last_check_in is not None:

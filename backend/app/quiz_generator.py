@@ -19,13 +19,16 @@ class QuizSchema(BaseModel):
     questions: List[QuizQuestionItem]
 
 def extract_text_from_pdf(file_bytes: bytes) -> str:
-    """Extracts text content from a binary PDF file."""
+    """Extracts text content from a binary PDF file using layout mode if supported."""
     try:
         pdf_file = io.BytesIO(file_bytes)
         reader = pypdf.PdfReader(pdf_file)
         text = ""
         for page in reader.pages:
-            extracted = page.extract_text()
+            try:
+                extracted = page.extract_text(extraction_mode="layout")
+            except Exception:
+                extracted = page.extract_text()
             if extracted:
                 text += extracted + "\n"
         return text.strip()
@@ -95,8 +98,9 @@ def build_lesson_excerpt(text: str, module_name: str = "", max_chars: int = 1200
         words = re.findall(r"[A-Za-z]{4,}", paragraph)
         unique_ratio = len(set(w.lower() for w in words)) / max(len(words), 1)
         score = min(len(paragraph), 900) + (200 if concept_markers.search(paragraph) else 0) + int(unique_ratio * 100)
-        # Keep some early lesson context without letting cover pages dominate.
-        score -= max(index - 4, 0) * 3
+        # Do not heavily penalize later paragraphs so that actual lessons in the middle/end are not discarded.
+        # We apply a very small decay to break ties in favor of earlier content, but not enough to dominate.
+        score -= int(index * 0.1)
         scored_paragraphs.append((score, index, paragraph))
 
     selected = sorted(scored_paragraphs, reverse=True)[:24]

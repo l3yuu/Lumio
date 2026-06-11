@@ -6,6 +6,14 @@ import type { User, StudyQuest, ExamDeadline, DashboardTab } from '../../types';
 const asStudyHours = (value: number | string | undefined, fallback: number) =>
   typeof value === 'number' ? value : fallback;
 
+const formatTutorAnswer = (text: string): string => {
+  return text
+    .replace(/\*\*/g, '')
+    .replace(/#+\s+/g, '')
+    .replace(/^\s*[-*]\s+/g, '• ')
+    .replace(/\n\s*[-*]\s+/g, '\n• ');
+};
+
 interface OverviewPanelProps {
   user: User;
   level: number;
@@ -38,12 +46,10 @@ interface OverviewPanelProps {
   setSelectedSubject: (v: string) => void;
   handleAddExam: (e: React.FormEvent) => void;
   handleDeleteExam: (id: number) => void;
-  handleToggleQuest: (id: string) => void;
-  handleRollNewQuests: () => void;
+  handleCompleteExam: (id: number) => void;
   handleAiSearch: (e: React.FormEvent) => void;
   getActivityColor: (level: number) => string;
   handleStreakCheckIn: () => void;
-  handleLogStudyHour: (dayIndex: number) => void;
 }
 
 export const OverviewPanel: React.FC<OverviewPanelProps> = ({
@@ -52,8 +58,8 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
   aiSearchQuery, aiResponse, isAiLoading, spacedRepetitionList, heatmapData, subjects, pathData,
   setInsightsTab, setIsAddingExam, setNewExamTitle, setNewExamSubject, setNewExamDate,
   setNewExamPriority, setAiSearchQuery, setDashboardTab, setSelectedSubject,
-  handleAddExam, handleDeleteExam, handleToggleQuest, handleRollNewQuests, handleAiSearch, getActivityColor,
-  handleStreakCheckIn, handleLogStudyHour,
+  handleAddExam, handleDeleteExam, handleCompleteExam, handleAiSearch, getActivityColor,
+  handleStreakCheckIn,
 }) => {
   const [isCheckInOpen, setIsCheckInOpen] = React.useState(false);
   return (
@@ -106,10 +112,8 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
               {heatmapData.map((data, index) => (
                 <div key={index} className="flex flex-col items-center flex-1 min-w-8">
                   <div 
-                    onClick={() => handleLogStudyHour(index)}
-                    className="cursor-pointer hover:scale-[1.08] hover:shadow-pop transition-all duration-150"
                     style={{ width: '100%', height: '36px', borderRadius: '6px', background: getActivityColor(data.level), border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', color: data.level > 2 ? '#121212' : 'var(--text-primary)', fontWeight: 'bold' }} 
-                    title={`${data.hours} study hours on ${data.label}. Click to log 1 hour.`}
+                    title={`${data.hours} study hours on ${data.label}.`}
                   >
                     {data.hours > 0 && `${data.hours}h`}
                   </div>
@@ -190,6 +194,9 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
                         <span className={`text-[0.75rem] font-bold rounded px-2 py-0.5 whitespace-nowrap ${exam.priority === 'high' ? 'bg-danger-soft text-danger border border-danger-line' : exam.priority === 'medium' ? 'bg-warning-soft text-warning border border-warning-line' : 'bg-cyan-soft-2 text-accent-cyan border border-cyan-line'}`}>
                           {exam.daysRemaining === 0 ? 'Today!' : `${exam.daysRemaining} days left`}
                         </span>
+                        <button onClick={() => handleCompleteExam(exam.id)} className="bg-transparent border-0 text-ink-muted cursor-pointer p-0.5 flex items-center opacity-60 hover:opacity-100 transition-opacity duration-200" title="Mark as Completed" type="button">
+                          <CheckCircle2 size={14} className="text-primary" />
+                        </button>
                         <button onClick={() => handleDeleteExam(exam.id)} className="bg-transparent border-0 text-ink-muted cursor-pointer p-0.5 flex items-center opacity-60 hover:opacity-100 transition-opacity duration-200" title="Delete countdown" type="button">
                           <Trash2 size={14} className="text-danger" />
                         </button>
@@ -335,7 +342,7 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
 
             <div className="flex flex-col gap-3">
               {quests.map((quest) => (
-                <div key={quest.id} className={`flex items-center gap-3 py-2.5 px-3 bg-app border border-line rounded-lg cursor-pointer transition-all duration-200 hover:border-primary-line-bold hover:bg-primary-tint-1 ${quest.completed ? 'opacity-65 bg-ink-soft border-line cursor-default' : ''}`} onClick={() => { if (!quest.completed) handleToggleQuest(quest.id); }}>
+                <div key={quest.id} className={`flex items-center gap-3 py-2.5 px-3 bg-app border border-line rounded-lg transition-all duration-200 ${quest.completed ? 'opacity-65 bg-ink-soft' : ''}`}>
                   <div className="flex items-center justify-center shrink-0">
                     {quest.completed ? <CheckCircle2 size={16} className="text-primary animate-[pop-check_0.3s_cubic-bezier(0.175,0.885,0.32,1.275)]" /> : <Target size={16} className="text-ink-muted" />}
                   </div>
@@ -345,12 +352,6 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
                   <span className={`text-[0.7rem] font-bold bg-cyan-soft-2 text-accent-cyan py-0.5 px-2 rounded border border-cyan-line whitespace-nowrap ${quest.completed ? 'bg-ink-soft text-ink-muted border-line' : ''}`}>+{quest.points} XP</span>
                 </div>
               ))}
-            </div>
-
-            <div className="flex justify-end mt-6 border-t border-line pt-4">
-              <button onClick={handleRollNewQuests} className="btn btn-outline px-2 py-1 text-[0.75rem] h-7 flex items-center gap-1" title="Generate a new set of challenges">
-                <RotateCcw size={12} /> Roll New Quests
-              </button>
             </div>
           </div>
 
@@ -376,7 +377,7 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
                   <div className="font-semibold text-primary mb-1 flex items-center gap-1">
                     <MessageSquare size={14} /> Topic: "{aiResponse.query}"
                   </div>
-                  <p className="text-ink text-[0.8rem] leading-snug m-0">{aiResponse.answer}</p>
+                  <p className="text-ink text-[0.8rem] leading-relaxed m-0 whitespace-pre-wrap">{formatTutorAnswer(aiResponse.answer)}</p>
                 </motion.div>
               )}
             </AnimatePresence>

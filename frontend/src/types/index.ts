@@ -73,6 +73,7 @@ export interface Module {
   subject?: string;
   sourceFilename?: string;
   hasSourceFile?: boolean;
+  lastScore?: string;
 }
 
 export interface GroupMember {
@@ -151,6 +152,7 @@ export interface ModuleResponse {
   has_source_file?: boolean;
   questionsCount?: number;
   questions?: QuizQuestionResponse[];
+  last_score?: string;
 }
 
 export interface GroupQuizRankResponse {

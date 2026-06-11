@@ -52,4 +52,41 @@ def get_current_user(token: Optional[str] = Depends(oauth2_scheme), db: Session 
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if user is None:
         raise credentials_exception
+        
+    # Dynamically format spaced recall dueIn values
+    if user.spaced_recall:
+        from .time_utils import now_ph, PH_TIMEZONE
+        from datetime import datetime
+        updated = []
+        for item in user.spaced_recall:
+            item_copy = dict(item)
+            due_at_str = item_copy.get("due_at", "")
+            due_in_str = "1 day"
+            if due_at_str:
+                try:
+                    due_at = datetime.fromisoformat(due_at_str)
+                    if due_at.tzinfo is None or due_at.tzinfo.utcoffset(due_at) is None:
+                        due_at = due_at.replace(tzinfo=PH_TIMEZONE)
+                    now = now_ph()
+                    delta = due_at - now
+                    if delta.total_seconds() <= 0:
+                        due_in_str = "now"
+                    else:
+                        days = delta.days
+                        hours = int(delta.seconds / 3600)
+                        if days > 0:
+                            due_in_str = "1 day" if days == 1 else f"{days} days"
+                        else:
+                            if hours <= 0:
+                                due_in_str = "now"
+                            elif hours == 1:
+                                due_in_str = "1 hour"
+                            else:
+                                due_in_str = f"{hours} hours"
+                except Exception:
+                    pass
+            item_copy["dueIn"] = due_in_str
+            updated.append(item_copy)
+        user.spaced_recall = updated
+        
     return user

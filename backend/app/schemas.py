@@ -129,6 +129,7 @@ class ExamBase(BaseModel):
     date: str
     raw_date: Optional[str] = None
     priority: str  # high, medium, low
+    completed: Optional[bool] = False
 
 class ExamCreate(ExamBase):
     pass
@@ -137,6 +138,8 @@ class ExamOut(ExamBase):
     id: int
     user_id: int
     days_remaining: int
+    reminder_sent: bool
+    completed: bool
 
     class Config:
         from_attributes = True
@@ -273,3 +276,12 @@ class GroupMembersWithPrefsOut(BaseModel):
     group_id: int
     group_name: str
     members: List[GroupMemberWithPrefOut]
+
+
+# --- TUTOR SCHEMAS ---
+class TutorQuery(BaseModel):
+    query: str
+
+class TutorResponse(BaseModel):
+    query: str
+    answer: str

@@ -111,6 +111,35 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     return stored ? JSON.parse(stored) : {};
   });
 
+  // Sync last scores from backend modules list into moduleScores local state and localStorage
+  useEffect(() => {
+    if (modules) {
+      setModuleScores(prev => {
+        const updated: { [moduleId: number]: string } = {};
+        let changed = false;
+        
+        modules.forEach(m => {
+          const score = m.lastScore || prev[m.id];
+          if (score) {
+            updated[m.id] = score;
+          }
+        });
+        
+        const keys1 = Object.keys(prev);
+        const keys2 = Object.keys(updated);
+        if (keys1.length !== keys2.length || keys1.some(k => prev[Number(k)] !== updated[Number(k)])) {
+          changed = true;
+        }
+        
+        if (changed) {
+          localStorage.setItem('lumio-module-scores', JSON.stringify(updated));
+          return updated;
+        }
+        return prev;
+      });
+    }
+  }, [modules]);
+
   // Wrap setDashboardTab so switching away from 'tools' clears the active inline tool
   const handleSetDashboardTab = (tab: DashboardTab) => {
     if (tab !== 'tools') setActiveTool(null);
@@ -182,6 +211,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       spaced_recall?: { id: number; name: string; subject: string; dueIn: string; progress: number }[];
       quests?: StudyQuest[];
       quests_date?: string;
+      last_check_in?: string;
     } = {};
     if (updatedFields.level !== undefined) payload.level = updatedFields.level;
     if (updatedFields.xp !== undefined) payload.xp = updatedFields.xp;
@@ -194,6 +224,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     if (updatedFields.spacedRecall !== undefined) payload.spaced_recall = updatedFields.spacedRecall;
     if (updatedFields.quests !== undefined) payload.quests = updatedFields.quests;
     if (updatedFields.questsDate !== undefined) payload.quests_date = updatedFields.questsDate;
+    if (updatedFields.lastCheckIn !== undefined) payload.last_check_in = updatedFields.lastCheckIn;
 
     fetch(`${API_BASE_URL}/api/auth/profile`, {
       method: 'PUT',
@@ -263,30 +294,46 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     showQuestToast("Daily Check-in Complete!", 10);
   };
 
-  const handleLogStudyHour = (dayIndex: number) => {
-    const currentHeatmap = [...(user.heatmapData || defaultHeatmap)];
-    
-    if (dayIndex < 0 || dayIndex >= currentHeatmap.length) return;
-    
-    const dayObj = { ...currentHeatmap[dayIndex] };
-    if (dayObj.hours >= 8) return;
-    
-    dayObj.hours += 1;
-    if (dayObj.hours === 0) dayObj.level = 0;
-    else if (dayObj.hours <= 2) dayObj.level = 1;
-    else if (dayObj.hours <= 4) dayObj.level = 2;
-    else if (dayObj.hours <= 6) dayObj.level = 3;
-    else dayObj.level = 4;
-    
-    currentHeatmap[dayIndex] = dayObj;
-    
+  const addStudyMinutes = (minutes: number, extraFields: Partial<User> = {}) => {
     const currentStudyTime = { ...(user.studyTime || defaultStudyTime) };
-    currentStudyTime["General Study"] = asStudyHours(currentStudyTime["General Study"]) + 1;
+    const prevMinutes = typeof currentStudyTime["accumulated_minutes"] === 'number'
+      ? currentStudyTime["accumulated_minutes"]
+      : 0;
+    const newMinutes = prevMinutes + minutes;
+    currentStudyTime["accumulated_minutes"] = newMinutes;
+
+    const hoursGained = Math.floor(newMinutes / 60) - Math.floor(prevMinutes / 60);
     
-    syncProfile({
-      heatmapData: currentHeatmap,
-      studyTime: currentStudyTime
-    });
+    let updatedHeatmap = user.heatmapData;
+    if (hoursGained > 0) {
+      currentStudyTime["General Study"] = asStudyHours(currentStudyTime["General Study"]) + hoursGained;
+      
+      const dayOfWeek = new Date().getDay();
+      const todayIndex = dayOfWeek === 0 ? 13 : 6 + dayOfWeek;
+      const currentHeatmap = [...(user.heatmapData || defaultHeatmap)];
+      if (todayIndex >= 0 && todayIndex < currentHeatmap.length) {
+        const dayObj = { ...currentHeatmap[todayIndex] };
+        dayObj.hours = Math.min(8, dayObj.hours + hoursGained);
+        if (dayObj.hours === 0) dayObj.level = 0;
+        else if (dayObj.hours <= 2) dayObj.level = 1;
+        else if (dayObj.hours <= 4) dayObj.level = 2;
+        else if (dayObj.hours <= 6) dayObj.level = 3;
+        else dayObj.level = 4;
+        
+        currentHeatmap[todayIndex] = dayObj;
+      }
+      updatedHeatmap = currentHeatmap;
+    }
+
+    const payload: Partial<User> = {
+      ...extraFields,
+      studyTime: currentStudyTime,
+    };
+    if (updatedHeatmap) {
+      payload.heatmapData = updatedHeatmap;
+    }
+
+    syncProfile(payload);
   };
 
   useEffect(() => {
@@ -347,24 +394,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     const completedQuestText = updatedQuests.find((q, idx) => q.completed && !quests[idx]?.completed)?.text || "";
     showQuestToast(completedQuestText, pointsGained);
     gainXp(pointsGained, updatedQuests);
-  };
-
-  const handleToggleQuest = (id: string) => {
-    const quest = quests.find(q => q.id === id);
-    if (!quest || quest.completed) return;
-    
-    const updated = quests.map(q => q.id === id ? { ...q, completed: true } : q);
-    setQuests(updated);
-    showQuestToast(quest.text, quest.points);
-    gainXp(quest.points, updated);
-  };
-
-  const handleRollNewQuests = () => {
-    const shuffled = [...questPool].sort(() => 0.5 - Math.random());
-    const selected = shuffled.slice(0, 3).map(q => ({ ...q, completed: false }));
-    const todayStr = new Date().toDateString();
-    setQuests(selected);
-    syncProfile({ quests: selected, questsDate: todayStr });
   };
 
   const calculateDaysRemaining = (targetDateStr: string) => {
@@ -502,6 +531,44 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     }
   };
 
+  const handleCompleteExam = (id: number) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch(`${API_BASE_URL}/api/exams/${id}/complete`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to complete exam');
+        return res.json();
+      })
+      .then(() => {
+        // Update exams list
+        setExams(exams.filter(e => e.id !== id));
+        
+        // Award 50 XP locally
+        let newXp = xp + 50;
+        let newLevel = level;
+        const xpNeeded = newLevel * 100;
+        if (newXp >= xpNeeded) {
+          newLevel += 1;
+          newXp = newXp - xpNeeded;
+          setShowLevelUp(true);
+          setLevel(newLevel);
+        }
+        setXp(newXp);
+        
+        showQuestToast("Exam Finished! +50 XP", 50);
+      })
+      .catch(err => {
+        console.error('Error completing exam:', err);
+        alert('Failed to complete exam on backend');
+      });
+    } else {
+      setExams(exams.filter(e => e.id !== id));
+    }
+  };
+
   const [selectedSubject, setSelectedSubject] = useState<string>('All');
   const [aiSearchQuery, setAiSearchQuery] = useState('');
   const [aiResponse, setAiResponse] = useState<{ query: string; answer: string } | null>(null);
@@ -534,21 +601,56 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     setIsAiLoading(true);
     setAiResponse(null);
     completeQuest('ask_ai');
-    setTimeout(() => {
-      let answer = "I couldn't find a direct match for that term in your active study modules. Try searching for 'mitochondria', 'protein synthesis', 'demand', or 'market structure'!";
-      const queryLower = aiSearchQuery.toLowerCase();
-      if (queryLower.includes('mitochondria') || queryLower.includes('powerhouse')) {
-        answer = "Mitochondria are double-membraned organelles found in most eukaryotic organisms. They generate most of the cell's supply of adenosine triphosphate (ATP), used as a source of chemical energy, earning them the nickname 'the powerhouse of the cell'.";
-      } else if (queryLower.includes('protein') || queryLower.includes('ribosome')) {
-        answer = "Protein synthesis is performed by ribosomes, which link amino acids together in the order specified by messenger RNA (mRNA) molecules. This occurs in the cellular cytoplasm or on the rough endoplasmic reticulum.";
-      } else if (queryLower.includes('demand') || queryLower.includes('price')) {
-        answer = "According to the Law of Demand, as the price of a normal good increases, the quantity demanded decreases, holding everything else constant (ceteris paribus). This creates a downward-sloping demand curve.";
-      } else if (queryLower.includes('market') || queryLower.includes('monopoly')) {
-        answer = "A monopoly market structure features a single supplier selling a unique product with no close substitutes and high barriers to entry. Other structures include perfect competition, oligopoly, and monopolistic competition.";
-      }
-      setAiResponse({ query: aiSearchQuery, answer });
-      setIsAiLoading(false);
-    }, 800);
+
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch(`${API_BASE_URL}/api/tutor/ask`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ query: aiSearchQuery })
+      })
+      .then(async (res) => {
+        if (!res.ok) {
+          if (res.status === 429) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.detail || "Daily limit reached. Free accounts are limited to 5 AI queries per day.");
+          }
+          throw new Error("Tutor request failed");
+        }
+        return res.json();
+      })
+      .then((data) => {
+        setAiResponse({ query: data.query, answer: data.answer });
+        setIsAiLoading(false);
+      })
+      .catch((err) => {
+        console.error('Tutor error:', err);
+        setAiResponse({
+          query: aiSearchQuery,
+          answer: err.message || "Sorry, I encountered an error. Please try again later."
+        });
+        setIsAiLoading(false);
+      });
+    } else {
+      setTimeout(() => {
+        let answer = "I analyzed your study content, but couldn't find a specific section explaining that concept. Based on general knowledge, it is an academic concept related to your courses.";
+        const queryLower = aiSearchQuery.toLowerCase();
+        if (queryLower.includes('mitochondria') || queryLower.includes('powerhouse')) {
+          answer = "Mitochondria are double-membraned organelles found in most eukaryotic organisms. They generate most of the cell's supply of adenosine triphosphate (ATP), used as a source of chemical energy, earning them the nickname 'the powerhouse of the cell'.";
+        } else if (queryLower.includes('protein') || queryLower.includes('ribosome')) {
+          answer = "Protein synthesis is performed by ribosomes, which link amino acids together in the order specified by messenger RNA (mRNA) molecules. This occurs in the cellular cytoplasm or on the rough endoplasmic reticulum.";
+        } else if (queryLower.includes('demand') || queryLower.includes('price')) {
+          answer = "According to the Law of Demand, as the price of a normal good increases, the quantity demanded decreases, holding everything else constant (ceteris paribus). This creates a downward-sloping demand curve.";
+        } else if (queryLower.includes('market') || queryLower.includes('monopoly')) {
+          answer = "A monopoly market structure features a single supplier selling a unique product with no close substitutes and high barriers to entry. Other structures include perfect competition, oligopoly, and monopolistic competition.";
+        }
+        setAiResponse({ query: aiSearchQuery, answer });
+        setIsAiLoading(false);
+      }, 800);
+    }
   };
 
   const startQuiz = (module: Module) => {
@@ -588,9 +690,32 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     if (!isGroupQuizMode) {
       const storedScores = localStorage.getItem('lumio-module-scores');
       const scoresObj = storedScores ? JSON.parse(storedScores) : {};
-      scoresObj[activeQuizModule.id] = `${score}/${activeQuizModule.questions.length}`;
+      const scoreStr = `${score}/${activeQuizModule.questions.length}`;
+      scoresObj[activeQuizModule.id] = scoreStr;
       localStorage.setItem('lumio-module-scores', JSON.stringify(scoresObj));
       setModuleScores(scoresObj);
+
+      const token = localStorage.getItem('token');
+      if (token) {
+        fetch(`${API_BASE_URL}/api/modules/${activeQuizModule.id}/score`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ score: scoreStr })
+        })
+        .then(res => {
+          if (!res.ok) throw new Error('Failed to save score on server');
+          return res.json();
+        })
+        .then(updatedModule => {
+          setModules(prevModules => 
+            prevModules.map(m => m.id === updatedModule.id ? { ...m, lastScore: updatedModule.last_score } : m)
+          );
+        })
+        .catch(err => console.error('Error saving score:', err));
+      }
     }
     
     const percent = Math.round((score / activeQuizModule.questions.length) * 100);
@@ -618,7 +743,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       }
       setXp(newXp);
       
-      syncProfile({
+      addStudyMinutes(15, {
         level: newLevel,
         xp: newXp,
         quests: updatedQuests,
@@ -626,7 +751,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         quizzesCount: newQuizzesCount
       });
     } else {
-      syncProfile({
+      addStudyMinutes(15, {
         quizHistory: newHistory,
         quizzesCount: newQuizzesCount
       });
@@ -803,7 +928,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               {activeTool === 'flashcards' && <FlashcardsTool setView={inlineToolSetView} />}
               {activeTool === 'essay-grader' && <EssayGraderTool setView={inlineToolSetView} />}
               {activeTool === 'condenser' && <CondenserTool setView={inlineToolSetView} />}
-              {activeTool === 'pomodoro' && <PomodoroTool setView={inlineToolSetView} />}
+              {activeTool === 'pomodoro' && (
+                <PomodoroTool 
+                  setView={inlineToolSetView} 
+                  onFocusSessionComplete={(minutes) => addStudyMinutes(minutes)}
+                />
+              )}
             </motion.div>
           </AnimatePresence>
         )}
@@ -871,12 +1001,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     setSelectedSubject={setSelectedSubject}
                     handleAddExam={handleAddExam}
                     handleDeleteExam={handleDeleteExam}
-                    handleToggleQuest={handleToggleQuest}
-                    handleRollNewQuests={handleRollNewQuests}
+                    handleCompleteExam={handleCompleteExam}
                     handleAiSearch={handleAiSearch}
                     getActivityColor={getActivityColor}
                     handleStreakCheckIn={handleStreakCheckIn}
-                    handleLogStudyHour={handleLogStudyHour}
                   />
                 )}
 

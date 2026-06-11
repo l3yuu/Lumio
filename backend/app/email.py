@@ -237,3 +237,85 @@ def send_group_invite_email_sync(user_email: str, user_name: str, inviter_name: 
 
 def send_group_invite_email(background_tasks: BackgroundTasks, user_email: str, user_name: str, inviter_name: str, group_name: str):
     background_tasks.add_task(send_group_invite_email_sync, user_email, user_name, inviter_name, group_name)
+
+def send_exam_reminder_email_sync(user_email: str, user_name: str, exam_title: str, exam_date: str, days_remaining: int):
+    subject = f"Exam Reminder: {exam_title} is coming up soon!"
+    html_content = f"""
+    <html>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f9f9f9; padding: 20px;">
+        <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 30px; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+          <div style="text-align: center; margin-bottom: 25px;">
+            <h1 style="color: #3ECF8E; font-size: 2.2rem; margin: 0; font-weight: 800; letter-spacing: -1px;">Lumio</h1>
+            <span style="font-size: 0.95rem; color: #64748b; font-weight: 500;">Your AI Collaborative Study Room</span>
+          </div>
+          <h2 style="color: #1e293b; font-size: 1.5rem; margin-top: 0; margin-bottom: 15px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px;">Exam Reminder</h2>
+          <p style="color: #334155; font-size: 1rem; margin-bottom: 20px;">Hi {user_name},</p>
+          <p style="color: #334155; font-size: 1rem; margin-bottom: 20px;">This is a quick reminder that your exam <strong>"{exam_title}"</strong> is scheduled for <strong>{exam_date}</strong>.</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <div style="font-size: 1.8rem; font-weight: 800; color: #e11d48; background-color: #fff1f2; padding: 15px 25px; border-radius: 12px; display: inline-block; border: 2px solid #fda4af;">
+              {days_remaining} {'day' if days_remaining == 1 else 'days'} remaining!
+            </div>
+          </div>
+          <p style="color: #334155; font-size: 1rem; margin-bottom: 20px;">Make sure to review your study modules and practice quizzes in your collaborative study circle to prepare.</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="http://localhost:5173" style="background-color: #3ECF8E; color: #ffffff; padding: 12px 30px; border-radius: 8px; font-weight: bold; text-decoration: none; font-size: 1rem; box-shadow: 0 4px 12px rgba(62,207,142,0.25);">Start Studying Now</a>
+          </div>
+          <p style="color: #64748b; font-size: 0.85rem; border-top: 1px solid #f1f5f9; padding-top: 15px; margin-top: 25px; margin-bottom: 0;">Happy Learning,<br>The Lumio Team</p>
+        </div>
+      </body>
+    </html>
+    """
+
+    if settings.USE_CONSOLE_EMAIL or not _has_email_provider():
+        print("\n" + "="*80)
+        print(f"[CONSOLE MAIL SENDER] Exam Reminder Email triggered for: {user_email}")
+        print(f"Recipient Name: {user_name}")
+        print(f"Exam: {exam_title}")
+        print(f"Date: {exam_date}")
+        print(f"Days left: {days_remaining}")
+        print(f"Subject: {subject}")
+        print("="*80 + "\n")
+        return
+
+    _send_email(user_email, subject, html_content, "Exam reminder email")
+
+
+def send_spaced_recall_email_sync(user_email: str, user_name: str, module_name: str, subject_name: str, progress: int):
+    subject = f"Lumio Study Room: Time to review {module_name}!"
+    html_content = f"""
+    <html>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f9f9f9; padding: 20px;">
+        <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 30px; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+          <div style="text-align: center; margin-bottom: 25px;">
+            <h1 style="color: #3ECF8E; font-size: 2.2rem; margin: 0; font-weight: 800; letter-spacing: -1px;">Lumio</h1>
+            <span style="font-size: 0.95rem; color: #64748b; font-weight: 500;">Your AI Collaborative Study Room</span>
+          </div>
+          <h2 style="color: #1e293b; font-size: 1.5rem; margin-top: 0; margin-bottom: 15px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px;">Spaced Recall Review</h2>
+          <p style="color: #334155; font-size: 1rem; margin-bottom: 20px;">Hi {user_name},</p>
+          <p style="color: #334155; font-size: 1rem; margin-bottom: 20px;">It's time to review your study module <strong>"{module_name}"</strong> ({subject_name}) to keep your memory sharp and retain it long-term!</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <div style="font-size: 1.8rem; font-weight: 800; color: #3ECF8E; background-color: #f0fdf4; padding: 15px 25px; border-radius: 12px; display: inline-block; border: 2px solid #bbf7d0;">
+              Recall Strength: {progress}%
+            </div>
+          </div>
+          <p style="color: #334155; font-size: 1rem; margin-bottom: 20px;">Spaced repetition scheduling helps you lock concepts into your long-term memory. Taking a quick quiz now will boost your recall strength back to 100%!</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="http://localhost:5173" style="background-color: #3ECF8E; color: #ffffff; padding: 12px 30px; border-radius: 8px; font-weight: bold; text-decoration: none; font-size: 1rem; box-shadow: 0 4px 12px rgba(62,207,142,0.25);">Review Study Module</a>
+          </div>
+          <p style="color: #64748b; font-size: 0.85rem; border-top: 1px solid #f1f5f9; padding-top: 15px; margin-top: 25px; margin-bottom: 0;">Happy Learning,<br>The Lumio Team</p>
+        </div>
+      </body>
+    </html>
+    """
+
+    if settings.USE_CONSOLE_EMAIL or not _has_email_provider():
+        print("\n" + "="*80)
+        print(f"[CONSOLE MAIL SENDER] Spaced Recall Email triggered for: {user_email}")
+        print(f"Recipient Name: {user_name}")
+        print(f"Module: {module_name}")
+        print(f"Recall Strength: {progress}%")
+        print(f"Subject: {subject}")
+        print("="*80 + "\n")
+        return
+
+    _send_email(user_email, subject, html_content, "Spaced recall email")

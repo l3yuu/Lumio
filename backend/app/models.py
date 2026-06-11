@@ -129,6 +129,8 @@ class ExamDeadline(Base):
     raw_date = Column(String(100), nullable=True)
     priority = Column(String(20), nullable=False)  # high, medium, low
     user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    reminder_sent = Column(Boolean, default=False)
+    completed = Column(Boolean, default=False)
 
     owner = relationship("User", back_populates="exams")
 
