@@ -80,12 +80,28 @@ const getLocalDateString = (d: Date) => {
   return `${year}-${month}-${day}`;
 };
 
-const alignHeatmapData = (savedHeatmap: any[]): { label: string; hours: number; level: number; date: string }[] => {
+type HeatmapEntry = { label: string; hours: number; level: number; date?: string };
+
+type StoredChatMessage = Omit<ChatMessage, 'timestamp'> & { timestamp: string };
+type StoredChatSession = Omit<ChatSession, 'timestamp' | 'messages'> & {
+  timestamp: string;
+  messages: StoredChatMessage[];
+};
+
+type TutorChatSessionApi = {
+  session_id: string;
+  title: string;
+  updated_at?: string;
+  created_at?: string;
+  messages: Array<Omit<ChatMessage, 'timestamp'> & { timestamp: string; sender: string }>;
+};
+
+const alignHeatmapData = (savedHeatmap: HeatmapEntry[]): { label: string; hours: number; level: number; date: string }[] => {
   const result: { label: string; hours: number; level: number; date: string }[] = [];
   const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   
   const processedSaved = savedHeatmap ? [...savedHeatmap] : [];
-  const hasAnyDate = processedSaved.some((item: any) => !!item.date);
+  const hasAnyDate = processedSaved.some((item) => !!item.date);
   if (!hasAnyDate && processedSaved.length === 14) {
     const anchorDate = new Date();
     for (let i = 13; i >= 0; i--) {
@@ -104,7 +120,7 @@ const alignHeatmapData = (savedHeatmap: any[]): { label: string; hours: number; 
     const label = daysOfWeek[d.getDay()];
     
     // Check if we have saved data for this date
-    const saved = processedSaved.find((item: any) => item.date === dateStr);
+    const saved = processedSaved.find((item) => item.date === dateStr);
     if (saved) {
       result.push({
         label,
@@ -394,20 +410,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    if (dashboardTab === 'settings') {
-      completeQuest('view_settings');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dashboardTab]);
-
-  useEffect(() => {
-    if (selectedGroupId !== null) {
-      completeQuest('study_group');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedGroupId]);
 
   const showQuestToast = (text: string, points: number) => {
     setQuestToast({ text, points });
@@ -704,13 +706,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     const saved = localStorage.getItem('lumio-chat-sessions');
     if (saved) {
       try {
-        const raw = JSON.parse(saved);
-        return raw.map((session: any) => ({
+        const raw = JSON.parse(saved) as StoredChatSession[];
+        return raw.map((session) => ({
           ...session,
           timestamp: new Date(session.timestamp),
-          messages: session.messages.map((msg: any) => ({
+          messages: session.messages.map((msg) => ({
             ...msg,
-            timestamp: new Date(msg.timestamp)
+            timestamp: new Date(msg.timestamp),
+            sender: msg.sender as ChatMessage['sender'],
           }))
         }));
       } catch (e) {
@@ -754,14 +757,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         if (!res.ok) throw new Error('Failed to fetch chat sessions');
         return res.json();
       })
-      .then((data: any[]) => {
+      .then((data: TutorChatSessionApi[]) => {
         const mappedSessions: ChatSession[] = data.map(session => ({
           id: session.session_id,
           title: session.title,
-          timestamp: new Date(session.updated_at || session.created_at),
-          messages: session.messages.map((msg: any) => ({
-            ...msg,
-            timestamp: new Date(msg.timestamp)
+          timestamp: new Date(session.updated_at || session.created_at || Date.now()),
+          messages: session.messages.map((msg) => ({
+            id: msg.id,
+            sender: msg.sender as ChatMessage['sender'],
+            text: msg.text,
+            timestamp: new Date(msg.timestamp),
+            isError: msg.isError,
           }))
         }));
         setChatSessions(mappedSessions);
@@ -1446,6 +1452,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <main className="flex flex-col gap-6 py-7 px-8 pb-20 max-w-275 w-full mx-auto max-lg:py-4 max-lg:px-4 max-lg:pb-16">
           {activeQuizModule ? (
             <QuizPanel
+              key={`${activeQuizModule.id}-${showQuizResults}`}
               activeQuizModule={activeQuizModule}
               isGroupQuizMode={isGroupQuizMode}
               activeGroup={activeGroup}
@@ -1733,7 +1740,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {isAiSidebarOpen && (
           <AiTutorSidebar
             onClose={() => setIsAiSidebarOpen(false)}
-            user={user}
             chatMessages={chatMessages}
             isAiLoading={isAiLoading}
             onSendMessage={handleSendChatMessage}

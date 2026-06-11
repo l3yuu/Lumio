@@ -54,6 +54,7 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({
   const [liveAvgScore, setLiveAvgScore] = useState<string>("0%");
   
   const startTimeRef = useRef<number>(0);
+  const onSubmitRef = useRef<() => void>(() => {});
 
   // Timer, Mode, and Exam linking states
   const [isQuizStarted, setIsQuizStarted] = useState(false);
@@ -63,24 +64,10 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({
   const [timeLeft, setTimeLeft] = useState<number>(0); // in seconds
   const [timerActive, setTimerActive] = useState(false);
 
-  // Reset timer on quiz startup or retake
-  useEffect(() => {
-    if (isGroupQuizMode) {
-      setIsQuizStarted(true);
-      startTimeRef.current = Date.now();
-    } else {
-      setIsQuizStarted(false);
-      setTimeLimit(0);
-      setIsMockMode(false);
-      setLinkedExamId(null);
-      setTimeLeft(0);
-      setTimerActive(false);
-    }
-  }, [activeQuizModule.id, showQuizResults]);
-
   // WebSocket connection for real-time multiplayer group quiz
   useEffect(() => {
     if (!isGroupQuizMode || !selectedGroupId) return;
+    startTimeRef.current = Date.now();
     const token = localStorage.getItem('token');
     if (!token) return;
 
@@ -160,19 +147,29 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({
     setTimerActive(false);
   };
 
+  useEffect(() => {
+    onSubmitRef.current = onSubmit;
+  });
+
   // Active countdown timer effect
   useEffect(() => {
-    if (!timerActive || timeLeft <= 0) {
-      if (timerActive && timeLeft === 0) {
-        onSubmit();
-      }
-      return;
-    }
-    const interval = setInterval(() => {
-      setTimeLeft(prev => prev - 1);
+    if (!timerActive) return;
+
+    const interval = window.setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          window.clearInterval(interval);
+          window.setTimeout(() => onSubmitRef.current(), 0);
+          return 0;
+        }
+        return prev - 1;
+      });
     }, 1000);
-    return () => clearInterval(interval);
-  }, [timerActive, timeLeft]);
+
+    return () => window.clearInterval(interval);
+  }, [timerActive]);
+
+  const showQuizLobby = !isGroupQuizMode && !isQuizStarted;
 
   const rankingsToRender = isGroupQuizMode && liveRankings.length > 0
     ? liveRankings
@@ -216,7 +213,7 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({
       )}
 
       {!showQuizResults ? (
-        !isQuizStarted && !isGroupQuizMode ? (
+        showQuizLobby ? (
           <div className="flex flex-col gap-6 py-4 animate-in fade-in zoom-in-95 duration-200 text-left">
             <div className="p-6 bg-app border border-line rounded-xl text-center">
               <h4 className="text-xl font-bold text-ink mb-2">Quiz Setup & Lobby</h4>

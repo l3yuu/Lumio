@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Sparkles, Send, Sparkle, AlertTriangle, Plus, History, ArrowLeft, Trash2 } from 'lucide-react';
-import type { User, ChatMessage, Module, ChatSession } from '../../types';
+import type { ChatMessage, Module, ChatSession } from '../../types';
 
 interface AiTutorSidebarProps {
   onClose: () => void;
-  user: User;
   chatMessages: ChatMessage[];
   isAiLoading: boolean;
   onSendMessage: (text: string) => void;
@@ -26,9 +25,10 @@ const formatTutorAnswer = (text: string): string => {
     .replace(/\n\s*[-*]\s+/g, '\n• ');
 };
 
+type TimestampInput = Date | string | number;
+
 export const AiTutorSidebar: React.FC<AiTutorSidebarProps> = ({
   onClose,
-  user,
   chatMessages,
   isAiLoading,
   onSendMessage,
@@ -44,16 +44,16 @@ export const AiTutorSidebar: React.FC<AiTutorSidebarProps> = ({
   const [isHistoryViewOpen, setIsHistoryViewOpen] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const formatMessageTime = (timestamp: any): string => {
+  const formatMessageTime = (timestamp: TimestampInput): string => {
     try {
       const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
       return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } catch (e) {
+    } catch {
       return '';
     }
   };
 
-  const formatSessionDate = (timestamp: any): string => {
+  const formatSessionDate = (timestamp: TimestampInput): string => {
     try {
       const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
       const now = new Date();
@@ -66,7 +66,7 @@ export const AiTutorSidebar: React.FC<AiTutorSidebarProps> = ({
         return `Yesterday, ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
       }
       return `${date.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-    } catch (e) {
+    } catch {
       return '';
     }
   };
@@ -138,7 +138,7 @@ export const AiTutorSidebar: React.FC<AiTutorSidebarProps> = ({
         animate={{ x: 0, opacity: 1 }}
         exit={{ x: '100%', opacity: 0.8 }}
         transition={{ type: 'spring', damping: 28, stiffness: 240 }}
-        className="fixed top-[58px] right-0 bottom-0 h-[calc(100vh-58px)] w-[85vw] sm:w-[360px] bg-card border-l border-line z-50 flex flex-col overflow-hidden shrink-0 shadow-xl"
+        className="fixed top-14.5 right-0 bottom-0 h-[calc(100vh-58px)] w-[85vw] sm:w-90 bg-card border-l border-line z-50 flex flex-col overflow-hidden shrink-0 shadow-xl"
       >
         <AnimatePresence mode="wait">
           {isHistoryViewOpen ? (
@@ -179,7 +179,7 @@ export const AiTutorSidebar: React.FC<AiTutorSidebarProps> = ({
                   </div>
                   <div>
                     <p className="text-sm font-bold text-ink mb-1">No Past Chats</p>
-                    <p className="text-xs text-ink-muted max-w-[200px] leading-relaxed mx-auto">
+                    <p className="text-xs text-ink-muted max-w-50 leading-relaxed mx-auto">
                       Start asking your AI tutor questions to save your sessions.
                     </p>
                   </div>
