@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, MessageSquare, Sparkles, Clock, Calendar, Award, Zap, Target, Trophy, Users, Flame, Layers, Plus, Trash2, CheckCircle2, RotateCcw } from 'lucide-react';
+import { Search, MessageSquare, Sparkles, Clock, Calendar, Award, Zap, Target, Trophy, Users, Flame, Layers, Plus, Trash2, CheckCircle2 } from 'lucide-react';
 import type { User, StudyQuest, ExamDeadline, DashboardTab } from '../../types';
 
 const asStudyHours = (value: number | string | undefined, fallback: number) =>
