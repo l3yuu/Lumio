@@ -1250,7 +1250,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.detail || 'Failed to rename folder');
       
-      setUser(prev => prev ? { ...prev, folders: data.folders } : prev);
+      setUser({ ...user, folders: data.folders });
       setModules(prev => prev.map(m => m.subject === oldName ? { ...m, subject: newName } : m));
       if (selectedSubject === oldName) {
         setSelectedSubject(newName);
@@ -1276,7 +1276,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.detail || 'Failed to delete folder');
       
-      setUser(prev => prev ? { ...prev, folders: data.folders } : prev);
+      setUser({ ...user, folders: data.folders });
       setModules(prev => prev.map(m => m.subject === folderName ? { ...m, subject: 'General' } : m));
       if (selectedSubject === folderName) {
         setSelectedSubject('All');
