@@ -260,6 +260,9 @@ def update_profile(user_update: schemas.UserUpdate, current_user: models.User = 
         current_user.quests_date = user_update.quests_date
     if user_update.last_check_in is not None:
         current_user.last_check_in = user_update.last_check_in
+    if user_update.folders is not None:
+        current_user.folders = user_update.folders
+        flag_modified(current_user, "folders")
         
     db.commit()
     db.refresh(current_user)

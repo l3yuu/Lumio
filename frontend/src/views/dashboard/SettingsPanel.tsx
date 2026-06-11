@@ -8,8 +8,7 @@ interface SettingsPanelProps {
   user: User;
   setUser: (user: User | null) => void;
   setModules: React.Dispatch<React.SetStateAction<Module[]>>;
-  handleAvatarUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  completeQuest: (actionType: 'custom', customId?: string) => void;
+  completeQuest: (actionType: 'custom' | 'custom_bulk', customId?: string, customIds?: string[]) => void;
   handleLogout: () => void;
   notifStudyGroup: boolean;
   notifQuizReminders: boolean;
@@ -45,7 +44,7 @@ type ToastType = 'success' | 'error';
 interface Toast { type: ToastType; message: string; }
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({
-  user, setUser, setModules, handleAvatarUpload, completeQuest, handleLogout,
+  user, setUser, setModules, completeQuest, handleLogout,
   notifStudyGroup, notifQuizReminders, notifSounds, notifEmails,
   setNotifStudyGroup, setNotifQuizReminders, setNotifSounds, setNotifEmails,
 }) => {
@@ -59,9 +58,21 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordLoading, setPasswordLoading] = useState(false);
-
-
-
+  const handleLocalAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) { alert('Please select an image file.'); return; }
+      if (file.size > 2 * 1024 * 1024) { alert('File size exceeds 2MB limit.'); return; }
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          const avatarUrl = event.target.result as string;
+          setDraft(d => ({ ...d, avatar: avatarUrl }));
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
   const showToast = (type: ToastType, message: string) => {
     setToast({ type, message });
     setTimeout(() => setToast(null), 3200);
@@ -91,6 +102,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       return res.json();
     })
     .then(data => {
+      const avatarChanged = draft.avatar !== user.avatar;
+      const schoolChanged = draft.school !== user.school && !!draft.school;
+
       setUser({
         name: data.name,
         email: data.email,
@@ -116,8 +130,16 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         quests: data.quests,
         questsDate: data.quests_date,
         lastCheckIn: data.last_check_in,
+        folders: data.folders,
       });
-      completeQuest('custom', 'custom_avatar');
+
+      const completedQuestIds: string[] = [];
+      if (avatarChanged) completedQuestIds.push('custom_avatar');
+      if (schoolChanged) completedQuestIds.push('change_school');
+      if (completedQuestIds.length > 0) {
+        completeQuest('custom_bulk', undefined, completedQuestIds);
+      }
+
       showToast('success', 'Profile updated successfully!');
     })
     .catch(err => showToast('error', err.message));
@@ -216,7 +238,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 ))}
                 <label className="btn btn-outline px-3 py-2 text-[0.78rem] rounded-full cursor-pointer inline-flex items-center gap-1 h-10 box-border">
                   <span>+ Upload</span>
-                  <input type="file" accept="image/*" className="hidden" onChange={(e) => { handleAvatarUpload(e); }} />
+                  <input type="file" accept="image/*" className="hidden" onChange={handleLocalAvatarUpload} />
                 </label>
               </div>
             </div>

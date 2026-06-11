@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, Zap, AlertTriangle } from 'lucide-react';
-import type { User, Module, StudyGroup, GroupInvitation, GroupQuizSession, GroupQuizRank, DashboardTab, View, StudyQuest, ExamDeadline, ExamDeadlineResponse, StudyGroupResponse, Notification } from '../../types';
+import type { User, Module, StudyGroup, GroupInvitation, GroupQuizSession, GroupQuizRank, DashboardTab, View, StudyQuest, ExamDeadline, ExamDeadlineResponse, StudyGroupResponse, Notification, ChatMessage, ChatSession } from '../../types';
 import { API_BASE_URL } from '../../config';
+import { AiTutorSidebar } from './AiTutorSidebar';
 
 import { DashboardSidebar } from './DashboardSidebar';
 import { OverviewPanel } from './OverviewPanel';
@@ -17,6 +18,7 @@ import { FlashcardsTool } from '../tools/FlashcardsTool';
 import { EssayGraderTool } from '../tools/EssayGraderTool';
 import { CondenserTool } from '../tools/CondenserTool';
 import { PomodoroTool } from '../tools/PomodoroTool';
+import { getRecentExamFinish, storeRecentExamFinish } from '../../utils/companionMessage';
 
 type ActiveTool = 'flashcards' | 'essay-grader' | 'condenser' | 'pomodoro';
 
@@ -47,6 +49,8 @@ interface DashboardViewProps {
   onMarkAllNotificationsRead: () => void;
   onRefreshNotifications: () => void;
   onFileDropped?: (file: File) => void;
+  isAiSidebarOpen: boolean;
+  setIsAiSidebarOpen: (open: boolean) => void;
 }
 
 const defaultHeatmap = [
@@ -68,6 +72,57 @@ const defaultStudyTime = {
 
 const asStudyHours = (value: number | string | undefined, fallback = 0) =>
   typeof value === 'number' ? value : fallback;
+
+const getLocalDateString = (d: Date) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const alignHeatmapData = (savedHeatmap: any[]): { label: string; hours: number; level: number; date: string }[] => {
+  const result: { label: string; hours: number; level: number; date: string }[] = [];
+  const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  
+  const processedSaved = savedHeatmap ? [...savedHeatmap] : [];
+  const hasAnyDate = processedSaved.some((item: any) => !!item.date);
+  if (!hasAnyDate && processedSaved.length === 14) {
+    const anchorDate = new Date();
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date(anchorDate);
+      d.setDate(d.getDate() - (13 - i));
+      const dateStr = getLocalDateString(d);
+      processedSaved[i] = { ...processedSaved[i], date: dateStr };
+    }
+  }
+
+  // Generate the last 14 days ending today
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dateStr = getLocalDateString(d);
+    const label = daysOfWeek[d.getDay()];
+    
+    // Check if we have saved data for this date
+    const saved = processedSaved.find((item: any) => item.date === dateStr);
+    if (saved) {
+      result.push({
+        label,
+        hours: saved.hours || 0,
+        level: saved.level || 0,
+        date: dateStr
+      });
+    } else {
+      result.push({
+        label,
+        hours: 0,
+        level: 0,
+        date: dateStr
+      });
+    }
+  }
+  return result;
+};
 
 const questPool: Omit<StudyQuest, 'completed'>[] = [
   { id: 'ask_ai', text: 'Query the AI Concept Tutor once', points: 50, actionType: 'ask_ai' },
@@ -102,7 +157,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   activeQuizModule, setActiveQuizModule, isSidebarCollapsed: isCollapsed, setView, handleLogout,
   invitations, onAcceptInvitation, onDeclineInvitation,
   notifications, onMarkNotificationRead, onMarkAllNotificationsRead, onRefreshNotifications,
-  onFileDropped,
+  onFileDropped, isAiSidebarOpen, setIsAiSidebarOpen,
 }) => {
   const [activeTool, setActiveTool] = useState<ActiveTool | null>(null);
   const [moduleToDelete, setModuleToDelete] = useState<Module | null>(null);
@@ -191,6 +246,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       quests?: StudyQuest[];
       quests_date?: string;
       last_check_in?: string;
+      folders?: string[];
     } = {};
     if (updatedFields.level !== undefined) payload.level = updatedFields.level;
     if (updatedFields.xp !== undefined) payload.xp = updatedFields.xp;
@@ -204,6 +260,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     if (updatedFields.quests !== undefined) payload.quests = updatedFields.quests;
     if (updatedFields.questsDate !== undefined) payload.quests_date = updatedFields.questsDate;
     if (updatedFields.lastCheckIn !== undefined) payload.last_check_in = updatedFields.lastCheckIn;
+    if (updatedFields.folders !== undefined) payload.folders = updatedFields.folders;
 
     fetch(`${API_BASE_URL}/api/auth/profile`, {
       method: 'PUT',
@@ -243,6 +300,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         quests: data.quests,
         questsDate: data.quests_date,
         lastCheckIn: data.last_check_in,
+        folders: data.folders,
       });
     })
     .catch(err => console.error('Error syncing profile:', err));
@@ -287,9 +345,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     if (hoursGained > 0) {
       currentStudyTime["General Study"] = asStudyHours(currentStudyTime["General Study"]) + hoursGained;
       
-      const dayOfWeek = new Date().getDay();
-      const todayIndex = dayOfWeek === 0 ? 13 : 6 + dayOfWeek;
-      const currentHeatmap = [...(user.heatmapData || defaultHeatmap)];
+      const currentHeatmap = alignHeatmapData(user.heatmapData || defaultHeatmap);
+      const todayIndex = 13; // In a rolling aligned heatmap, today is always the last element
       if (todayIndex >= 0 && todayIndex < currentHeatmap.length) {
         const dayObj = { ...currentHeatmap[todayIndex] };
         dayObj.hours = Math.min(8, dayObj.hours + hoursGained);
@@ -317,11 +374,40 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   useEffect(() => {
     const todayStr = new Date().toDateString();
-    if (!user.quests || user.quests.length === 0 || user.questsDate !== todayStr) {
-      syncProfile({ quests, questsDate: todayStr });
+    const todayDateStr = getLocalDateString(new Date());
+    const currentHeatmap = user.heatmapData || [];
+    const lastEntryHasToday = currentHeatmap.length === 14 && currentHeatmap[13].date === todayDateStr;
+
+    const needsQuestsSync = !user.quests || user.quests.length === 0 || user.questsDate !== todayStr;
+    const needsHeatmapSync = !lastEntryHasToday;
+
+    if (needsQuestsSync || needsHeatmapSync) {
+      const payload: Partial<User> = {};
+      if (needsQuestsSync) {
+        payload.quests = quests;
+        payload.questsDate = todayStr;
+      }
+      if (needsHeatmapSync) {
+        payload.heatmapData = alignHeatmapData(currentHeatmap);
+      }
+      syncProfile(payload);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (dashboardTab === 'settings') {
+      completeQuest('view_settings');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dashboardTab]);
+
+  useEffect(() => {
+    if (selectedGroupId !== null) {
+      completeQuest('study_group');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedGroupId]);
 
   const showQuestToast = (text: string, points: number) => {
     setQuestToast({ text, points });
@@ -350,7 +436,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const checkAndCompleteQuest = (
     currentQuests: StudyQuest[],
-    actionType: 'ask_ai' | 'view_settings' | 'complete_quiz' | 'study_group' | 'custom',
+    actionType: 'ask_ai' | 'view_settings' | 'complete_quiz' | 'study_group' | 'custom' | 'custom_bulk',
     customId?: string
   ): { updatedQuests: StudyQuest[]; pointsGained: number } | null => {
     const targetQuestIndex = currentQuests.findIndex(q =>
@@ -363,16 +449,49 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     return { updatedQuests: updated, pointsGained: quest.points };
   };
 
-  const completeQuest = (actionType: 'ask_ai' | 'view_settings' | 'complete_quiz' | 'study_group' | 'custom', customId?: string) => {
-    const result = checkAndCompleteQuest(quests, actionType, customId);
-    if (!result) return;
-    
-    const { updatedQuests, pointsGained } = result;
+  const completeQuest = (
+    actionType: 'ask_ai' | 'view_settings' | 'complete_quiz' | 'study_group' | 'custom' | 'custom_bulk',
+    customId?: string,
+    customIds?: string[]
+  ) => {
+    let updatedQuests = [...quests];
+    let totalPoints = 0;
+    const completedTexts: { text: string; points: number }[] = [];
+
+    if (actionType === 'custom_bulk' && customIds && customIds.length > 0) {
+      customIds.forEach(cid => {
+        const result = checkAndCompleteQuest(updatedQuests, 'custom', cid);
+        if (result) {
+          updatedQuests = result.updatedQuests;
+          totalPoints += result.pointsGained;
+          const questObj = result.updatedQuests.find(q => q.id === cid);
+          if (questObj) {
+            completedTexts.push({ text: questObj.text, points: questObj.points });
+          }
+        }
+      });
+      if (totalPoints === 0) return;
+    } else {
+      const result = checkAndCompleteQuest(quests, actionType, customId);
+      if (!result) return;
+      updatedQuests = result.updatedQuests;
+      totalPoints = result.pointsGained;
+      const completedQuestText = updatedQuests.find((q, idx) => q.completed && !quests[idx]?.completed)?.text || "";
+      if (completedQuestText) {
+        completedTexts.push({ text: completedQuestText, points: totalPoints });
+      }
+    }
+
     setQuests(updatedQuests);
     
-    const completedQuestText = updatedQuests.find((q, idx) => q.completed && !quests[idx]?.completed)?.text || "";
-    showQuestToast(completedQuestText, pointsGained);
-    gainXp(pointsGained, updatedQuests);
+    // Show toasts staggered
+    completedTexts.forEach((item, index) => {
+      setTimeout(() => {
+        showQuestToast(item.text, item.points);
+      }, index * 800);
+    });
+
+    gainXp(totalPoints, updatedQuests);
   };
 
   const calculateDaysRemaining = (targetDateStr: string) => {
@@ -407,30 +526,44 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [newExamSubject, setNewExamSubject] = useState('Biology');
   const [newExamDate, setNewExamDate] = useState('');
   const [newExamPriority, setNewExamPriority] = useState<'high' | 'medium' | 'low'>('medium');
+  const [completedExams, setCompletedExams] = useState<ExamDeadline[]>([]);
+  const [recentExamFinish, setRecentExamFinish] = useState(() => getRecentExamFinish());
+
+  const mapExamResponse = (e: ExamDeadlineResponse): ExamDeadline => ({
+    id: e.id,
+    title: e.title,
+    subject: e.subject,
+    date: e.date,
+    rawDate: e.raw_date,
+    daysRemaining: e.days_remaining,
+    priority: e.priority as 'high' | 'medium' | 'low',
+    completed: e.completed,
+    score: e.score,
+  });
 
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
-      fetch(`${API_BASE_URL}/api/exams`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
+      const headers = { 'Authorization': `Bearer ${token}` };
+      fetch(`${API_BASE_URL}/api/exams`, { headers })
       .then(res => {
         if (!res.ok) throw new Error('Failed to fetch exams');
         return res.json();
       })
       .then(data => {
-        const mapped: ExamDeadline[] = (data as ExamDeadlineResponse[]).map(e => ({
-          id: e.id,
-          title: e.title,
-          subject: e.subject,
-          date: e.date,
-          rawDate: e.raw_date,
-          daysRemaining: e.days_remaining,
-          priority: e.priority as 'high' | 'medium' | 'low'
-        }));
-        setExams(mapped);
+        setExams((data as ExamDeadlineResponse[]).map(mapExamResponse));
       })
       .catch(err => console.error('Error fetching exams:', err));
+
+      fetch(`${API_BASE_URL}/api/exams/completed`, { headers })
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to fetch completed exams');
+        return res.json();
+      })
+      .then(data => {
+        setCompletedExams((data as ExamDeadlineResponse[]).map(mapExamResponse));
+      })
+      .catch(err => console.error('Error fetching completed exams:', err));
     }
   }, [user]);
 
@@ -510,48 +643,177 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     }
   };
 
-  const handleCompleteExam = (id: number) => {
+  const handleCompleteExam = (id: number, score?: string) => {
+    const exam = exams.find(e => e.id === id);
+    const trimmedScore = score?.trim();
+
+    const finishLocally = (savedScore?: string) => {
+      if (exam) {
+        setCompletedExams(prev => [{ ...exam, completed: true, score: savedScore || exam.score }, ...prev]);
+      }
+      setExams(prev => prev.filter(e => e.id !== id));
+
+      let newXp = xp + 50;
+      let newLevel = level;
+      const xpNeeded = newLevel * 100;
+      if (newXp >= xpNeeded) {
+        newLevel += 1;
+        newXp = newXp - xpNeeded;
+        setShowLevelUp(true);
+        setLevel(newLevel);
+      }
+      setXp(newXp);
+
+      if (exam) {
+        const finish = { title: exam.title, score: savedScore, date: new Date().toISOString().split('T')[0] };
+        storeRecentExamFinish(exam.title, savedScore);
+        setRecentExamFinish(finish);
+      }
+      const scoreMsg = savedScore ? ` Score: ${savedScore}.` : '';
+      showQuestToast(`Exam finished!${scoreMsg} +50 XP`, 50);
+    };
+
     const token = localStorage.getItem('token');
     if (token) {
       fetch(`${API_BASE_URL}/api/exams/${id}/complete`, {
         method: 'PUT',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ score: trimmedScore || null }),
       })
       .then(res => {
         if (!res.ok) throw new Error('Failed to complete exam');
         return res.json();
       })
-      .then(() => {
-        // Update exams list
-        setExams(exams.filter(e => e.id !== id));
-        
-        // Award 50 XP locally
-        let newXp = xp + 50;
-        let newLevel = level;
-        const xpNeeded = newLevel * 100;
-        if (newXp >= xpNeeded) {
-          newLevel += 1;
-          newXp = newXp - xpNeeded;
-          setShowLevelUp(true);
-          setLevel(newLevel);
-        }
-        setXp(newXp);
-        
-        showQuestToast("Exam Finished! +50 XP", 50);
+      .then((data: ExamDeadlineResponse) => {
+        finishLocally(data.score || trimmedScore);
       })
       .catch(err => {
         console.error('Error completing exam:', err);
         alert('Failed to complete exam on backend');
       });
     } else {
-      setExams(exams.filter(e => e.id !== id));
+      finishLocally(trimmedScore);
     }
   };
 
   const [selectedSubject, setSelectedSubject] = useState<string>('All');
-  const [aiSearchQuery, setAiSearchQuery] = useState('');
-  const [aiResponse, setAiResponse] = useState<{ query: string; answer: string } | null>(null);
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>(() => {
+    const saved = localStorage.getItem('lumio-chat-sessions');
+    if (saved) {
+      try {
+        const raw = JSON.parse(saved);
+        return raw.map((session: any) => ({
+          ...session,
+          timestamp: new Date(session.timestamp),
+          messages: session.messages.map((msg: any) => ({
+            ...msg,
+            timestamp: new Date(msg.timestamp)
+          }))
+        }));
+      } catch (e) {
+        console.error('Failed to parse saved chat sessions:', e);
+      }
+    }
+    return [];
+  });
+
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(() => {
+    return localStorage.getItem('lumio-active-session-id');
+  });
+
   const [isAiLoading, setIsAiLoading] = useState(false);
+
+  const welcomeMessage = useMemo(() => ({
+    id: 'welcome',
+    sender: 'ai' as const,
+    text: "Hello! I'm your AI Concept Tutor. Ask me any questions about your studies, and I'll help you break down complex concepts!",
+    timestamp: new Date(),
+  }), []);
+
+  const chatMessages = useMemo<ChatMessage[]>(() => {
+    if (!activeSessionId) {
+      return [welcomeMessage];
+    }
+    const session = chatSessions.find(s => s.id === activeSessionId);
+    return session ? session.messages : [welcomeMessage];
+  }, [activeSessionId, chatSessions, welcomeMessage]);
+
+  // Load chat sessions from backend database on mount
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch(`${API_BASE_URL}/api/tutor/sessions`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to fetch chat sessions');
+        return res.json();
+      })
+      .then((data: any[]) => {
+        const mappedSessions: ChatSession[] = data.map(session => ({
+          id: session.session_id,
+          title: session.title,
+          timestamp: new Date(session.updated_at || session.created_at),
+          messages: session.messages.map((msg: any) => ({
+            ...msg,
+            timestamp: new Date(msg.timestamp)
+          }))
+        }));
+        setChatSessions(mappedSessions);
+      })
+      .catch(err => console.error('Error fetching chat sessions from database:', err));
+    }
+  }, [user]);
+
+  // Synchronize chatSessions to localStorage
+  useEffect(() => {
+    localStorage.setItem('lumio-chat-sessions', JSON.stringify(chatSessions));
+  }, [chatSessions]);
+
+  // Synchronize activeSessionId to localStorage
+  useEffect(() => {
+    if (activeSessionId) {
+      localStorage.setItem('lumio-active-session-id', activeSessionId);
+    } else {
+      localStorage.removeItem('lumio-active-session-id');
+    }
+  }, [activeSessionId]);
+
+  const syncSessionToDb = (session: ChatSession) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    const payload = {
+      session_id: session.id,
+      title: session.title,
+      messages: session.messages.map(msg => ({
+        id: msg.id,
+        sender: msg.sender,
+        text: msg.text,
+        timestamp: msg.timestamp.toISOString(),
+        isError: msg.isError || false
+      }))
+    };
+
+    fetch(`${API_BASE_URL}/api/tutor/sessions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(payload)
+    })
+    .then(res => {
+      if (!res.ok) throw new Error('Failed to sync chat session to database');
+      return res.json();
+    })
+    .catch(err => console.error('Error syncing chat session:', err));
+  };
   const [isGroupQuizMode, setIsGroupQuizMode] = useState(false);
   const [selectedAnswers, setSelectedAnswers] = useState<{ [questionId: number]: number }>({});
   const [showQuizResults, setShowQuizResults] = useState(false);
@@ -574,12 +836,59 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     }
   };
 
-  const handleAiSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!aiSearchQuery.trim()) return;
+  const handleSendChatMessage = (text: string) => {
+    if (!text.trim() || isAiLoading) return;
+
+    const userMsgId = `user-${Date.now()}`;
+    const userMessage: ChatMessage = {
+      id: userMsgId,
+      sender: 'user',
+      text: text,
+      timestamp: new Date()
+    };
+    
     setIsAiLoading(true);
-    setAiResponse(null);
     completeQuest('ask_ai');
+
+    // Determine active session or create a new one
+    let targetSessionId = activeSessionId;
+    let updatedSessions = [...chatSessions];
+    let currentSession: ChatSession;
+
+    if (!targetSessionId) {
+      targetSessionId = `session-${Date.now()}`;
+      currentSession = {
+        id: targetSessionId,
+        title: text.substring(0, 40) + (text.length > 40 ? '...' : ''),
+        messages: [welcomeMessage, userMessage],
+        timestamp: new Date()
+      };
+      updatedSessions = [currentSession, ...updatedSessions];
+      setChatSessions(updatedSessions);
+      setActiveSessionId(targetSessionId);
+    } else {
+      const idx = updatedSessions.findIndex(s => s.id === targetSessionId);
+      if (idx !== -1) {
+        currentSession = {
+          ...updatedSessions[idx],
+          messages: [...updatedSessions[idx].messages, userMessage],
+          timestamp: new Date()
+        };
+        updatedSessions[idx] = currentSession;
+      } else {
+        currentSession = {
+          id: targetSessionId,
+          title: text.substring(0, 40) + (text.length > 40 ? '...' : ''),
+          messages: [welcomeMessage, userMessage],
+          timestamp: new Date()
+        };
+        updatedSessions = [currentSession, ...updatedSessions];
+      }
+      setChatSessions(updatedSessions);
+    }
+
+    // Sync user message to backend database
+    syncSessionToDb(currentSession);
 
     const token = localStorage.getItem('token');
     if (token) {
@@ -589,34 +898,92 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ query: aiSearchQuery })
+        body: JSON.stringify({ query: text })
       })
       .then(async (res) => {
         if (!res.ok) {
           if (res.status === 429) {
             const errData = await res.json().catch(() => ({}));
-            throw new Error(errData.detail || "Daily limit reached. Free accounts are limited to 5 AI queries per day.");
+            throw new Error(errData.detail || "Daily limit reached. Free accounts are limited to 5 AI Concept Tutor queries per day.");
           }
           throw new Error("Tutor request failed");
         }
         return res.json();
       })
       .then((data) => {
-        setAiResponse({ query: data.query, answer: data.answer });
+        const aiMessage: ChatMessage = {
+          id: `ai-${Date.now()}`,
+          sender: 'ai',
+          text: data.answer,
+          timestamp: new Date()
+        };
+        
+        setChatSessions(prev => {
+          const updated = prev.map(s => {
+            if (s.id === targetSessionId) {
+              const newSession = {
+                ...s,
+                messages: [...s.messages, aiMessage],
+                timestamp: new Date()
+              };
+              // Sync updated session with AI response to database
+              syncSessionToDb(newSession);
+              return newSession;
+            }
+            return s;
+          });
+          return updated;
+        });
         setIsAiLoading(false);
+        
+        if (user) {
+          const st = user.studyTime ? { ...user.studyTime } : {};
+          const todayStr = getLocalDateString(new Date());
+          const tutorDate = st.tutor_quota_date || '';
+          
+          if (tutorDate !== todayStr) {
+            st.tutor_quota_date = todayStr;
+            st.tutor_quota_used = 1;
+          } else {
+            st.tutor_quota_used = typeof st.tutor_quota_used === 'number' ? st.tutor_quota_used + 1 : 1;
+          }
+          setUser({
+            ...user,
+            studyTime: st
+          });
+        }
       })
       .catch((err) => {
         console.error('Tutor error:', err);
-        setAiResponse({
-          query: aiSearchQuery,
-          answer: err.message || "Sorry, I encountered an error. Please try again later."
+        const errorMessage: ChatMessage = {
+          id: `err-${Date.now()}`,
+          sender: 'ai',
+          text: err.message || "Sorry, I encountered an error. Please try again later.",
+          timestamp: new Date(),
+          isError: true
+        };
+        
+        setChatSessions(prev => {
+          const updated = prev.map(s => {
+            if (s.id === targetSessionId) {
+              const newSession = {
+                ...s,
+                messages: [...s.messages, errorMessage],
+                timestamp: new Date()
+              };
+              syncSessionToDb(newSession);
+              return newSession;
+            }
+            return s;
+          });
+          return updated;
         });
         setIsAiLoading(false);
       });
     } else {
       setTimeout(() => {
-        let answer = "I analyzed your study content, but couldn't find a specific section explaining that concept. Based on general knowledge, it is an academic concept related to your courses.";
-        const queryLower = aiSearchQuery.toLowerCase();
+        let answer = `I analyzed your study content, but couldn't find a specific section explaining '${text}'. Based on general knowledge, it is an academic concept related to your courses. Please upload more textbook files for detailed tutor guidance!`;
+        const queryLower = text.toLowerCase();
         if (queryLower.includes('mitochondria') || queryLower.includes('powerhouse')) {
           answer = "Mitochondria are double-membraned organelles found in most eukaryotic organisms. They generate most of the cell's supply of adenosine triphosphate (ATP), used as a source of chemical energy, earning them the nickname 'the powerhouse of the cell'.";
         } else if (queryLower.includes('protein') || queryLower.includes('ribosome')) {
@@ -626,9 +993,88 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         } else if (queryLower.includes('market') || queryLower.includes('monopoly')) {
           answer = "A monopoly market structure features a single supplier selling a unique product with no close substitutes and high barriers to entry. Other structures include perfect competition, oligopoly, and monopolistic competition.";
         }
-        setAiResponse({ query: aiSearchQuery, answer });
+        
+        const aiMessage: ChatMessage = {
+          id: `ai-${Date.now()}`,
+          sender: 'ai',
+          text: answer,
+          timestamp: new Date()
+        };
+        
+        setChatSessions(prev => {
+          const updated = prev.map(s => {
+            if (s.id === targetSessionId) {
+              return {
+                ...s,
+                messages: [...s.messages, aiMessage],
+                timestamp: new Date()
+              };
+            }
+            return s;
+          });
+          return updated;
+        });
         setIsAiLoading(false);
+        
+        if (user) {
+          const st = user.studyTime ? { ...user.studyTime } : {};
+          const todayStr = getLocalDateString(new Date());
+          const tutorDate = st.tutor_quota_date || '';
+          
+          if (tutorDate !== todayStr) {
+            st.tutor_quota_date = todayStr;
+            st.tutor_quota_used = 1;
+          } else {
+            st.tutor_quota_used = typeof st.tutor_quota_used === 'number' ? st.tutor_quota_used + 1 : 1;
+          }
+          setUser({
+            ...user,
+            studyTime: st
+          });
+        }
       }, 800);
+    }
+  };
+
+  const handleClearChat = () => {
+    setActiveSessionId(null);
+  };
+
+  const handleSelectSession = (sessionId: string) => {
+    setActiveSessionId(sessionId);
+  };
+
+  const handleDeleteSession = (sessionId: string) => {
+    setChatSessions(prev => prev.filter(s => s.id !== sessionId));
+    if (activeSessionId === sessionId) {
+      setActiveSessionId(null);
+    }
+
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch(`${API_BASE_URL}/api/tutor/sessions/${sessionId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      .catch(err => console.error('Error deleting chat session from DB:', err));
+    }
+  };
+
+  const handleClearAllHistory = () => {
+    setChatSessions([]);
+    setActiveSessionId(null);
+
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch(`${API_BASE_URL}/api/tutor/sessions`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      .catch(err => console.error('Error clearing all chat sessions from DB:', err));
     }
   };
 
@@ -774,6 +1220,91 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     }
   };
 
+  const handleCreateFolder = (folderName: string) => {
+    if (!folderName.trim()) return;
+    const currentFolders = user.folders || ['General'];
+    if (currentFolders.includes(folderName.trim())) return;
+    const updatedFolders = [...currentFolders, folderName.trim()];
+    syncProfile({ folders: updatedFolders });
+  };
+
+  const handleRenameFolder = (oldName: string, newName: string) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    fetch(`${API_BASE_URL}/api/modules/folders/rename`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ old_name: oldName, new_name: newName })
+    })
+    .then(async res => {
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.detail || 'Failed to rename folder');
+      
+      setUser(prev => prev ? { ...prev, folders: data.folders } : prev);
+      setModules(prev => prev.map(m => m.subject === oldName ? { ...m, subject: newName } : m));
+      if (selectedSubject === oldName) {
+        setSelectedSubject(newName);
+      }
+    })
+    .catch(err => {
+      console.error('Error renaming folder:', err);
+      alert(err.message || 'Error renaming folder');
+    });
+  };
+
+  const handleDeleteFolder = (folderName: string) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    fetch(`${API_BASE_URL}/api/modules/folders/delete?folder_name=${encodeURIComponent(folderName)}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    .then(async res => {
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.detail || 'Failed to delete folder');
+      
+      setUser(prev => prev ? { ...prev, folders: data.folders } : prev);
+      setModules(prev => prev.map(m => m.subject === folderName ? { ...m, subject: 'General' } : m));
+      if (selectedSubject === folderName) {
+        setSelectedSubject('All');
+      }
+    })
+    .catch(err => {
+      console.error('Error deleting folder:', err);
+      alert(err.message || 'Error deleting folder');
+    });
+  };
+
+  const handleMoveModule = (moduleId: number, subject: string) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    fetch(`${API_BASE_URL}/api/modules/${moduleId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ subject })
+    })
+    .then(async res => {
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.detail || 'Failed to move module');
+      setModules(prev => prev.map(m => m.id === moduleId ? { ...m, subject } : m));
+    })
+    .catch(err => {
+      console.error('Error moving module:', err);
+      alert('Error moving module');
+    });
+  };
+
   const confirmDeleteModule = () => {
     if (!moduleToDelete) return;
     const id = moduleToDelete.id;
@@ -861,25 +1392,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     }
   };
 
-  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (!file.type.startsWith('image/')) { alert('Please select an image file.'); return; }
-      if (file.size > 2 * 1024 * 1024) { alert('File size exceeds 2MB limit.'); return; }
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) setUser({ ...user, avatar: event.target.result as string });
-      };
-      reader.readAsDataURL(file);
-    }
-  };
 
   const activeGroup = groups.find(g => g.id === selectedGroupId);
   const subjects = ['All', ...Array.from(new Set(modules.map(m => m.subject).filter(Boolean))) as string[]];
   const filteredModules = selectedSubject === 'All' ? modules : modules.filter(m => m.subject === selectedSubject);
 
   return (
-    <div className={`grid max-lg:grid-cols-1 max-lg:grid-rows-[auto_1fr] h-[calc(100vh-58px)] overflow-hidden transition-[grid-template-columns] duration-280 ease-in-out ${isCollapsed ? 'lg:grid-cols-[68px_1fr]' : 'lg:grid-cols-[240px_1fr]'}`}>
+    <div className={`grid max-lg:grid-cols-1 max-lg:grid-rows-[auto_1fr] h-[calc(100vh-58px)] overflow-hidden transition-[grid-template-columns] duration-280 ease-in-out ${
+      isAiSidebarOpen 
+        ? (isCollapsed ? 'lg:grid-cols-[68px_1fr_360px]' : 'lg:grid-cols-[240px_1fr_360px]')
+        : (isCollapsed ? 'lg:grid-cols-[68px_1fr]' : 'lg:grid-cols-[240px_1fr]')
+    }`}>
       <div className="hidden lg:contents">
         <DashboardSidebar
           isCollapsed={isCollapsed}
@@ -937,6 +1460,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               startQuiz={startQuiz}
               startGroupQuiz={startGroupQuiz}
               selectedGroupId={selectedGroupId}
+              exams={exams}
+              handleCompleteExam={handleCompleteExam}
             />
           ) : (
             <AnimatePresence mode="wait">
@@ -963,9 +1488,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     newExamSubject={newExamSubject}
                     newExamDate={newExamDate}
                     newExamPriority={newExamPriority}
-                    aiSearchQuery={aiSearchQuery}
-                    aiResponse={aiResponse}
-                    isAiLoading={isAiLoading}
                     spacedRepetitionList={user.spacedRecall || []}
                     heatmapData={user.heatmapData || defaultHeatmap}
                     subjects={subjects}
@@ -976,15 +1498,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     setNewExamSubject={setNewExamSubject}
                     setNewExamDate={setNewExamDate}
                     setNewExamPriority={setNewExamPriority}
-                    setAiSearchQuery={setAiSearchQuery}
                     setDashboardTab={handleSetDashboardTab}
                     setSelectedSubject={setSelectedSubject}
                     handleAddExam={handleAddExam}
                     handleDeleteExam={handleDeleteExam}
                     handleCompleteExam={handleCompleteExam}
-                    handleAiSearch={handleAiSearch}
                     getActivityColor={getActivityColor}
                     handleStreakCheckIn={handleStreakCheckIn}
+                    recentExamFinish={recentExamFinish}
                   />
                 )}
 
@@ -992,7 +1513,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <ModulesPanel
                     modules={modules}
                     selectedSubject={selectedSubject}
-                    subjects={subjects}
+                    subjects={['All', ...(user.folders || ['General'])]}
                     filteredModules={filteredModules}
                     setSelectedSubject={setSelectedSubject}
                     startQuiz={startQuiz}
@@ -1000,6 +1521,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     setIsUploadOpen={setIsUploadOpen}
                     moduleScores={moduleScores}
                     onFileDropped={onFileDropped}
+                    onCreateFolder={handleCreateFolder}
+                    onMoveModule={handleMoveModule}
+                    onRenameFolder={handleRenameFolder}
+                    onDeleteFolder={handleDeleteFolder}
                   />
                 )}
 
@@ -1044,6 +1569,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 {dashboardTab === 'calendar' && selectedGroupId === null && (
                   <CalendarPanel
                     exams={exams}
+                    completedExams={completedExams}
                     isAddingExam={isAddingExam}
                     newExamTitle={newExamTitle}
                     newExamSubject={newExamSubject}
@@ -1057,6 +1583,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     setNewExamPriority={setNewExamPriority}
                     handleAddExam={handleAddExam}
                     handleDeleteExam={handleDeleteExam}
+                    handleCompleteExam={handleCompleteExam}
                   />
                 )}
 
@@ -1077,7 +1604,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     user={user}
                     setUser={setUser}
                     setModules={setModules}
-                    handleAvatarUpload={handleAvatarUpload}
                     completeQuest={completeQuest}
                     handleLogout={handleLogout}
                     notifStudyGroup={notifStudyGroup}
@@ -1202,6 +1728,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </main>
         )}
       </div>
+
+      <AnimatePresence>
+        {isAiSidebarOpen && (
+          <AiTutorSidebar
+            onClose={() => setIsAiSidebarOpen(false)}
+            user={user}
+            chatMessages={chatMessages}
+            isAiLoading={isAiLoading}
+            onSendMessage={handleSendChatMessage}
+            modules={modules}
+            onClearChat={handleClearChat}
+            chatSessions={chatSessions}
+            activeSessionId={activeSessionId}
+            onSelectSession={handleSelectSession}
+            onDeleteSession={handleDeleteSession}
+            onClearAllHistory={handleClearAllHistory}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };

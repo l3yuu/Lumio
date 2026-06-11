@@ -205,7 +205,7 @@ def generate_mock_questions(module_name: str, text_content: Optional[str] = None
     ]
     return (questions + generic_questions)[:10]
 
-def generate_quiz_questions(module_name: str, text_content: Optional[str] = None, file_bytes: Optional[bytes] = None, file_filename: Optional[str] = None) -> tuple:
+def generate_quiz_questions(module_name: str, text_content: Optional[str] = None, file_bytes: Optional[bytes] = None, file_filename: Optional[str] = None, difficulty: str = "medium") -> tuple:
     """
     Generates 10 multiple choice questions.
     Attempts to use Gemini API if text content is available and GEMINI_API_KEY is configured.
@@ -253,13 +253,24 @@ def generate_quiz_questions(module_name: str, text_content: Optional[str] = None
         from google import genai
         from google.genai import types
 
-        logger.info(f"Connecting to Gemini API to generate quiz for module: {module_name}")
+        logger.info(f"Connecting to Gemini API to generate quiz for module: {module_name} with difficulty {difficulty}")
         client = genai.Client(api_key=api_key)
         
+        difficulty_instructions = {
+            "easy": "The quiz must be EASY difficulty. Focus on simple direct recall of facts, core definitions, key terminology, and explicit vocabulary stated directly in the text. Options should be simple and easy to distinguish.",
+            "medium": "The quiz must be MEDIUM difficulty. Focus on conceptual understanding, identifying steps in processes, explaining relationships between concepts, and explaining how or why things function.",
+            "hard": "The quiz must be HARD difficulty. Focus on deep critical evaluation, scenario-based applications of concepts, complex multi-step reasoning, logical deductions, and subtle comparisons or contradictions in the text."
+        }.get(difficulty.lower(), "Focus on conceptual understanding and explaining relationships between concepts.")
+
         lesson_excerpt = build_lesson_excerpt(extracted_text, module_name)
         prompt = f"""
 You are an expert academic tutor.
 Analyze the lesson content provided below and generate exactly 10 high-quality multiple choice questions (MCQs) to test a student's comprehension of what the lesson teaches.
+
+DIFFICULTY LEVEL: {difficulty.upper()}
+Instruction for this difficulty level:
+{difficulty_instructions}
+
 Each question must satisfy these requirements:
 - Have exactly 4 options.
 - Have exactly 1 correct option index (0 for first, 1 for second, 2 for third, 3 for fourth).

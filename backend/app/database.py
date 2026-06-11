@@ -30,6 +30,8 @@ def ensure_runtime_schema():
             statements.append("ALTER TABLE modules ADD COLUMN source_file_mime VARCHAR(100)")
         if "last_score" not in module_columns:
             statements.append("ALTER TABLE modules ADD COLUMN last_score VARCHAR(50)")
+        if "difficulty" not in module_columns:
+            statements.append("ALTER TABLE modules ADD COLUMN difficulty VARCHAR(20) DEFAULT 'medium'")
 
     if "exam_deadlines" in table_names:
         exam_columns = {column["name"] for column in inspector.get_columns("exam_deadlines")}
@@ -43,6 +45,13 @@ def ensure_runtime_schema():
                 statements.append("ALTER TABLE exam_deadlines ADD COLUMN completed BOOLEAN DEFAULT FALSE")
             else:
                 statements.append("ALTER TABLE exam_deadlines ADD COLUMN completed INTEGER DEFAULT 0")
+        if "score" not in exam_columns:
+            statements.append("ALTER TABLE exam_deadlines ADD COLUMN score VARCHAR(50)")
+
+    if "users" in table_names:
+        user_columns = {column["name"] for column in inspector.get_columns("users")}
+        if "folders" not in user_columns:
+            statements.append("ALTER TABLE users ADD COLUMN folders JSON")
 
     if not statements:
         return

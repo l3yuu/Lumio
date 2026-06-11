@@ -37,6 +37,7 @@ def create_module(
     size: str = Form("0.0 MB"),
     text_content: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
+    difficulty: str = Form("medium"),
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -83,7 +84,8 @@ def create_module(
         module_name=name,
         text_content=text_content,
         file_bytes=file_bytes,
-        file_filename=file_filename
+        file_filename=file_filename,
+        difficulty=difficulty
     )
     
     # Format date nicely
@@ -97,7 +99,8 @@ def create_module(
         source_content=extracted_text if extracted_text else None,
         source_filename=file_filename if file_filename else None,
         source_file_data=file_bytes if file_bytes else None,
-        source_file_mime=get_source_media_type(file_filename) if file_filename else None
+        source_file_mime=get_source_media_type(file_filename) if file_filename else None,
+        difficulty=difficulty
     )
     db.add(db_module)
     db.commit()
@@ -265,6 +268,94 @@ def get_module_file(
         filename=module.source_filename or "file",
         media_type=module.source_file_mime or get_source_media_type(module.source_filename)
     )
+
+
+@router.put("/{module_id}", response_model=schemas.ModuleOut)
+def update_module(
+    module_id: int,
+    body: schemas.ModuleUpdate,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    module = db.query(models.Module).filter(
+        models.Module.id == module_id,
+        models.Module.user_id == current_user.id
+    ).first()
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found")
+
+    module.subject = body.subject
+    db.commit()
+    db.refresh(module)
+    return module
+
+
+@router.put("/folders/rename")
+def rename_folder(
+    body: schemas.FolderRename,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    from sqlalchemy.orm.attributes import flag_modified
+    
+    old_name = body.old_name.strip()
+    new_name = body.new_name.strip()
+    
+    if not old_name or not new_name:
+        raise HTTPException(status_code=400, detail="Invalid folder names")
+    if old_name in ("General", "All") or new_name == "All":
+        raise HTTPException(status_code=400, detail="System folders cannot be modified")
+        
+    folders = current_user.folders or ["General"]
+    if old_name not in folders:
+        raise HTTPException(status_code=404, detail="Folder not found")
+    if new_name in folders:
+        raise HTTPException(status_code=400, detail="Folder with new name already exists")
+        
+    # Update user folders list
+    folders = [new_name if f == old_name else f for f in folders]
+    current_user.folders = folders
+    flag_modified(current_user, "folders")
+    
+    # Update subject field of all associated modules
+    db.query(models.Module).filter(
+        models.Module.user_id == current_user.id,
+        models.Module.subject == old_name
+    ).update({models.Module.subject: new_name}, synchronize_session=False)
+    
+    db.commit()
+    return {"status": "success", "folders": folders}
+
+
+@router.delete("/folders/delete")
+def delete_folder(
+    folder_name: str,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    from sqlalchemy.orm.attributes import flag_modified
+    
+    name = folder_name.strip()
+    if name in ("General", "All"):
+        raise HTTPException(status_code=400, detail="System folders cannot be deleted")
+        
+    folders = current_user.folders or ["General"]
+    if name not in folders:
+        raise HTTPException(status_code=404, detail="Folder not found")
+        
+    # Remove folder from user folders list
+    folders = [f for f in folders if f != name]
+    current_user.folders = folders
+    flag_modified(current_user, "folders")
+    
+    # Move all associated modules to "General"
+    db.query(models.Module).filter(
+        models.Module.user_id == current_user.id,
+        models.Module.subject == name
+    ).update({models.Module.subject: "General"}, synchronize_session=False)
+    
+    db.commit()
+    return {"status": "success", "folders": folders}
 
 
 @router.delete("")

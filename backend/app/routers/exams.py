@@ -36,6 +36,16 @@ def get_exams(current_user: models.User = Depends(auth.get_current_user), db: Se
         e.days_remaining = calculate_days_remaining(e.raw_date or e.date)
     return exams
 
+@router.get("/completed", response_model=List[schemas.ExamOut])
+def get_completed_exams(current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    exams = db.query(models.ExamDeadline).filter(
+        models.ExamDeadline.user_id == current_user.id,
+        models.ExamDeadline.completed == True
+    ).order_by(models.ExamDeadline.id.desc()).all()
+    for e in exams:
+        e.days_remaining = 0
+    return exams
+
 @router.post("", response_model=schemas.ExamOut)
 def create_exam(exam_in: schemas.ExamCreate, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     db_exam = models.ExamDeadline(
@@ -53,7 +63,12 @@ def create_exam(exam_in: schemas.ExamCreate, current_user: models.User = Depends
     return db_exam
 
 @router.put("/{exam_id}/complete", response_model=schemas.ExamOut)
-def complete_exam(exam_id: int, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+def complete_exam(
+    exam_id: int,
+    complete_in: schemas.ExamComplete = schemas.ExamComplete(),
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db),
+):
     exam = db.query(models.ExamDeadline).filter(
         models.ExamDeadline.id == exam_id,
         models.ExamDeadline.user_id == current_user.id
@@ -62,6 +77,8 @@ def complete_exam(exam_id: int, current_user: models.User = Depends(auth.get_cur
         raise HTTPException(status_code=404, detail="Exam not found")
     
     exam.completed = True
+    if complete_in.score and complete_in.score.strip():
+        exam.score = complete_in.score.strip()
     
     # Award 50 XP to user for finishing their exam!
     current_user.xp += 50

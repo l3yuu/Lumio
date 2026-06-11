@@ -25,6 +25,7 @@ interface NavbarProps {
   onMarkAllNotificationsRead?: () => void;
   onAcceptInvitation?: (id: number) => void;
   onDeclineInvitation?: (id: number) => void;
+  onToggleAiSidebar?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -48,6 +49,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onMarkAllNotificationsRead,
   onAcceptInvitation,
   onDeclineInvitation,
+  onToggleAiSidebar,
 }) => {
   const [notifOpen, setNotifOpen] = React.useState(false);
   const [userMenuOpen, setUserMenuOpen] = React.useState(false);
@@ -189,9 +191,25 @@ export const Navbar: React.FC<NavbarProps> = ({
           </ul>
         )}
 
-        <div className="hidden lg:flex items-center gap-4">
+        <div className={
+          user
+            ? "flex items-center gap-1.5 sm:gap-3 lg:gap-4"
+            : "hidden lg:flex items-center gap-4"
+        }>
           {user ? (
             <>
+              {/* Ask AI Chatbot Toggle */}
+              <button
+                onClick={() => {
+                  onToggleAiSidebar?.();
+                }}
+                className="bg-transparent border-0 cursor-pointer p-2 flex items-center relative text-ink rounded-full transition-colors duration-200 hover:bg-glass mr-1"
+                title="Ask AI Concept Tutor"
+                aria-label="Ask AI Concept Tutor"
+              >
+                <Sparkles size={20} className="text-primary animate-pulse" />
+              </button>
+
               <div ref={notifRef} className="relative inline-block mr-1.5">
                 <button
                   onClick={() => {
@@ -207,7 +225,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary rounded-full animate-[pulse-green_2s_infinite]"></span>
                   )}
                 </button>
-                <div className={`absolute top-full left-auto right-0 translate-y-2.5 w-90 p-0 bg-app/95 backdrop-blur-2xl border border-line rounded-xl shadow-lg transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] z-1010 flex flex-col gap-0 ${
+                <div className={`fixed lg:absolute top-[58px] lg:top-full left-4 right-4 lg:left-auto lg:right-0 lg:translate-y-2.5 lg:w-90 p-0 bg-app/95 backdrop-blur-2xl border border-line rounded-xl shadow-lg transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] z-1010 flex flex-col gap-0 ${
                   notifOpen
                     ? 'opacity-100 visible pointer-events-auto translate-y-1'
                     : 'opacity-0 invisible pointer-events-none'

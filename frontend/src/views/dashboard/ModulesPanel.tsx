@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Play, Trash2, Zap, RotateCcw, FileText, X, ZoomIn, ZoomOut, Download, MessageSquare, AudioLines, Search } from 'lucide-react';
+import { Plus, Play, Trash2, Zap, RotateCcw, FileText, X, ZoomIn, ZoomOut, Download, MessageSquare, AudioLines, Search, Edit2, Check, MoreVertical } from 'lucide-react';
 import type { Module } from '../../types';
 import { API_BASE_URL } from '../../config';
 
@@ -14,15 +14,31 @@ interface ModulesPanelProps {
   setIsUploadOpen: (v: boolean) => void;
   moduleScores: { [moduleId: number]: string };
   onFileDropped?: (file: File) => void;
+  onCreateFolder?: (name: string) => void;
+  onMoveModule?: (moduleId: number, folderName: string) => void;
+  onRenameFolder?: (oldName: string, newName: string) => void;
+  onDeleteFolder?: (folderName: string) => void;
 }
 
 export const ModulesPanel: React.FC<ModulesPanelProps> = ({
   modules, selectedSubject, subjects, filteredModules,
   setSelectedSubject, startQuiz, handleDeleteModule, setIsUploadOpen,
-  moduleScores, onFileDropped,
+  moduleScores, onFileDropped, onCreateFolder, onMoveModule,
+  onRenameFolder, onDeleteFolder,
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [editingFolder, setEditingFolder] = useState<string | null>(null);
+  const [editingFolderName, setEditingFolderName] = useState('');
+  const [openMenuModuleId, setOpenMenuModuleId] = useState<number | null>(null);
+
+  React.useEffect(() => {
+    const handleCloseMenu = () => setOpenMenuModuleId(null);
+    window.addEventListener('click', handleCloseMenu);
+    return () => window.removeEventListener('click', handleCloseMenu);
+  }, []);
 
   const displayedModules = filteredModules.filter(m =>
     m.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -101,20 +117,139 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
         </button>
       </div>
 
-      <div className="flex gap-2 mb-6 flex-wrap">
-        {subjects.map((subj) => (
-          <button
-            key={subj}
-            onClick={() => setSelectedSubject(subj)}
-            className={`px-3.5 py-1.5 text-xs rounded-full border transition-all duration-200 cursor-pointer font-bold ${
-              selectedSubject === subj
-                ? 'bg-primary text-ink-on-primary border-primary'
-                : 'bg-glass border-line text-ink-muted hover:text-ink hover:bg-glass-strong'
-            }`}
+      <div className="flex gap-2 mb-6 flex-wrap items-center">
+        {subjects.map((subj) => {
+          const isActive = selectedSubject === subj;
+          const isSystem = subj === 'All' || subj === 'General';
+          const isEditing = editingFolder === subj;
+
+          return (
+            <div
+              key={subj}
+              className={`px-3.5 py-1.5 text-xs rounded-full border transition-all duration-200 font-bold flex items-center gap-1.5 ${
+                isActive
+                  ? 'bg-primary text-ink-on-primary border-primary'
+                  : 'bg-glass border-line text-ink-muted hover:text-ink hover:bg-glass-strong'
+              }`}
+            >
+              {isEditing ? (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (editingFolderName.trim() && onRenameFolder && editingFolderName.trim() !== subj) {
+                      onRenameFolder(subj, editingFolderName.trim());
+                    }
+                    setEditingFolder(null);
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="flex items-center gap-1"
+                >
+                  <input
+                    type="text"
+                    value={editingFolderName}
+                    onChange={(e) => setEditingFolderName(e.target.value)}
+                    className="text-xs bg-transparent text-ink-on-primary font-bold outline-none max-w-[90px] border-b border-ink-on-primary/30 py-0 px-0"
+                    autoFocus
+                  />
+                  <button type="submit" className="p-0.5 text-ink-on-primary hover:scale-110 transition-transform cursor-pointer">
+                    <Check size={12} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingFolder(null);
+                    }}
+                    className="p-0.5 text-ink-on-primary hover:scale-110 transition-transform cursor-pointer"
+                  >
+                    <X size={12} />
+                  </button>
+                </form>
+              ) : (
+                <>
+                  <span
+                    onClick={() => setSelectedSubject(subj)}
+                    className="cursor-pointer select-none"
+                  >
+                    {subj === 'All' ? 'All Folders' : subj}
+                  </span>
+                  {!isSystem && isActive && (
+                    <div className="flex items-center gap-0.5 ml-1 animate-in fade-in zoom-in-95 duration-150">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingFolder(subj);
+                          setEditingFolderName(subj);
+                        }}
+                        className="p-0.5 rounded-full hover:bg-black/15 text-ink-on-primary cursor-pointer"
+                        title="Rename folder"
+                      >
+                        <Edit2 size={10} />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (confirm(`Are you sure you want to delete the folder "${subj}"? Any modules inside will be moved to the General folder.`)) {
+                            if (onDeleteFolder) onDeleteFolder(subj);
+                          }
+                        }}
+                        className="p-0.5 rounded-full hover:bg-black/15 text-ink-on-primary cursor-pointer"
+                        title="Delete folder"
+                      >
+                        <Trash2 size={10} />
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })}
+
+        {isCreatingFolder ? (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (newFolderName.trim() && onCreateFolder) {
+                onCreateFolder(newFolderName.trim());
+                setNewFolderName('');
+                setIsCreatingFolder(false);
+              }
+            }}
+            className="flex items-center gap-1.5 bg-input border border-line rounded-full pl-3 pr-1 py-0.5"
           >
-            {subj === 'All' ? 'All Folders' : subj}
-          </button>
-        ))}
+            <input
+              type="text"
+              placeholder="Folder name..."
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              className="text-xs bg-transparent text-ink outline-none max-w-[120px] py-1 border-0"
+              autoFocus
+            />
+            <button type="submit" className="px-2.5 py-1 bg-primary text-ink-on-primary text-[10px] rounded-full font-bold cursor-pointer hover:bg-primary-hover transition-colors">
+              Save
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsCreatingFolder(false);
+                setNewFolderName('');
+              }}
+              className="p-1 text-ink-muted hover:text-ink cursor-pointer rounded-full hover:bg-glass"
+            >
+              <X size={12} />
+            </button>
+          </form>
+        ) : (
+          onCreateFolder && (
+            <button
+              onClick={() => setIsCreatingFolder(true)}
+              className="px-3.5 py-1.5 text-xs rounded-full border border-dashed border-line text-ink-muted hover:text-ink hover:border-primary hover:bg-glass transition-all duration-200 cursor-pointer font-medium flex items-center gap-1"
+            >
+              <Plus size={12} /> Add Folder
+            </button>
+          )
+        )}
       </div>
 
       {/* Quiz Dropzone */}
@@ -197,7 +332,10 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
                   e.dataTransfer.setData('text', m.id.toString());
                   e.dataTransfer.effectAllowed = 'copy';
                 }}
-                className="flex justify-between items-center bg-app border border-line rounded-lg p-4 px-5 hover:border-primary/50 cursor-grab active:cursor-grabbing hover:scale-[1.005] transition-all duration-200 select-none"
+                onClick={() => handleViewSource(m)}
+                className={`flex justify-between items-center bg-app border border-line rounded-lg p-4 px-5 hover:border-primary/50 cursor-pointer hover:scale-[1.005] transition-all duration-200 select-none relative ${
+                  openMenuModuleId === m.id ? 'z-30 shadow-lg' : 'z-0'
+                }`}
                 key={m.id}
               >
                 <div className="flex flex-col gap-1 pointer-events-none">
@@ -206,6 +344,20 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
                     <span>Date: {m.date}</span>
                     <span>Size: {m.size}</span>
                     <span>Questions: {m.questionsCount}</span>
+                    {selectedSubject === 'All' && m.subject && (
+                      <span className="flex items-center gap-1 bg-glass border border-line text-ink-muted text-[0.7rem] font-bold px-2 py-0.5 rounded">
+                        Folder: {m.subject}
+                      </span>
+                    )}
+                    {m.difficulty && (
+                      <span className={`flex items-center gap-1 text-[0.7rem] font-bold px-2 py-0.5 rounded border capitalize ${
+                        m.difficulty === 'easy' ? 'bg-primary-soft text-primary border-primary-line' :
+                        m.difficulty === 'hard' ? 'bg-danger-soft text-danger border-danger-line' :
+                        'bg-warning-soft text-warning border-warning-line'
+                      }`}>
+                        {m.difficulty}
+                      </span>
+                    )}
                     {moduleScore && (
                       <span className="flex items-center gap-1 bg-primary-soft text-primary text-[0.75rem] font-bold px-2 py-0.5 rounded border border-primary-line">
                         Last Score: {moduleScore}
@@ -213,8 +365,14 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
                     )}
                   </div>
                 </div>
-                <div className="flex gap-2 shrink-0">
-                  <button onClick={() => startQuiz(m)} className="btn btn-primary">
+                <div className="flex gap-2.5 items-center shrink-0">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startQuiz(m);
+                    }}
+                    className="btn btn-primary"
+                  >
                     {moduleScore ? (
                       <>
                         <RotateCcw size={14} /> Retake Quiz
@@ -225,14 +383,56 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
                       </>
                     )}
                   </button>
-                  {m.sourceFilename && (
-                    <button onClick={() => handleViewSource(m)} className="btn btn-outline bg-transparent border-line text-ink-muted hover:text-ink hover:bg-glass" title="View Source">
-                      <FileText size={16} />
+
+                  <div className="relative">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenMenuModuleId(openMenuModuleId === m.id ? null : m.id);
+                      }}
+                      className="btn btn-outline p-2 bg-transparent border-line text-ink-muted hover:text-ink hover:bg-glass"
+                      title="More Options"
+                    >
+                      <MoreVertical size={16} />
                     </button>
-                  )}
-                  <button onClick={() => handleDeleteModule(m.id)} className="btn btn-outline text-danger border-danger-line">
-                    <Trash2 size={16} />
-                  </button>
+
+                    {openMenuModuleId === m.id && (
+                      <div
+                        className="absolute right-0 top-full mt-2 w-48 bg-card border border-line rounded-lg shadow-lg py-1.5 z-20 transition-all duration-150 ease-out"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {onMoveModule && (
+                          <div className="px-3 py-2 border-b border-line">
+                            <label className="block text-[10px] text-ink-muted uppercase font-extrabold mb-1">Move to Folder</label>
+                            <select
+                              value={m.subject || 'General'}
+                              onChange={(e) => {
+                                onMoveModule(m.id, e.target.value);
+                                setOpenMenuModuleId(null);
+                              }}
+                              className="w-full bg-input border border-line text-ink text-xs rounded px-2.5 py-1.5 outline-none cursor-pointer focus:border-primary transition-colors"
+                            >
+                              {subjects.filter(s => s !== 'All').map(subj => (
+                                <option key={subj} value={subj} className="bg-card text-ink">{subj}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm(`Are you sure you want to delete the module "${m.name}"?`)) {
+                              handleDeleteModule(m.id);
+                            }
+                            setOpenMenuModuleId(null);
+                          }}
+                          className="w-full text-left px-3.5 py-2.5 text-xs text-danger hover:bg-danger-soft transition-colors font-bold flex items-center gap-2 cursor-pointer"
+                        >
+                          <Trash2 size={12} /> Delete Module
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             );

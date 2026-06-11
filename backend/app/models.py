@@ -72,6 +72,7 @@ class User(Base):
     quests_date = Column(String(50), default="")
     last_check_in = Column(String(50), default="")
     last_seen = Column(DateTime, nullable=True)
+    folders = Column(JSON, default=lambda: ["General"])
 
     @property
     def online(self) -> bool:
@@ -99,6 +100,7 @@ class Module(Base):
     source_file_data = Column(LargeBinary, nullable=True)
     source_file_mime = Column(String(100), nullable=True)
     last_score = Column(String(50), nullable=True)
+    difficulty = Column(String(20), default="medium", nullable=True)
 
     @property
     def has_source_file(self) -> bool:
@@ -131,6 +133,7 @@ class ExamDeadline(Base):
     user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
     reminder_sent = Column(Boolean, default=False)
     completed = Column(Boolean, default=False)
+    score = Column(String(50), nullable=True)
 
     owner = relationship("User", back_populates="exams")
 
@@ -209,3 +212,18 @@ class GroupNotificationPref(Base):
     group_id = Column(Integer, ForeignKey('study_groups.id', ondelete='CASCADE'), nullable=False)
     user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
     enabled = Column(Boolean, default=True)
+
+
+class ChatSession(Base):
+    __tablename__ = "chat_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(String(100), unique=True, index=True, nullable=False)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    title = Column(String(255), nullable=False)
+    messages = Column(JSON, default=lambda: [])
+    created_at = Column(DateTime, default=now_ph_naive)
+    updated_at = Column(DateTime, default=now_ph_naive, onupdate=now_ph_naive)
+
+    owner = relationship("User")
+

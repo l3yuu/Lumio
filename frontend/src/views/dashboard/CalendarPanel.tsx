@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Plus, Trash2, Calendar as CalendarIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Trash2, Calendar as CalendarIcon, CheckCircle2, Trophy } from 'lucide-react';
 import type { ExamDeadline } from '../../types';
 
 interface CalendarPanelProps {
   exams: ExamDeadline[];
+  completedExams: ExamDeadline[];
   isAddingExam: boolean;
   newExamTitle: string;
   newExamSubject: string;
@@ -18,17 +19,36 @@ interface CalendarPanelProps {
   setNewExamPriority: (v: 'high' | 'medium' | 'low') => void;
   handleAddExam: (e: React.FormEvent) => void;
   handleDeleteExam: (id: number) => void;
+  handleCompleteExam: (id: number, score?: string) => void;
 }
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export const CalendarPanel: React.FC<CalendarPanelProps> = ({
-  exams, isAddingExam, newExamTitle, newExamSubject, newExamDate, newExamPriority, subjects,
+  exams, completedExams, isAddingExam, newExamTitle, newExamSubject, newExamDate, newExamPriority, subjects,
   setIsAddingExam, setNewExamTitle, setNewExamSubject, setNewExamDate, setNewExamPriority,
-  handleAddExam, handleDeleteExam,
+  handleAddExam, handleDeleteExam, handleCompleteExam,
 }) => {
   const [viewDate, setViewDate] = useState(new Date());
+  const [finishingExamId, setFinishingExamId] = useState<number | null>(null);
+  const [finishScore, setFinishScore] = useState('');
+
+  const startFinishing = (examId: number) => {
+    setFinishingExamId(examId);
+    setFinishScore('');
+  };
+
+  const cancelFinishing = () => {
+    setFinishingExamId(null);
+    setFinishScore('');
+  };
+
+  const submitFinish = (examId: number) => {
+    if (!finishScore.trim()) return;
+    handleCompleteExam(examId, finishScore);
+    cancelFinishing();
+  };
 
   const { year, month, daysInMonth, firstDayOfMonth } = useMemo(() => {
     const y = viewDate.getFullYear();
@@ -173,7 +193,7 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
 
       <div className="bg-card border border-line rounded-xl p-5">
         <h3 className="text-[1.15rem] mb-4 flex items-center gap-2 m-0">
-          <CalendarIcon size={16} className="text-primary" /> All Logged Exams
+          <CalendarIcon size={16} className="text-primary" /> Upcoming Exams
         </h3>
         {exams.length === 0 ? (
           <div className="text-center p-6 text-ink-muted text-[0.85rem]">No exams logged yet. Use the calendar to add your first exam!</div>
@@ -182,37 +202,105 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
             {[...exams]
               .sort((a, b) => (a.rawDate || a.date).localeCompare(b.rawDate || b.date))
               .map(exam => (
-                <div key={exam.id} className="flex items-center justify-between bg-app border border-line rounded-lg p-3 px-4 hover:border-primary/50 transition-all duration-200">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-2.5 h-2.5 rounded-full ${priorityColor(exam.priority)}`} />
-                    <div className="flex flex-col">
-                      <span className="text-[0.85rem] font-semibold text-ink">{exam.title}</span>
-                      <span className="text-[0.7rem] text-ink-muted flex items-center gap-2">
-                        <span>{exam.date}</span>
-                        <span className="opacity-50">•</span>
-                        <span>{exam.subject}</span>
-                        <span className="opacity-50">•</span>
-                        <span>{priorityLabel(exam.priority)}</span>
-                      </span>
+                <div key={exam.id} className="bg-app border border-line rounded-lg p-3 px-4 hover:border-primary/50 transition-all duration-200">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${priorityColor(exam.priority)}`} />
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-[0.85rem] font-semibold text-ink truncate">{exam.title}</span>
+                        <span className="text-[0.7rem] text-ink-muted flex items-center gap-2">
+                          <span>{exam.date}</span>
+                          <span className="opacity-50">•</span>
+                          <span>{exam.subject}</span>
+                          <span className="opacity-50">•</span>
+                          <span>{priorityLabel(exam.priority)}</span>
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {finishingExamId !== exam.id && (
+                        <span className={`text-[0.7rem] font-bold px-2 py-0.5 rounded ${
+                          exam.daysRemaining === 0 ? 'bg-danger-soft text-danger border border-danger-line' :
+                          exam.daysRemaining <= 3 ? 'bg-warning-soft text-warning border border-warning-line' :
+                          'bg-cyan-soft-2 text-accent-cyan border border-cyan-line'
+                        }`}>
+                          {exam.daysRemaining === 0 ? 'Today' : `${exam.daysRemaining}d left`}
+                        </span>
+                      )}
+                      {finishingExamId !== exam.id && (
+                        <button
+                          onClick={() => startFinishing(exam.id)}
+                          className="bg-transparent border-0 text-ink-muted cursor-pointer p-1 opacity-60 hover:opacity-100 hover:text-primary transition-all"
+                          title="Mark exam as finished"
+                        >
+                          <CheckCircle2 size={16} />
+                        </button>
+                      )}
+                      {finishingExamId !== exam.id && (
+                        <button onClick={() => handleDeleteExam(exam.id)} className="bg-transparent border-0 text-ink-muted cursor-pointer p-1 opacity-50 hover:opacity-100 transition-opacity" title="Delete exam">
+                          <Trash2 size={14} className="text-danger" />
+                        </button>
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-[0.7rem] font-bold px-2 py-0.5 rounded ${
-                      exam.daysRemaining === 0 ? 'bg-danger-soft text-danger border border-danger-line' :
-                      exam.daysRemaining <= 3 ? 'bg-warning-soft text-warning border border-warning-line' :
-                      'bg-cyan-soft-2 text-accent-cyan border border-cyan-line'
-                    }`}>
-                      {exam.daysRemaining === 0 ? 'Today' : `${exam.daysRemaining}d left`}
-                    </span>
-                    <button onClick={() => handleDeleteExam(exam.id)} className="bg-transparent border-0 text-ink-muted cursor-pointer p-1 opacity-50 hover:opacity-100 transition-opacity" title="Delete exam">
-                      <Trash2 size={14} className="text-danger" />
-                    </button>
-                  </div>
+                  {finishingExamId === exam.id && (
+                    <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-line">
+                      <label className="text-[0.75rem] font-semibold text-ink shrink-0">Your score</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 85% or 42/50"
+                        value={finishScore}
+                        onChange={(e) => setFinishScore(e.target.value)}
+                        className="flex-1 min-w-[120px] bg-input border border-line rounded-md text-ink text-sm px-3 py-1.5 outline-none focus:border-primary"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => submitFinish(exam.id)}
+                        disabled={!finishScore.trim()}
+                        className="btn btn-primary px-3 py-1 text-[0.75rem] disabled:opacity-50"
+                      >
+                        Finish Exam
+                      </button>
+                      <button type="button" onClick={cancelFinishing} className="btn btn-outline px-3 py-1 text-[0.75rem]">
+                        Cancel
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
           </div>
         )}
       </div>
+
+      {completedExams.length > 0 && (
+        <div className="bg-card border border-line rounded-xl p-5">
+          <h3 className="text-[1.15rem] mb-4 flex items-center gap-2 m-0">
+            <Trophy size={16} className="text-primary" /> Finished Exams
+          </h3>
+          <div className="flex flex-col gap-2">
+            {completedExams.map(exam => (
+              <div key={exam.id} className="flex items-center justify-between bg-app border border-line rounded-lg p-3 px-4">
+                <div className="flex items-center gap-3 min-w-0">
+                  <CheckCircle2 size={16} className="text-primary shrink-0" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[0.85rem] font-semibold text-ink truncate">{exam.title}</span>
+                    <span className="text-[0.7rem] text-ink-muted flex items-center gap-2">
+                      <span>{exam.date}</span>
+                      <span className="opacity-50">•</span>
+                      <span>{exam.subject}</span>
+                    </span>
+                  </div>
+                </div>
+                {exam.score && (
+                  <span className="text-[0.8rem] font-bold px-2.5 py-0.5 rounded bg-primary-tint-5 text-primary border border-primary/20 shrink-0">
+                    {exam.score}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,6 +1,13 @@
 import requests
 import json
 import time
+import sys
+import io
+
+# Ensure stdout/stderr use UTF-8 on Windows to handle emojis correctly
+if sys.platform == "win32":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 BASE_URL = "http://127.0.0.1:8000"
 
@@ -272,6 +279,168 @@ def run_tests():
         print(f"  Submit Score: FAILED ({r.status_code}) - {r.text}")
     else:
       print(f"  Get Me: FAILED ({r.status_code}) - {r.text}")
+
+    # 6h. Test Folder Management (Create, Rename, Delete, Module Syncing)
+    print("Testing Folder Management...")
+    # Update profile to add a folder
+    new_folder_name = "Mathematics"
+    r = requests.put(f"{BASE_URL}/api/auth/profile", json={"folders": ["General", new_folder_name]}, headers=headers)
+    if r.status_code == 200:
+        print(f"  Create Folder: SUCCESS - Profile updated with folders: {r.json()['folders']}")
+        
+        # Create module inside the new folder
+        math_module_payload = {
+            "name": "Linear Algebra 101",
+            "subject": new_folder_name,
+            "size": "1.2 MB",
+            "text_content": "This is sample linear algebra text content."
+        }
+        r = requests.post(f"{BASE_URL}/api/modules", data=math_module_payload, headers=headers_multipart)
+        if r.status_code == 200:
+            math_module_data = r.json()
+            math_module_id = math_module_data["id"]
+            print(f"  Create Module in Folder: SUCCESS - Created module ID {math_module_id} with subject '{math_module_data['subject']}'")
+            
+            # Test Rename Folder
+            rename_payload = {
+                "old_name": new_folder_name,
+                "new_name": "Calculus"
+            }
+            r = requests.put(f"{BASE_URL}/api/modules/folders/rename", json=rename_payload, headers=headers)
+            if r.status_code == 200:
+                print(f"  Rename Folder: SUCCESS - Folders now: {r.json()['folders']}")
+                
+                # Verify that the module subject was also automatically renamed to "Calculus"
+                r = requests.get(f"{BASE_URL}/api/modules", headers=headers)
+                if r.status_code == 200:
+                    modules_list = r.json()
+                    verified_module = next((m for m in modules_list if m["id"] == math_module_id), None)
+                    if verified_module and verified_module["subject"] == "Calculus":
+                        print("  Verify Module Subject Auto-Renamed: SUCCESS")
+                    else:
+                        print(f"  Verify Module Subject Auto-Renamed: FAILED - Subject is '{verified_module['subject'] if verified_module else 'None'}'")
+                else:
+                    print(f"  Get Modules: FAILED ({r.status_code}) - {r.text}")
+            else:
+                print(f"  Rename Folder: FAILED ({r.status_code}) - {r.text}")
+
+            # Test Delete Folder
+            r = requests.delete(f"{BASE_URL}/api/modules/folders/delete?folder_name=Calculus", headers=headers)
+            if r.status_code == 200:
+                print(f"  Delete Folder: SUCCESS - Folders now: {r.json()['folders']}")
+                
+                # Verify that the module subject was also automatically moved to "General"
+                r = requests.get(f"{BASE_URL}/api/modules", headers=headers)
+                if r.status_code == 200:
+                    modules_list = r.json()
+                    verified_module = next((m for m in modules_list if m["id"] == math_module_id), None)
+                    if verified_module and verified_module["subject"] == "General":
+                        print("  Verify Module Subject Auto-Moved to General: SUCCESS")
+                    else:
+                        print(f"  Verify Module Subject Auto-Moved to General: FAILED - Subject is '{verified_module['subject'] if verified_module else 'None'}'")
+                else:
+                    print(f"  Get Modules: FAILED ({r.status_code}) - {r.text}")
+            else:
+                print(f"  Delete Folder: FAILED ({r.status_code}) - {r.text}")
+                
+            # Clean up the test math module
+            requests.delete(f"{BASE_URL}/api/modules/{math_module_id}", headers=headers)
+        else:
+            print(f"  Create Module in Folder: FAILED ({r.status_code}) - {r.text}")
+    else:
+        print(f"  Create Folder: FAILED ({r.status_code}) - {r.text}")
+
+    # 6.5. Tutor Chat History Sessions
+    print("Testing Chat Sessions...")
+    session_id = "test-session-123"
+    
+    # A. Create session
+    payload_session = {
+        "session_id": session_id,
+        "title": "Introduction to Biology",
+        "messages": [
+            {
+                "id": "msg-1",
+                "sender": "user",
+                "text": "What is Biology?",
+                "timestamp": "2026-06-12T00:00:00Z",
+                "isError": False
+            },
+            {
+                "id": "msg-2",
+                "sender": "ai",
+                "text": "Biology is the scientific study of life.",
+                "timestamp": "2026-06-12T00:00:05Z",
+                "isError": False
+            }
+        ]
+    }
+    r = requests.post(f"{BASE_URL}/api/tutor/sessions", json=payload_session, headers=headers)
+    if r.status_code == 200:
+        print("  Upsert Chat Session (Create): SUCCESS")
+    else:
+        print(f"  Upsert Chat Session (Create): FAILED ({r.status_code}) - {r.text}")
+
+    # B. Fetch all sessions
+    r = requests.get(f"{BASE_URL}/api/tutor/sessions", headers=headers)
+    if r.status_code == 200:
+        sessions = r.json()
+        if len(sessions) > 0 and sessions[0]["session_id"] == session_id:
+            print("  Get Chat Sessions: SUCCESS")
+        else:
+            print(f"  Get Chat Sessions: FAILED - unexpected session list")
+    else:
+        print(f"  Get Chat Sessions: FAILED ({r.status_code}) - {r.text}")
+
+    # C. Update session (upsert again)
+    payload_session["messages"].append({
+        "id": "msg-3",
+        "sender": "user",
+        "text": "Thank you!",
+        "timestamp": "2026-06-12T00:00:10Z",
+        "isError": False
+    })
+    r = requests.post(f"{BASE_URL}/api/tutor/sessions", json=payload_session, headers=headers)
+    if r.status_code == 200:
+        updated_session = r.json()
+        if len(updated_session["messages"]) == 3:
+            print("  Upsert Chat Session (Update): SUCCESS")
+        else:
+            print(f"  Upsert Chat Session (Update): FAILED - message count is {len(updated_session['messages'])}")
+    else:
+        print(f"  Upsert Chat Session (Update): FAILED ({r.status_code}) - {r.text}")
+
+    # D. Delete individual session
+    r = requests.delete(f"{BASE_URL}/api/tutor/sessions/{session_id}", headers=headers)
+    if r.status_code == 204:
+        print("  Delete Individual Session: SUCCESS")
+    else:
+        print(f"  Delete Individual Session: FAILED ({r.status_code}) - {r.text}")
+
+    # E. Verify deleted
+    r = requests.get(f"{BASE_URL}/api/tutor/sessions", headers=headers)
+    if r.status_code == 200:
+        sessions = r.json()
+        if not any(s["session_id"] == session_id for s in sessions):
+            print("  Verify Individual Session Deleted: SUCCESS")
+        else:
+            print("  Verify Individual Session Deleted: FAILED")
+    else:
+        print(f"  Verify Individual Session Deleted: FAILED ({r.status_code})")
+
+    # F. Create another session and clear all
+    payload_session["session_id"] = "test-session-456"
+    requests.post(f"{BASE_URL}/api/tutor/sessions", json=payload_session, headers=headers)
+    r = requests.delete(f"{BASE_URL}/api/tutor/sessions", headers=headers)
+    if r.status_code == 204:
+        # verify empty
+        r_get = requests.get(f"{BASE_URL}/api/tutor/sessions", headers=headers)
+        if r_get.status_code == 200 and len(r_get.json()) == 0:
+            print("  Clear All Chat Sessions: SUCCESS")
+        else:
+            print("  Clear All Chat Sessions: FAILED to verify empty")
+    else:
+        print(f"  Clear All Chat Sessions: FAILED ({r.status_code}) - {r.text}")
 
     # 7. Delete Module
     r = requests.delete(f"{BASE_URL}/api/modules/{module_id}", headers=headers)

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Trophy, Clock } from 'lucide-react';
-import type { Module, StudyGroup, GroupQuizSession, GroupQuizRank, GroupQuizRankResponse } from '../../types';
+import { Trophy, Clock, CheckCircle2, Timer, AlertTriangle } from 'lucide-react';
+import type { Module, StudyGroup, GroupQuizSession, GroupQuizRank, GroupQuizRankResponse, ExamDeadline } from '../../types';
 import { WS_BASE_URL } from '../../config';
 
 interface RosterMember {
@@ -26,6 +26,8 @@ interface QuizPanelProps {
   startQuiz: (module: Module) => void;
   startGroupQuiz: (module: Module, groupId: number) => void;
   selectedGroupId: number | null;
+  exams?: ExamDeadline[];
+  handleCompleteExam?: (id: number, score?: string) => void;
 }
 
 export const QuizPanel: React.FC<QuizPanelProps> = ({
@@ -43,6 +45,8 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({
   startQuiz,
   startGroupQuiz,
   selectedGroupId,
+  exams,
+  handleCompleteExam,
 }) => {
   const socketRef = useRef<WebSocket | null>(null);
   const [roster, setRoster] = useState<RosterMember[]>([]);
@@ -51,9 +55,27 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({
   
   const startTimeRef = useRef<number>(0);
 
+  // Timer, Mode, and Exam linking states
+  const [isQuizStarted, setIsQuizStarted] = useState(false);
+  const [timeLimit, setTimeLimit] = useState<number>(0); // in minutes, 0 means untimed
+  const [isMockMode, setIsMockMode] = useState(false);
+  const [linkedExamId, setLinkedExamId] = useState<number | null>(null);
+  const [timeLeft, setTimeLeft] = useState<number>(0); // in seconds
+  const [timerActive, setTimerActive] = useState(false);
+
   // Reset timer on quiz startup or retake
   useEffect(() => {
-    startTimeRef.current = Date.now();
+    if (isGroupQuizMode) {
+      setIsQuizStarted(true);
+      startTimeRef.current = Date.now();
+    } else {
+      setIsQuizStarted(false);
+      setTimeLimit(0);
+      setIsMockMode(false);
+      setLinkedExamId(null);
+      setTimeLeft(0);
+      setTimerActive(false);
+    }
   }, [activeQuizModule.id, showQuizResults]);
 
   // WebSocket connection for real-time multiplayer group quiz
@@ -129,8 +151,28 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({
       }));
     }
 
+    // Link and Complete Exam
+    if (linkedExamId && handleCompleteExam) {
+      handleCompleteExam(linkedExamId, `${score}/${activeQuizModule.questions.length}`);
+    }
+
     handleSubmitQuiz();
+    setTimerActive(false);
   };
+
+  // Active countdown timer effect
+  useEffect(() => {
+    if (!timerActive || timeLeft <= 0) {
+      if (timerActive && timeLeft === 0) {
+        onSubmit();
+      }
+      return;
+    }
+    const interval = setInterval(() => {
+      setTimeLeft(prev => prev - 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [timerActive, timeLeft]);
 
   const rankingsToRender = isGroupQuizMode && liveRankings.length > 0
     ? liveRankings
@@ -174,32 +216,180 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({
       )}
 
       {!showQuizResults ? (
-        <>
-          {activeQuizModule.questions.map((q, index) => (
-            <div className="mb-10" key={q.id}>
-              <div className="text-xl leading-snug mb-5 font-bold">
-                {index + 1}. {q.question}
+        !isQuizStarted && !isGroupQuizMode ? (
+          <div className="flex flex-col gap-6 py-4 animate-in fade-in zoom-in-95 duration-200 text-left">
+            <div className="p-6 bg-app border border-line rounded-xl text-center">
+              <h4 className="text-xl font-bold text-ink mb-2">Quiz Setup & Lobby</h4>
+              <p className="text-ink-muted text-xs mb-0">Configure your settings before launching your quiz.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Timer Selection */}
+              <div className="p-5 bg-app border border-line rounded-xl flex flex-col gap-3">
+                <label className="text-sm font-bold text-ink flex items-center gap-2">
+                  <Timer size={16} className="text-primary animate-pulse" /> Quiz Timer
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[0, 1, 5, 10, 15, 30].map(mins => (
+                    <button
+                      key={mins}
+                      onClick={() => setTimeLimit(mins)}
+                      className={`py-2 px-3 rounded-lg border text-xs font-bold capitalize transition-all duration-150 ${
+                        timeLimit === mins
+                          ? 'bg-primary text-ink-on-primary border-primary shadow-glow-primary-soft'
+                          : 'bg-input border-line text-ink-muted hover:text-ink hover:border-line-strong'
+                      }`}
+                    >
+                      {mins === 0 ? 'No Limit' : `${mins} min`}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="flex flex-col gap-3">
-                {q.options.map((option, optIdx) => (
+
+              {/* Mode Selection */}
+              <div className="p-5 bg-app border border-line rounded-xl flex flex-col gap-3">
+                <label className="text-sm font-bold text-ink flex items-center gap-2">
+                  <Trophy size={16} className="text-primary" /> Mode Selection
+                </label>
+                <div className="flex gap-2">
                   <button
-                    key={optIdx}
-                    className={`flex items-center py-4 px-5 rounded-lg border border-line bg-app text-ink cursor-pointer font-medium transition-all duration-150 text-left hover:border-primary hover:bg-glass ${selectedAnswers[q.id] === optIdx ? 'border-primary bg-primary/5' : ''}`}
-                    onClick={() => handleSelectAnswer(q.id, optIdx)}
+                    type="button"
+                    onClick={() => setIsMockMode(false)}
+                    className={`flex-1 py-3 px-4 rounded-lg border text-xs font-bold text-left transition-all duration-150 flex flex-col gap-1 ${
+                      !isMockMode
+                        ? 'bg-primary/5 border-primary text-ink'
+                        : 'bg-input border-line text-ink-muted hover:border-line-strong'
+                    }`}
                   >
-                    {option}
+                    <span className={!isMockMode ? 'text-primary' : 'text-ink'}>Practice Mode</span>
+                    <span className="text-[0.65rem] font-normal leading-relaxed text-ink-muted">View score and detailed explanations right after submission.</span>
                   </button>
-                ))}
+                  <button
+                    type="button"
+                    onClick={() => setIsMockMode(true)}
+                    className={`flex-1 py-3 px-4 rounded-lg border text-xs font-bold text-left transition-all duration-150 flex flex-col gap-1 ${
+                      isMockMode
+                        ? 'bg-primary/5 border-primary text-ink'
+                        : 'bg-input border-line text-ink-muted hover:border-line-strong'
+                    }`}
+                  >
+                    <span className={isMockMode ? 'text-primary' : 'text-ink'}>Mock Exam Mode</span>
+                    <span className="text-[0.65rem] font-normal leading-relaxed text-ink-muted">Simulates real exam rules. Strict timer. No instant hints.</span>
+                  </button>
+                </div>
               </div>
             </div>
-          ))}
-          <button
-            onClick={onSubmit}
-            className="btn btn-primary w-full justify-center p-4 mt-4"
-          >
-            Submit & Grade {isGroupQuizMode ? 'Group Results' : 'Quiz'} &rarr;
-          </button>
-        </>
+
+            {/* Exam Deadline Linking */}
+            {exams && exams.length > 0 && (
+              <div className="p-5 bg-app border border-line rounded-xl flex flex-col gap-3">
+                <label className="text-sm font-bold text-ink flex items-center gap-2">
+                  <CheckCircle2 size={16} className="text-primary" /> Link Quiz to an Upcoming Exam
+                </label>
+                <select
+                  value={linkedExamId || ''}
+                  onChange={e => setLinkedExamId(Number(e.target.value) || null)}
+                  className="w-full bg-input border border-line rounded-lg text-ink text-sm px-3 py-2.5 outline-none focus:border-primary transition-all"
+                >
+                  <option value="">-- Do Not Link to Exam --</option>
+                  {exams.map(exam => (
+                    <option key={exam.id} value={exam.id}>
+                      {exam.title} ({exam.subject}) - Due {exam.date}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[0.7rem] text-ink-muted leading-relaxed">
+                  * Successfully completing this quiz will automatically mark the linked exam as finished and log your quiz score to your Exam Calendar.
+                </p>
+              </div>
+            )}
+
+            <div className="flex gap-4 justify-end mt-4">
+              <button
+                onClick={() => { setActiveQuizModule(null); setIsGroupQuizMode(false); }}
+                className="btn btn-outline"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setIsQuizStarted(true);
+                  startTimeRef.current = Date.now();
+                  if (timeLimit > 0) {
+                    setTimeLeft(timeLimit * 60);
+                    setTimerActive(true);
+                  }
+                }}
+                className="btn btn-primary px-8"
+              >
+                Launch Quiz &rarr;
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {timeLimit > 0 && timerActive && (() => {
+              const formatTimeLeft = (sec: number) => {
+                const mins = Math.floor(sec / 60);
+                const secs = sec % 60;
+                return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+              };
+              const timerPercentage = timeLimit > 0 ? (timeLeft / (timeLimit * 60)) * 100 : 0;
+              const timerBarColor = timerPercentage < 20 ? 'bg-danger' : timerPercentage < 50 ? 'bg-warning' : 'bg-primary';
+              return (
+                <div className="mb-6 p-4 bg-app border border-line rounded-xl flex flex-col gap-2 text-left">
+                  <div className="flex justify-between items-center text-xs font-bold text-ink">
+                    <span className="flex items-center gap-1.5">
+                      <Clock size={14} className="text-primary animate-pulse" />
+                      Remaining Time
+                    </span>
+                    <span className={timeLeft < 15 ? 'text-danger animate-pulse font-bold' : 'text-primary font-mono'}>
+                      {formatTimeLeft(timeLeft)}
+                    </span>
+                  </div>
+                  <div className="w-full bg-line h-2.5 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-1000 rounded-full ${timerBarColor}`}
+                      style={{ width: `${timerPercentage}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })()}
+
+            {isMockMode && (
+              <div className="mb-6 p-4 bg-danger-soft border border-danger-line rounded-xl flex items-center gap-2 text-left text-xs font-semibold text-danger">
+                <AlertTriangle size={14} />
+                <span>Mock Exam Mode Active: Immediate question review is disabled until full submission.</span>
+              </div>
+            )}
+
+            {activeQuizModule.questions.map((q, index) => (
+              <div className="mb-10 text-left" key={q.id}>
+                <div className="text-xl leading-snug mb-5 font-bold">
+                  {index + 1}. {q.question}
+                </div>
+                <div className="flex flex-col gap-3">
+                  {q.options.map((option, optIdx) => (
+                    <button
+                      key={optIdx}
+                      className={`flex items-center py-4 px-5 rounded-lg border border-line bg-app text-ink cursor-pointer font-medium transition-all duration-150 text-left hover:border-primary hover:bg-glass ${selectedAnswers[q.id] === optIdx ? 'border-primary bg-primary/5' : ''}`}
+                      onClick={() => handleSelectAnswer(q.id, optIdx)}
+                    >
+                      {option}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+            <button
+              onClick={onSubmit}
+              className="btn btn-primary w-full justify-center p-4 mt-4"
+            >
+              Submit & Grade {isGroupQuizMode ? 'Group Results' : 'Quiz'} &rarr;
+            </button>
+          </>
+        )
       ) : (
         <div className="quiz-results-card">
           {isGroupQuizMode && rankingsToRender.length > 0 ? (
@@ -314,6 +504,12 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({
                 if (isGroupQuizMode) {
                   startGroupQuiz(activeQuizModule, selectedGroupId!);
                 } else {
+                  setIsQuizStarted(false);
+                  setTimeLimit(0);
+                  setIsMockMode(false);
+                  setLinkedExamId(null);
+                  setTimeLeft(0);
+                  setTimerActive(false);
                   startQuiz(activeQuizModule);
                 }
               }}

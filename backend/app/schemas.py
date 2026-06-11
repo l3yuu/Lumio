@@ -1,5 +1,7 @@
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
+from datetime import datetime
+
 
 # --- USER SCHEMAS ---
 class UserBase(BaseModel):
@@ -34,6 +36,7 @@ class UserUpdate(BaseModel):
     quests: Optional[List[dict]] = None
     quests_date: Optional[str] = None
     last_check_in: Optional[str] = None
+    folders: Optional[List[str]] = None
 
 class UserOut(UserBase):
     id: int
@@ -57,6 +60,7 @@ class UserOut(UserBase):
     quests: Optional[List[dict]] = None
     quests_date: Optional[str] = None
     last_check_in: Optional[str] = None
+    folders: Optional[List[str]] = None
 
     class Config:
         from_attributes = True
@@ -106,6 +110,7 @@ class ModuleOut(ModuleBase):
     source_filename: Optional[str] = None
     has_source_file: bool = False
     last_score: Optional[str] = None
+    difficulty: Optional[str] = "medium"
     questions: List[QuizQuestionOut]
 
     class Config:
@@ -122,6 +127,15 @@ class ModuleScoreUpdate(BaseModel):
     score: str
 
 
+class ModuleUpdate(BaseModel):
+    subject: str
+
+
+class FolderRename(BaseModel):
+    old_name: str
+    new_name: str
+
+
 # --- EXAM SCHEMAS ---
 class ExamBase(BaseModel):
     title: str
@@ -134,12 +148,16 @@ class ExamBase(BaseModel):
 class ExamCreate(ExamBase):
     pass
 
+class ExamComplete(BaseModel):
+    score: Optional[str] = None
+
 class ExamOut(ExamBase):
     id: int
     user_id: int
     days_remaining: int
     reminder_sent: bool
     completed: bool
+    score: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -285,3 +303,29 @@ class TutorQuery(BaseModel):
 class TutorResponse(BaseModel):
     query: str
     answer: str
+
+
+# --- CHAT SESSION SCHEMAS ---
+class ChatMessageSchema(BaseModel):
+    id: str
+    sender: str
+    text: str
+    timestamp: str
+    isError: Optional[bool] = None
+
+class ChatSessionCreate(BaseModel):
+    session_id: str
+    title: str
+    messages: List[ChatMessageSchema]
+
+class ChatSessionOut(BaseModel):
+    id: int
+    session_id: str
+    title: str
+    messages: List[ChatMessageSchema]
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+

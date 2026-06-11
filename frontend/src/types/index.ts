@@ -48,12 +48,13 @@ export interface User {
   quizzesCount?: number;
   quizHistory?: number[];
   studyTime?: { [key: string]: number | string };
-  heatmapData?: { label: string; hours: number; level: number }[];
+  heatmapData?: { label: string; hours: number; level: number; date?: string }[];
   focusAreas?: { concept: string; subject: string; score: number; desc: string }[];
   spacedRecall?: { id: number; name: string; subject: string; dueIn: string; progress: number }[];
   quests?: StudyQuest[];
   questsDate?: string;
   lastCheckIn?: string;
+  folders?: string[];
 }
 
 export interface QuizQuestion {
@@ -74,6 +75,7 @@ export interface Module {
   sourceFilename?: string;
   hasSourceFile?: boolean;
   lastScore?: string;
+  difficulty?: string;
 }
 
 export interface GroupMember {
@@ -133,6 +135,8 @@ export interface ExamDeadlineResponse {
   raw_date?: string;
   days_remaining: number;
   priority: string;
+  completed?: boolean;
+  score?: string;
 }
 
 export interface QuizQuestionResponse {
@@ -153,6 +157,7 @@ export interface ModuleResponse {
   questionsCount?: number;
   questions?: QuizQuestionResponse[];
   last_score?: string;
+  difficulty?: string;
 }
 
 export interface GroupQuizRankResponse {
@@ -198,12 +203,13 @@ export interface UserResponse {
   quizzes_count?: number;
   quiz_history?: number[];
   study_time?: { [key: string]: number | string };
-  heatmap_data?: { label: string; hours: number; level: number }[];
+  heatmap_data?: { label: string; hours: number; level: number; date?: string }[];
   focus_areas?: { concept: string; subject: string; score: number; desc: string }[];
   spaced_recall?: { id: number; name: string; subject: string; dueIn: string; progress: number }[];
   quests?: StudyQuest[];
   quests_date?: string;
   last_check_in?: string;
+  folders?: string[];
 }
 
 export interface ExamDeadline {
@@ -214,4 +220,22 @@ export interface ExamDeadline {
   rawDate?: string;
   daysRemaining: number;
   priority: 'high' | 'medium' | 'low';
+  completed?: boolean;
+  score?: string;
 }
+
+export interface ChatMessage {
+  id: string;
+  sender: 'user' | 'ai';
+  text: string;
+  timestamp: Date;
+  isError?: boolean;
+}
+
+export interface ChatSession {
+  id: string;
+  title: string;
+  messages: ChatMessage[];
+  timestamp: Date;
+}
+

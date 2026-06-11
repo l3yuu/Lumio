@@ -2,17 +2,12 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, MessageSquare, Sparkles, Clock, Calendar, Award, Zap, Target, Trophy, Users, Flame, Layers, Plus, Trash2, CheckCircle2 } from 'lucide-react';
 import type { User, StudyQuest, ExamDeadline, DashboardTab } from '../../types';
+import { getCompanionMessage, type CompanionMood, type RecentExamFinish } from '../../utils/companionMessage';
 
 const asStudyHours = (value: number | string | undefined, fallback: number) =>
   typeof value === 'number' ? value : fallback;
 
-const formatTutorAnswer = (text: string): string => {
-  return text
-    .replace(/\*\*/g, '')
-    .replace(/#+\s+/g, '')
-    .replace(/^\s*[-*]\s+/g, '• ')
-    .replace(/\n\s*[-*]\s+/g, '\n• ');
-};
+
 
 interface OverviewPanelProps {
   user: User;
@@ -28,9 +23,6 @@ interface OverviewPanelProps {
   newExamSubject: string;
   newExamDate: string;
   newExamPriority: 'high' | 'medium' | 'low';
-  aiSearchQuery: string;
-  aiResponse: { query: string; answer: string } | null;
-  isAiLoading: boolean;
   spacedRepetitionList: { id: number; name: string; subject: string; dueIn: string; progress: number }[];
   heatmapData: { label: string; hours: number; level: number }[];
   subjects: string[];
@@ -41,35 +33,110 @@ interface OverviewPanelProps {
   setNewExamSubject: (v: string) => void;
   setNewExamDate: (v: string) => void;
   setNewExamPriority: (v: 'high' | 'medium' | 'low') => void;
-  setAiSearchQuery: (v: string) => void;
   setDashboardTab: (tab: DashboardTab) => void;
   setSelectedSubject: (v: string) => void;
   handleAddExam: (e: React.FormEvent) => void;
   handleDeleteExam: (id: number) => void;
-  handleCompleteExam: (id: number) => void;
-  handleAiSearch: (e: React.FormEvent) => void;
+  handleCompleteExam: (id: number, score?: string) => void;
   getActivityColor: (level: number) => string;
   handleStreakCheckIn: () => void;
+  recentExamFinish?: RecentExamFinish | null;
 }
 
 export const OverviewPanel: React.FC<OverviewPanelProps> = ({
   user, level, xp, groupsCount, quests, exams, quizHistory, insightsTab,
   isAddingExam, newExamTitle, newExamSubject, newExamDate, newExamPriority,
-  aiSearchQuery, aiResponse, isAiLoading, spacedRepetitionList, heatmapData, subjects, pathData,
+  spacedRepetitionList, heatmapData, subjects, pathData,
   setInsightsTab, setIsAddingExam, setNewExamTitle, setNewExamSubject, setNewExamDate,
-  setNewExamPriority, setAiSearchQuery, setDashboardTab, setSelectedSubject,
-  handleAddExam, handleDeleteExam, handleCompleteExam, handleAiSearch, getActivityColor,
-  handleStreakCheckIn,
+  setNewExamPriority, setDashboardTab, setSelectedSubject,
+  handleAddExam, handleDeleteExam, handleCompleteExam, getActivityColor,
+  handleStreakCheckIn, recentExamFinish,
 }) => {
   const [isCheckInOpen, setIsCheckInOpen] = React.useState(false);
+  const [finishingExamId, setFinishingExamId] = React.useState<number | null>(null);
+  const [finishScore, setFinishScore] = React.useState('');
+
+  const cancelFinishing = () => {
+    setFinishingExamId(null);
+    setFinishScore('');
+  };
+
+  const submitFinish = (examId: number) => {
+    if (!finishScore.trim()) return;
+    handleCompleteExam(examId, finishScore);
+    cancelFinishing();
+  };
+
+  const companion = React.useMemo(
+    () => getCompanionMessage({
+      user,
+      exams,
+      quests,
+      quizHistory,
+      heatmapData,
+      spacedRepetitionList,
+      recentExamFinish,
+    }),
+    [user, exams, quests, quizHistory, heatmapData, spacedRepetitionList, recentExamFinish],
+  );
+
+  const companionStyles: Record<CompanionMood, { banner: string; icon: string }> = {
+    urgent: {
+      banner: 'bg-[linear-gradient(135deg,rgba(245,158,11,0.1)_0%,rgba(62,207,142,0.05)_100%)] border-warning/30',
+      icon: 'bg-warning-soft text-warning',
+    },
+    celebrate: {
+      banner: 'bg-[linear-gradient(135deg,rgba(62,207,142,0.12)_0%,rgba(6,182,212,0.06)_100%)] border-primary/35',
+      icon: 'bg-primary-soft text-primary',
+    },
+    motivate: {
+      banner: 'bg-[linear-gradient(135deg,rgba(6,182,212,0.08)_0%,rgba(62,207,142,0.06)_100%)] border-accent-cyan/25',
+      icon: 'bg-cyan-soft-2 text-accent-cyan',
+    },
+    warm: {
+      banner: 'bg-[linear-gradient(135deg,rgba(62,207,142,0.06)_0%,rgba(6,182,212,0.04)_100%)] border-line',
+      icon: 'bg-primary-soft text-primary',
+    },
+    neutral: {
+      banner: 'bg-[linear-gradient(135deg,rgba(62,207,142,0.06)_0%,rgba(6,182,212,0.04)_100%)] border-line',
+      icon: 'bg-glass text-ink-muted',
+    },
+  };
+
+  const style = companionStyles[companion.mood];
+
   return (
     <>
-      <div className="bg-[linear-gradient(135deg,rgba(62,207,142,0.06)_0%,rgba(6,182,212,0.04)_100%)] border border-line rounded-xl px-7 py-6 mb-2">
-        <h2 className="text-[1.75rem] font-bold mb-1">Welcome back, {user.name}!</h2>
-        <p className="text-ink-muted text-[0.9rem] leading-relaxed">
-          Track your daily progress, query topics instantly with the AI tutor, and practice scheduled card recall modules.
-        </p>
-      </div>
+      <motion.div
+        key={companion.message}
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35 }}
+        className={`border rounded-xl px-7 py-6 mb-2 ${style.banner}`}
+      >
+        <div className="flex items-start gap-4">
+          <div className={`p-2.5 rounded-xl shrink-0 mt-0.5 ${style.icon}`}>
+            <Sparkles size={20} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-[1.75rem] font-bold mb-1.5 leading-tight">
+              {companion.greeting}, {user.name}!
+            </h2>
+            <p className="text-ink-muted text-[0.9rem] leading-relaxed m-0">
+              {companion.message}
+            </p>
+            {companion.actionLabel && companion.actionTab && (
+              <button
+                type="button"
+                onClick={() => setDashboardTab(companion.actionTab!)}
+                className="mt-3 text-[0.8rem] font-semibold text-primary bg-primary-tint-5 border border-primary/20 rounded-md px-3 py-1.5 hover:bg-primary-soft transition-colors cursor-pointer"
+              >
+                {companion.actionLabel}
+              </button>
+            )}
+          </div>
+        </div>
+      </motion.div>
 
       <div className="grid grid-cols-[1.2fr_1fr] gap-6 mb-0 max-md:grid-cols-1">
         <div className="flex flex-col gap-6">
@@ -191,17 +258,45 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className={`text-[0.75rem] font-bold rounded px-2 py-0.5 whitespace-nowrap ${exam.priority === 'high' ? 'bg-danger-soft text-danger border border-danger-line' : exam.priority === 'medium' ? 'bg-warning-soft text-warning border border-warning-line' : 'bg-cyan-soft-2 text-accent-cyan border border-cyan-line'}`}>
-                          {exam.daysRemaining === 0 ? 'Today!' : `${exam.daysRemaining} days left`}
-                        </span>
-                        <button onClick={() => handleCompleteExam(exam.id)} className="bg-transparent border-0 text-ink-muted cursor-pointer p-0.5 flex items-center opacity-60 hover:opacity-100 transition-opacity duration-200" title="Mark as Completed" type="button">
-                          <CheckCircle2 size={14} className="text-primary" />
-                        </button>
-                        <button onClick={() => handleDeleteExam(exam.id)} className="bg-transparent border-0 text-ink-muted cursor-pointer p-0.5 flex items-center opacity-60 hover:opacity-100 transition-opacity duration-200" title="Delete countdown" type="button">
-                          <Trash2 size={14} className="text-danger" />
-                        </button>
+                        {finishingExamId !== exam.id && (
+                          <span className={`text-[0.75rem] font-bold rounded px-2 py-0.5 whitespace-nowrap ${exam.priority === 'high' ? 'bg-danger-soft text-danger border border-danger-line' : exam.priority === 'medium' ? 'bg-warning-soft text-warning border border-warning-line' : 'bg-cyan-soft-2 text-accent-cyan border border-cyan-line'}`}>
+                            {exam.daysRemaining === 0 ? 'Today!' : `${exam.daysRemaining} days left`}
+                          </span>
+                        )}
+                        {finishingExamId !== exam.id && (
+                          <button onClick={() => { setFinishingExamId(exam.id); setFinishScore(''); }} className="bg-transparent border-0 text-ink-muted cursor-pointer p-0.5 flex items-center opacity-60 hover:opacity-100 transition-opacity duration-200" title="Mark as finished" type="button">
+                            <CheckCircle2 size={14} className="text-primary" />
+                          </button>
+                        )}
+                        {finishingExamId !== exam.id && (
+                          <button onClick={() => handleDeleteExam(exam.id)} className="bg-transparent border-0 text-ink-muted cursor-pointer p-0.5 flex items-center opacity-60 hover:opacity-100 transition-opacity duration-200" title="Delete countdown" type="button">
+                            <Trash2 size={14} className="text-danger" />
+                          </button>
+                        )}
                       </div>
                     </div>
+                    {finishingExamId === exam.id && (
+                      <div className="flex flex-wrap items-center gap-2 mt-2 pl-7">
+                        <input
+                          type="text"
+                          placeholder="Your score (e.g. 85%)"
+                          value={finishScore}
+                          onChange={(e) => setFinishScore(e.target.value)}
+                          className="flex-1 min-w-[120px] bg-input border border-line rounded-md text-ink text-sm px-3 py-1.5 outline-none focus:border-primary"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => submitFinish(exam.id)}
+                          disabled={!finishScore.trim()}
+                          className="btn btn-primary px-3 py-1 text-[0.75rem] disabled:opacity-50"
+                        >
+                          Finish
+                        </button>
+                        <button type="button" onClick={cancelFinishing} className="btn btn-outline px-3 py-1 text-[0.75rem]">
+                          Cancel
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))
               )}
@@ -355,33 +450,6 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
             </div>
           </div>
 
-          <div className="bg-card border border-line rounded-xl p-5">
-            <h3 className="text-[0.95rem] font-semibold mb-3 flex items-center gap-2 m-0">
-              <Search size={16} className="text-primary" /> AI Concept Tutor
-            </h3>
-            <p className="text-[0.75rem] text-ink-muted mb-4">Query textbook topics to extract explanations from notes.</p>
-
-            <form onSubmit={handleAiSearch} className="flex gap-2 mb-4">
-              <input type="text" placeholder="Search 'mitochondria' or 'demand'..." className="w-full bg-input border border-line rounded-md text-ink text-sm transition-all duration-150 outline-none focus:border-primary focus:bg-app m-0 text-[0.85rem] py-2 px-3 h-9.5" value={aiSearchQuery} onChange={(e) => setAiSearchQuery(e.target.value)} />
-              <button type="submit" className="btn btn-primary px-4 h-9.5 shrink-0">Ask AI</button>
-            </form>
-
-            <AnimatePresence mode="wait">
-              {isAiLoading && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-[0.8rem] text-ink-muted italic flex items-center gap-1.5">
-                  <Sparkles size={14} className="animate-spin" /> Fetching concept maps...
-                </motion.div>
-              )}
-              {aiResponse && !isAiLoading && (
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="bg-app border border-line rounded-lg p-3.5 text-[0.85rem]">
-                  <div className="font-semibold text-primary mb-1 flex items-center gap-1">
-                    <MessageSquare size={14} /> Topic: "{aiResponse.query}"
-                  </div>
-                  <p className="text-ink text-[0.8rem] leading-relaxed m-0 whitespace-pre-wrap">{formatTutorAnswer(aiResponse.answer)}</p>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
 
           <div className="bg-card border border-line rounded-xl p-5">
             <h3 className="text-[0.95rem] font-semibold mb-4 flex items-center gap-2 m-0">

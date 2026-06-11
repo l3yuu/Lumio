@@ -51,6 +51,7 @@ const mapUser = (data: UserResponse): User => ({
   quests: data.quests,
   questsDate: data.quests_date,
   lastCheckIn: data.last_check_in,
+  folders: data.folders,
 });
 
 const mapModule = (m: ModuleResponse): Module => ({
@@ -68,7 +69,8 @@ const mapModule = (m: ModuleResponse): Module => ({
     options: q.options,
     correctAnswerIndex: q.correct_answer_index
   })) : [],
-  lastScore: m.last_score
+  lastScore: m.last_score,
+  difficulty: m.difficulty
 });
 
 const mapGroup = (g: StudyGroupResponse): StudyGroup => ({
@@ -138,6 +140,7 @@ function App() {
   const [dashboardTab, setDashboardTab] = useState<DashboardTab>('overview');
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
   const [activeQuizModule, setActiveQuizModule] = useState<Module | null>(null);
+  const [isAiSidebarOpen, setIsAiSidebarOpen] = useState(false);
 
   // Sidebar Collapsed State
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
@@ -159,6 +162,8 @@ function App() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isModalDragOver, setIsModalDragOver] = useState(false);
   const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
+  const [newModuleDifficulty, setNewModuleDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
+  const [newModuleSubject, setNewModuleSubject] = useState('General');
 
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
@@ -591,7 +596,8 @@ function App() {
 
     const formData = new FormData();
     formData.append('name', newModuleName);
-    formData.append('subject', 'General');
+    formData.append('subject', newModuleSubject);
+    formData.append('difficulty', newModuleDifficulty);
     
     if (selectedFile) {
       formData.append('file', selectedFile);
@@ -628,6 +634,8 @@ function App() {
       setNewModuleName('');
       setNewModuleContent('');
       setSelectedFile(null);
+      setNewModuleDifficulty('medium');
+      setNewModuleSubject('General');
       setIsUploadOpen(false);
 
       // Refetch user profile to update quota state
@@ -723,6 +731,7 @@ function App() {
             onMarkAllNotificationsRead={handleMarkAllNotificationsRead}
             onAcceptInvitation={handleAcceptInvitation}
             onDeclineInvitation={handleDeclineInvitation}
+            onToggleAiSidebar={() => setIsAiSidebarOpen(!isAiSidebarOpen)}
           />
         )}
 
@@ -832,6 +841,8 @@ function App() {
               onMarkAllNotificationsRead={handleMarkAllNotificationsRead}
               onRefreshNotifications={handleRefreshNotifications}
               onFileDropped={handleFileDropped}
+              isAiSidebarOpen={isAiSidebarOpen}
+              setIsAiSidebarOpen={setIsAiSidebarOpen}
             />
           )}
         </main>
@@ -871,6 +882,41 @@ function App() {
                         required
                         disabled={isGeneratingQuiz || isQuotaExceeded}
                       />
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <label className="text-[0.9rem] font-semibold text-ink">Quiz Difficulty Level</label>
+                      <div className="flex gap-2">
+                        {(['easy', 'medium', 'hard'] as const).map((level) => (
+                          <button
+                            key={level}
+                            type="button"
+                            onClick={() => setNewModuleDifficulty(level)}
+                            disabled={isGeneratingQuiz || isQuotaExceeded}
+                            className={`flex-1 py-2 rounded-md font-bold text-xs capitalize border transition-all duration-150 ${
+                              newModuleDifficulty === level
+                                ? 'bg-primary text-ink-on-primary border-primary shadow-glow-primary-soft'
+                                : 'bg-input border-line text-ink-muted hover:text-ink hover:border-line-strong'
+                            }`}
+                          >
+                            {level}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <label className="text-[0.9rem] font-semibold text-ink">Folder (Subject)</label>
+                      <select
+                        value={newModuleSubject}
+                        onChange={(e) => setNewModuleSubject(e.target.value)}
+                        disabled={isGeneratingQuiz || isQuotaExceeded}
+                        className="w-full py-2 px-3 bg-input border border-line rounded-md text-ink text-sm transition-all duration-150 outline-none focus:border-primary focus:bg-app disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        {(user?.folders || ['General']).map((f) => (
+                          <option key={f} value={f}>{f}</option>
+                        ))}
+                      </select>
                     </div>
 
                     <div
