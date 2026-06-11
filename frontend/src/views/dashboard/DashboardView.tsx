@@ -672,7 +672,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       const scoreStr = `${score}/${activeQuizModule.questions.length}`;
       scoresObj[activeQuizModule.id] = scoreStr;
       localStorage.setItem('lumio-module-scores', JSON.stringify(scoresObj));
-      setModuleScores(scoresObj);
+      setModules(prevModules =>
+        prevModules.map(m => m.id === activeQuizModule.id ? { ...m, lastScore: scoreStr } : m)
+      );
 
       const token = localStorage.getItem('token');
       if (token) {
@@ -782,7 +784,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       const scoresObj = JSON.parse(storedScores);
       delete scoresObj[id];
       localStorage.setItem('lumio-module-scores', JSON.stringify(scoresObj));
-      setModuleScores(scoresObj);
     }
 
     const token = localStorage.getItem('token');
