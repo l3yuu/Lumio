@@ -84,6 +84,7 @@ class User(Base):
     modules = relationship("Module", back_populates="owner", cascade="all, delete-orphan")
     exams = relationship("ExamDeadline", back_populates="owner", cascade="all, delete-orphan")
     joined_groups = relationship("StudyGroup", secondary=group_members, back_populates="members")
+    posts = relationship("GroupPost", back_populates="user", cascade="all, delete-orphan")
 
 class Module(Base):
     __tablename__ = "modules"
@@ -147,6 +148,7 @@ class StudyGroup(Base):
     members = relationship("User", secondary=group_members, back_populates="joined_groups")
     modules = relationship("Module", secondary=group_modules, back_populates="groups")
     quiz_sessions = relationship("QuizSession", back_populates="group", cascade="all, delete-orphan")
+    posts = relationship("GroupPost", back_populates="group", cascade="all, delete-orphan")
 
 class QuizSession(Base):
     __tablename__ = "quiz_sessions"
@@ -226,4 +228,20 @@ class ChatSession(Base):
     updated_at = Column(DateTime, default=now_ph_naive, onupdate=now_ph_naive)
 
     owner = relationship("User")
+
+
+class GroupPost(Base):
+    __tablename__ = "group_posts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    group_id = Column(Integer, ForeignKey('study_groups.id', ondelete='CASCADE'), nullable=False)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=True)
+    user_name = Column(String(255), nullable=False)
+    user_avatar = Column(Text, nullable=True)
+    content = Column(Text, nullable=False)
+    created_at = Column(String(100), nullable=False)
+    is_ai = Column(Boolean, default=False)
+
+    group = relationship("StudyGroup", back_populates="posts")
+    user = relationship("User", back_populates="posts")
 

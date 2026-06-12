@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, ChevronRight, X, Users, Mail, Check, Settings, Bell } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Plus, ChevronRight, X, Users, Mail, Check, Settings, Bell, MessageSquare, Send, Sparkles, Copy, MoreVertical, Trash2, Crown } from 'lucide-react';
 import type { User, Module, StudyGroup, GroupInvitation, StudyGroupResponse, ModuleResponse, QuizQuestionResponse, GroupQuizSessionResponse, GroupQuizRankResponse } from '../../types';
-import { API_BASE_URL } from '../../config';
+import { API_BASE_URL, WS_BASE_URL } from '../../config';
 
 interface GroupsPanelProps {
   groups: StudyGroup[];
@@ -44,6 +44,211 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
   const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
   const [groupNotifsEnabled, setGroupNotifsEnabled] = useState(true);
   const [isTogglingNotifs, setIsTogglingNotifs] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [isRemovingMemberId, setIsRemovingMemberId] = useState<number | null>(null);
+  const [openMenuMemberId, setOpenMenuMemberId] = useState<number | null>(null);
+  const [removeConfirmMember, setRemoveConfirmMember] = useState<{ id: number; name: string } | null>(null);
+  const [transferConfirmMember, setTransferConfirmMember] = useState<{ id: number; name: string } | null>(null);
+  const [isTransferringOwnershipId, setIsTransferringOwnershipId] = useState<number | null>(null);
+
+  const [activeTab, setActiveTab] = useState<'study' | 'discussion'>('study');
+  const [discussionPosts, setDiscussionPosts] = useState<GroupPost[]>([]);
+  const [newPostContent, setNewPostContent] = useState('');
+  const [isPosting, setIsPosting] = useState(false);
+  const [isLoadingPosts, setIsLoadingPosts] = useState(false);
+  const postsEndRef = useRef<HTMLDivElement>(null);
+  const socketRef = useRef<WebSocket | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [selectedPostIdForTime, setSelectedPostIdForTime] = useState<number | null>(null);
+
+  useEffect(() => {
+    setActiveTab('study');
+    setDiscussionPosts([]);
+    setSelectedPostIdForTime(null);
+  }, [selectedGroupId]);
+
+  useEffect(() => {
+    if (openMenuMemberId === null) return;
+    const handleDocumentClick = () => {
+      setOpenMenuMemberId(null);
+    };
+    document.addEventListener('click', handleDocumentClick);
+    return () => {
+      document.removeEventListener('click', handleDocumentClick);
+    };
+  }, [openMenuMemberId]);
+
+  useEffect(() => {
+    if (activeTab === 'discussion') {
+      postsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [discussionPosts, activeTab]);
+
+  useEffect(() => {
+    if (selectedGroupId !== null && activeTab === 'discussion') {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      setIsLoadingPosts(true);
+      fetch(`${API_BASE_URL}/api/groups/${selectedGroupId}/discussion`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      .then(res => res.ok ? res.json() : [])
+      .then(posts => {
+        setDiscussionPosts(posts);
+      })
+      .catch(err => console.error('Error fetching group posts:', err))
+      .finally(() => setIsLoadingPosts(false));
+    }
+  }, [selectedGroupId, activeTab]);
+
+  // Real-time WebSocket connection for live discussion board and presence
+  useEffect(() => {
+    if (selectedGroupId === null) {
+      if (socketRef.current) {
+        socketRef.current.close();
+        socketRef.current = null;
+      }
+      return;
+    }
+
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    const ws = new WebSocket(`${WS_BASE_URL}/api/groups/ws/${selectedGroupId}/discussion?token=${token}`);
+    socketRef.current = ws;
+
+    ws.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        if (message.type === 'new_posts') {
+          const incomingPosts = message.posts as GroupPost[];
+          setDiscussionPosts(prev => {
+            const existingIds = new Set(prev.map(p => p.id));
+            const newUniquePosts = incomingPosts.filter(p => !existingIds.has(p.id));
+            if (newUniquePosts.length === 0) return prev;
+            return [...prev, ...newUniquePosts];
+          });
+        } else if (message.type === 'user_status') {
+          setGroups(prev => prev.map(g => {
+            if (g.id !== selectedGroupId) return g;
+            return {
+              ...g,
+              members: g.members.map(m => {
+                if (m.email !== message.email) return m;
+                return { ...m, online: message.online };
+              })
+            };
+          }));
+        } else if (message.type === 'member_joined') {
+          setGroups(prev => prev.map(g => {
+            if (g.id !== selectedGroupId) return g;
+            const alreadyMember = g.members.some(m => m.email === message.member.email);
+            if (alreadyMember) return g;
+            return {
+              ...g,
+              members: [...g.members, message.member]
+            };
+          }));
+        } else if (message.type === 'member_removed') {
+          if (user.id === message.user_id) {
+            alert('You have been removed from the group by the owner.');
+            setSelectedGroupId(null);
+            setGroups(prev => prev.filter(g => g.id !== selectedGroupId));
+          } else {
+            setGroups(prev => prev.map(g => {
+              if (g.id !== selectedGroupId) return g;
+              return {
+                ...g,
+                members: g.members.filter(m => m.id !== message.user_id)
+              };
+            }));
+          }
+        } else if (message.type === 'ownership_transferred') {
+          setGroups(prev => prev.map(g => {
+            if (g.id !== selectedGroupId) return g;
+            return {
+              ...g,
+              creator_id: message.creator_id
+            };
+          }));
+        }
+      } catch (err) {
+        console.error('Error parsing WebSocket message:', err);
+      }
+    };
+
+    ws.onclose = () => {
+      console.log('Group discussion WebSocket closed');
+    };
+
+    ws.onerror = (err) => {
+      console.error('Group discussion WebSocket error:', err);
+    };
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.close();
+        socketRef.current = null;
+      }
+    };
+  }, [selectedGroupId]);
+
+  const handlePostMessage = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPostContent.trim() || isPosting || selectedGroupId === null) return;
+
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    setIsPosting(true);
+    const contentToSend = newPostContent;
+    setNewPostContent('');
+
+    fetch(`${API_BASE_URL}/api/groups/${selectedGroupId}/discussion`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ content: contentToSend })
+    })
+    .then(async res => {
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.detail || 'Failed to post message');
+      return data;
+    })
+    .then((newPosts: GroupPost[]) => {
+      setDiscussionPosts(prev => {
+        const existingIds = new Set(prev.map(p => p.id));
+        const newUniquePosts = newPosts.filter(p => !existingIds.has(p.id));
+        if (newUniquePosts.length === 0) return prev;
+        return [...prev, ...newUniquePosts];
+      });
+    })
+    .catch(err => {
+      console.error('Error posting message:', err);
+      alert(err.message || 'Error posting message');
+      setNewPostContent(contentToSend);
+    })
+    .finally(() => {
+      setIsPosting(false);
+      inputRef.current?.focus();
+    });
+  };
+
+  interface GroupPost {
+    id: number;
+    group_id: number;
+    user_id: number;
+    user_name: string;
+    user_avatar?: string | null;
+    content: string;
+    created_at: string;
+    is_ai: boolean;
+  }
 
   useEffect(() => {
     if (!groupSettingsOpen || selectedGroupId === null) return;
@@ -138,6 +343,148 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
     });
   };
 
+  const handleCopyInviteLink = () => {
+    const activeGroup = groups.find(g => g.id === selectedGroupId);
+    if (!activeGroup) return;
+    const inviteLink = `${window.location.origin}/?join_group=${activeGroup.id}`;
+    navigator.clipboard.writeText(inviteLink)
+      .then(() => {
+        setCopiedLink(true);
+        setTimeout(() => setCopiedLink(false), 2000);
+      })
+      .catch((err) => {
+        console.error('Failed to copy link: ', err);
+      });
+  };
+
+  const handleRemoveMember = (memberId: number) => {
+    const activeGroup = groups.find(g => g.id === selectedGroupId);
+    if (!activeGroup) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    setIsRemovingMemberId(memberId);
+    fetch(`${API_BASE_URL}/api/groups/${activeGroup.id}/members/${memberId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    .then(async res => {
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.detail || 'Failed to remove member');
+      return data;
+    })
+    .then((updatedGroup: StudyGroupResponse) => {
+      const mapped: StudyGroup = {
+        id: updatedGroup.id,
+        name: updatedGroup.name,
+        creator_id: updatedGroup.creator_id,
+        members: (updatedGroup.members || []).map((m: any) => ({
+          id: m.id,
+          name: m.name,
+          email: m.email,
+          avatar: m.avatar,
+          online: m.online,
+        })),
+        modules: updatedGroup.modules ? updatedGroup.modules.map((m: any) => ({
+          id: m.id,
+          name: m.name,
+          date: m.date,
+          size: m.size,
+          subject: m.subject || 'General',
+          questionsCount: m.questionsCount !== undefined ? m.questionsCount : (m.questions ? m.questions.length : 0),
+          questions: m.questions ? m.questions.map((q: any) => ({
+            id: q.id,
+            question: q.question,
+            options: q.options,
+            correctAnswerIndex: q.correct_answer_index
+          })) : []
+        })) : [],
+        quizSessions: updatedGroup.quiz_sessions ? updatedGroup.quiz_sessions.map((s: any) => ({
+          id: s.id,
+          moduleName: s.module_name,
+          date: s.date,
+          avgScore: s.avg_score,
+          rankings: s.rankings ? s.rankings.map((r: any) => ({
+            name: r.name,
+            score: r.score,
+            percentage: r.percentage,
+            time: r.time,
+            isUser: r.is_user
+          })) : []
+        })) : []
+      };
+      setGroups(prev => prev.map(g => g.id === mapped.id ? mapped : g));
+    })
+    .catch(err => alert(err.message))
+    .finally(() => setIsRemovingMemberId(null));
+  };
+
+  const handleTransferOwnership = (memberId: number) => {
+    const activeGroup = groups.find(g => g.id === selectedGroupId);
+    if (!activeGroup) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    setIsTransferringOwnershipId(memberId);
+    fetch(`${API_BASE_URL}/api/groups/${activeGroup.id}/transfer-ownership/${memberId}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    .then(async res => {
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.detail || 'Failed to transfer ownership');
+      return data;
+    })
+    .then((updatedGroup: StudyGroupResponse) => {
+      const mapped: StudyGroup = {
+        id: updatedGroup.id,
+        name: updatedGroup.name,
+        creator_id: updatedGroup.creator_id,
+        members: (updatedGroup.members || []).map((m: any) => ({
+          id: m.id,
+          name: m.name,
+          email: m.email,
+          avatar: m.avatar,
+          online: m.online,
+        })),
+        modules: updatedGroup.modules ? updatedGroup.modules.map((m: any) => ({
+          id: m.id,
+          name: m.name,
+          date: m.date,
+          size: m.size,
+          subject: m.subject || 'General',
+          questionsCount: m.questionsCount !== undefined ? m.questionsCount : (m.questions ? m.questions.length : 0),
+          questions: m.questions ? m.questions.map((q: any) => ({
+            id: q.id,
+            question: q.question,
+            options: q.options,
+            correctAnswerIndex: q.correct_answer_index
+          })) : []
+        })) : [],
+        quizSessions: updatedGroup.quiz_sessions ? updatedGroup.quiz_sessions.map((s: any) => ({
+          id: s.id,
+          moduleName: s.module_name,
+          date: s.date,
+          avgScore: s.avg_score,
+          rankings: s.rankings ? s.rankings.map((r: any) => ({
+            name: r.name,
+            score: r.score,
+            percentage: r.percentage,
+            time: r.time,
+            isUser: r.is_user
+          })) : []
+        })) : []
+      };
+      setGroups(prev => prev.map(g => g.id === mapped.id ? mapped : g));
+    })
+    .catch(err => alert(err.message))
+    .finally(() => setIsTransferringOwnershipId(null));
+  };
+
   const handleShareModule = () => {
     if (!selectedModuleId || isSharing) return;
     const activeGroup = groups.find(g => g.id === selectedGroupId);
@@ -209,6 +556,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
   if (selectedGroupId !== null) {
     const activeGroup = groups.find(g => g.id === selectedGroupId);
     if (!activeGroup) return null;
+    const isCurrentUserOwner = activeGroup.creator_id === user.id;
 
     return (
       <div>
@@ -281,32 +629,50 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
             </div>
 
             <div className="flex flex-col items-end gap-1.5">
-              <form onSubmit={handleInviteMember} className="flex items-center gap-2 max-w-sm w-full sm:justify-end">
-                <input
-                  type="email"
-                  placeholder="Partner's email..."
-                  value={inviteEmail}
-                  onChange={(e) => { setInviteEmail(e.target.value); setInviteError(''); }}
-                  disabled={isInviting || inviteSuccess}
-                  className="py-1.5 px-3 text-xs bg-input border border-line rounded-lg text-ink transition-all duration-150 outline-none focus:border-primary w-[180px] disabled:opacity-60 disabled:cursor-not-allowed"
-                  required
-                />
+              <div className="flex items-center gap-2 max-w-md w-full sm:justify-end flex-wrap">
+                <form onSubmit={handleInviteMember} className="flex items-center gap-2">
+                  <input
+                    type="email"
+                    placeholder="Partner's email..."
+                    value={inviteEmail}
+                    onChange={(e) => { setInviteEmail(e.target.value); setInviteError(''); }}
+                    disabled={isInviting || inviteSuccess}
+                    className="py-1.5 px-3 text-xs bg-input border border-line rounded-lg text-ink transition-all duration-150 outline-none focus:border-primary w-[180px] disabled:opacity-60 disabled:cursor-not-allowed"
+                    required
+                  />
+                  <button
+                    type="submit"
+                    disabled={isInviting || inviteSuccess}
+                    className={`inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold text-xs transition-all duration-200 cursor-pointer border disabled:cursor-not-allowed ${
+                      inviteSuccess
+                        ? 'bg-emerald-500 text-white border-emerald-500 opacity-90'
+                        : 'bg-primary text-ink-on-primary border-primary hover:bg-primary-hover hover:border-primary-hover disabled:opacity-60'
+                    }`}
+                  >
+                    {inviteSuccess ? (
+                      <><Check size={12} /> Invitation sent!</>
+                    ) : (
+                      <><Plus size={12} /> Send Invite</>
+                    )}
+                  </button>
+                </form>
+
                 <button
-                  type="submit"
-                  disabled={isInviting || inviteSuccess}
-                  className={`inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold text-xs transition-all duration-200 cursor-pointer border disabled:cursor-not-allowed ${
-                    inviteSuccess
+                  type="button"
+                  onClick={handleCopyInviteLink}
+                  className={`inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold text-xs transition-all duration-200 cursor-pointer border ${
+                    copiedLink
                       ? 'bg-emerald-500 text-white border-emerald-500 opacity-90'
-                      : 'bg-primary text-ink-on-primary border-primary hover:bg-primary-hover hover:border-primary-hover disabled:opacity-60'
+                      : 'bg-glass border-line hover:bg-glass-hover text-ink hover:text-primary'
                   }`}
                 >
-                  {inviteSuccess ? (
-                    <><Check size={12} /> Invitation sent!</>
+                  {copiedLink ? (
+                    <><Check size={12} /> Copied!</>
                   ) : (
-                    <><Plus size={12} /> Send Invite</>
+                    <><Copy size={12} /> Copy Link</>
                   )}
                 </button>
-              </form>
+              </div>
               {inviteError && (
                 <span className="text-[0.72rem] text-red-400">{inviteError}</span>
               )}
@@ -362,10 +728,14 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
                       <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-app" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-ink truncate">{user.name} <span className="text-xs text-ink-muted font-normal">(You)</span></p>
+                      <p className="text-sm font-medium text-ink truncate">
+                        {user.name} <span className="text-xs text-ink-muted font-normal">(You)</span>
+                        {isCurrentUserOwner && (
+                          <span className="ml-1.5 text-[0.6rem] font-bold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded uppercase tracking-wider">Owner</span>
+                        )}
+                      </p>
                       <p className="text-xs text-ink-muted truncate">{user.email}</p>
                     </div>
-                    <span className="text-[0.65rem] font-semibold text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full">Online</span>
                   </div>
                   {/* Other members (excluding current user) */}
                   {activeGroup.members.filter(m => m.email !== user.email).map((m, idx) => (
@@ -384,12 +754,59 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
                         }`} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-ink truncate">{m.name}</p>
+                        <p className="text-sm font-medium text-ink truncate">
+                          {m.name}
+                          {activeGroup.creator_id === m.id && (
+                            <span className="ml-1.5 text-[0.6rem] font-bold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded uppercase tracking-wider">Owner</span>
+                          )}
+                        </p>
                         <p className="text-xs text-ink-muted truncate">{m.email}</p>
                       </div>
-                      <span className={`text-[0.65rem] font-semibold px-2 py-0.5 rounded-full ${
-                        m.online ? 'text-emerald-400 bg-emerald-400/10' : 'text-zinc-400 bg-zinc-400/10'
-                      }`}>{m.online ? 'Online' : 'Offline'}</span>
+                      <div className="flex items-center gap-2">
+                        {isCurrentUserOwner && m.id && (
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenMenuMemberId(openMenuMemberId === m.id ? null : m.id ?? null);
+                              }}
+                              disabled={isRemovingMemberId === m.id}
+                              className="inline-flex items-center justify-center p-1.5 rounded hover:bg-glass text-ink-muted hover:text-ink transition-all cursor-pointer border border-line"
+                              title="More Options"
+                            >
+                              <MoreVertical size={16} />
+                            </button>
+                             {openMenuMemberId === m.id && (
+                              <div
+                                className="absolute right-0 top-full mt-1 w-44 bg-card border border-line rounded-lg shadow-lg py-1 z-20"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setTransferConfirmMember({ id: m.id!, name: m.name });
+                                    setOpenMenuMemberId(null);
+                                  }}
+                                  className="w-full text-left px-3 py-2 text-xs text-amber-400 hover:bg-amber-500/10 transition-colors font-semibold flex items-center gap-1.5 cursor-pointer border-b border-line"
+                                >
+                                  <Crown size={12} /> Transfer Ownership
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setRemoveConfirmMember({ id: m.id!, name: m.name });
+                                    setOpenMenuMemberId(null);
+                                  }}
+                                  className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors font-semibold flex items-center gap-1.5 cursor-pointer"
+                                >
+                                  <Trash2 size={12} /> Remove Member
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -427,58 +844,210 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
             </div>
           </div>
         ) : (
-        <div className="grid grid-cols-2 gap-6 max-md:grid-cols-1">
-          <div className="bg-card border border-line rounded-xl p-5">
-            <div className="flex justify-between items-center mb-5">
-              <h3 className="text-[1.15rem] flex items-center gap-2 m-0">Shared Modules</h3>
-              <button 
-                type="button" 
-                onClick={() => setIsShareModalOpen(true)}
-                className="inline-flex items-center justify-center gap-1 py-1.5 px-3 rounded-lg font-semibold text-xs transition-all duration-200 cursor-pointer bg-transparent border border-line text-ink hover:bg-input hover:border-line-strong select-none"
+          <>
+            {/* Tabs */}
+            <div className="flex gap-2 mb-6 border-b border-line pb-0.5 mt-6">
+              <button
+                type="button"
+                onClick={() => setActiveTab('study')}
+                className={`py-2.5 px-5 border-b-2 font-bold text-sm transition-all duration-150 cursor-pointer ${
+                  activeTab === 'study'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-ink-muted hover:text-ink'
+                }`}
               >
-                <Plus size={12} /> Share Module
+                Study Room
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('discussion')}
+                className={`py-2.5 px-5 border-b-2 font-bold text-sm transition-all duration-150 cursor-pointer flex items-center gap-2 ${
+                  activeTab === 'discussion'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-ink-muted hover:text-ink'
+                }`}
+              >
+                <MessageSquare size={16} /> Group Discussion & AI
               </button>
             </div>
-            {activeGroup.modules.length === 0 ? (
-              <div className="text-center p-8 text-ink-muted">No shared modules in this group yet. Add a module to start studying together!</div>
-            ) : (
-              <div className="flex flex-col gap-3">
-                {activeGroup.modules.map((m) => (
-                  <div className="flex justify-between items-center bg-app border border-line rounded-lg p-4 px-5" key={m.id}>
-                    <div className="flex flex-col gap-1">
-                      <span className="font-bold text-base text-left">{m.name}</span>
-                      <div className="text-[0.75rem] text-ink-muted flex gap-4"><span>Questions: {m.questionsCount}</span></div>
-                    </div>
-                    <button onClick={() => startGroupQuiz(m, activeGroup.id)} className="btn btn-primary px-3.5 py-2 text-[0.8rem]">Take Group Quiz</button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
 
-          <div className="bg-card border border-line rounded-xl p-5">
-            <h3 className="text-[1.15rem] mb-5 flex items-center gap-2">Group Scorecards</h3>
-            {activeGroup.quizSessions.length === 0 ? (
-              <div className="text-center p-8 text-ink-muted">No group quizzes taken yet. Launch a Group Quiz session to view scoreboard history!</div>
-            ) : (
-              <div className="flex flex-col gap-4">
-                {activeGroup.quizSessions.map((s, idx) => (
-                  <div key={idx} className="bg-app border border-line rounded-xl p-4 px-5">
-                    <div className="flex justify-between items-center mb-3">
-                      <span className="font-bold text-[0.95rem] text-left">{s.moduleName}</span>
-                      <span className="inline-flex items-center gap-1 text-[0.7rem] font-bold uppercase tracking-wider py-1 px-2.5 rounded-full border bg-primary-soft text-primary border-primary-line">Avg: {s.avgScore}</span>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {s.rankings.map((rank, rankIdx) => (
-                        <span key={rankIdx} className="text-[0.75rem] bg-glass border border-line rounded-md p-1 px-2">{rank.name.split(' ')[0]}: <strong>{rank.score}</strong></span>
+            {activeTab === 'study' ? (
+              <div className="grid grid-cols-2 gap-6 max-md:grid-cols-1">
+                <div className="bg-card border border-line rounded-xl p-5">
+                  <div className="flex justify-between items-center mb-5">
+                    <h3 className="text-[1.15rem] flex items-center gap-2 m-0">Shared Modules</h3>
+                    <button 
+                      type="button" 
+                      onClick={() => setIsShareModalOpen(true)}
+                      className="inline-flex items-center justify-center gap-1 py-1.5 px-3 rounded-lg font-semibold text-xs transition-all duration-200 cursor-pointer bg-transparent border border-line text-ink hover:bg-input hover:border-line-strong select-none"
+                    >
+                      <Plus size={12} /> Share Module
+                    </button>
+                  </div>
+                  {activeGroup.modules.length === 0 ? (
+                    <div className="text-center p-8 text-ink-muted">No shared modules in this group yet. Add a module to start studying together!</div>
+                  ) : (
+                    <div className="flex flex-col gap-3">
+                      {activeGroup.modules.map((m) => (
+                        <div className="flex justify-between items-center bg-app border border-line rounded-lg p-4 px-5" key={m.id}>
+                          <div className="flex flex-col gap-1">
+                            <span className="font-bold text-base text-left">{m.name}</span>
+                            <div className="text-[0.75rem] text-ink-muted flex gap-4"><span>Questions: {m.questionsCount}</span></div>
+                          </div>
+                          <button onClick={() => startGroupQuiz(m, activeGroup.id)} className="btn btn-primary px-3.5 py-2 text-[0.8rem]">Take Group Quiz</button>
+                        </div>
                       ))}
                     </div>
+                  )}
+                </div>
+
+                <div className="bg-card border border-line rounded-xl p-5">
+                  <h3 className="text-[1.15rem] mb-5 flex items-center gap-2">Group Scorecards</h3>
+                  {activeGroup.quizSessions.length === 0 ? (
+                    <div className="text-center p-8 text-ink-muted">No group quizzes taken yet. Launch a Group Quiz session to view scoreboard history!</div>
+                  ) : (
+                    <div className="flex flex-col gap-4">
+                      {activeGroup.quizSessions.map((s, idx) => (
+                        <div key={idx} className="bg-app border border-line rounded-xl p-4 px-5">
+                          <div className="flex justify-between items-center mb-3">
+                            <span className="font-bold text-[0.95rem] text-left">{s.moduleName}</span>
+                            <span className="inline-flex items-center gap-1 text-[0.7rem] font-bold uppercase tracking-wider py-1 px-2.5 rounded-full border bg-primary-soft text-primary border-primary-line">Avg: {s.avgScore}</span>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {s.rankings.map((rank, rankIdx) => (
+                              <span key={rankIdx} className="text-[0.75rem] bg-glass border border-line rounded-md p-1 px-2">{rank.name.split(' ')[0]}: <strong>{rank.score}</strong></span>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="bg-card border border-line rounded-xl p-6 flex flex-col h-[550px] shadow-lg animate-in fade-in duration-200">
+                <div className="flex justify-between items-center pb-3 border-b border-line mb-4 shrink-0">
+                  <div>
+                    <h3 className="text-[1.15rem] font-bold text-ink flex items-center gap-2 m-0">
+                      <Users size={18} className="text-primary" /> Group Discussion
+                    </h3>
+                    <p className="text-xs text-ink-muted mt-0.5">Share notes, ask questions, or study with the AI.</p>
                   </div>
-                ))}
+                  <div className="flex items-center gap-1 bg-primary-soft/10 text-primary border border-primary-line px-2.5 py-1 rounded-full text-xs font-semibold">
+                    <Sparkles size={12} />
+                    <span>AI Study Companion Active</span>
+                  </div>
+                </div>
+
+                {/* Messages Container */}
+                <div className="flex-1 overflow-y-auto mb-4 space-y-4 pr-1 min-h-0 text-left">
+                  {isLoadingPosts ? (
+                    <div className="flex flex-col items-center justify-center h-full text-ink-muted gap-2">
+                      <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                      <span className="text-xs">Loading conversation feed...</span>
+                    </div>
+                  ) : discussionPosts.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-ink-muted p-8 text-center gap-2">
+                      <MessageSquare size={36} className="opacity-40" />
+                      <span className="font-semibold text-sm">No messages here yet</span>
+                      <span className="text-xs max-w-xs leading-relaxed">Start the discussion with your study partners, or tag <strong className="text-primary">@ai</strong> to ask the AI Study Companion questions using your shared textbook contents!</span>
+                    </div>
+                  ) : (
+                    discussionPosts.map((post) => {
+                      const isCurrentUser = post.user_id === user.id;
+                      const isAi = post.is_ai;
+                      const isTimeVisible = selectedPostIdForTime === post.id;
+                      return (
+                        <div key={post.id} className={`flex flex-col w-full ${isCurrentUser ? 'items-end' : 'items-start'}`}>
+                          <div
+                            onClick={() => setSelectedPostIdForTime(prev => prev === post.id ? null : post.id)}
+                            className={`flex items-start gap-3 p-3.5 rounded-xl transition-all duration-150 max-w-[80%] cursor-pointer select-none ${
+                              isAi 
+                                ? 'bg-[linear-gradient(135deg,rgba(62,207,142,0.06),rgba(6,182,212,0.06))] border border-primary-line/45 shadow-sm'
+                                : isCurrentUser 
+                                  ? 'bg-primary-soft/10 border border-primary-line/20'
+                                  : 'bg-input border border-line'
+                            }`}
+                          >
+                            {!isCurrentUser && (
+                              isAi ? (
+                                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-[linear-gradient(135deg,var(--primary),var(--accent-cyan))] text-ink-on-primary font-bold shadow-md shrink-0">
+                                  <Sparkles size={16} />
+                                </div>
+                              ) : post.user_avatar ? (
+                                <img
+                                  src={post.user_avatar}
+                                  alt={post.user_name}
+                                  className="w-8 h-8 rounded-full object-cover shrink-0 border border-line"
+                                  referrerPolicy="no-referrer"
+                                />
+                              ) : (
+                                <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 border border-line bg-glass-strong text-ink">
+                                  {post.user_name.charAt(0).toUpperCase()}
+                                </div>
+                              )
+                            )}
+
+                            <div className="flex-1 min-w-0">
+                              {!isCurrentUser && (
+                                <div className="flex items-baseline mb-1 gap-2 flex-wrap justify-between">
+                                  <span className="text-xs font-bold text-ink flex items-center gap-1.5 truncate">
+                                    {post.user_name}
+                                    {isAi && (
+                                      <span className="text-[0.62rem] font-bold bg-[linear-gradient(135deg,var(--primary),var(--accent-cyan))] text-ink-on-primary px-1.5 py-0.5 rounded-full uppercase tracking-wider scale-[0.9] origin-left">
+                                        AI Tutor
+                                      </span>
+                                    )}
+                                  </span>
+                                </div>
+                              )}
+                              <p className="text-sm text-ink leading-relaxed whitespace-pre-wrap select-text selection:bg-primary-soft text-left">{post.content}</p>
+                            </div>
+                          </div>
+                          {isTimeVisible && (
+                            <span className={`text-[0.65rem] text-ink-muted mt-1 ${
+                              isCurrentUser ? 'pr-4' : 'pl-12'
+                            } transition-all duration-150 animate-in fade-in slide-in-from-top-1`}>
+                              {post.created_at}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                  <div ref={postsEndRef} />
+                </div>
+
+                {/* Input Area */}
+                <form onSubmit={handlePostMessage} className="flex gap-2 shrink-0 pt-3 border-t border-line">
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={newPostContent}
+                    onChange={(e) => setNewPostContent(e.target.value)}
+                    disabled={isPosting}
+                    placeholder="Type your message... (Tag @ai to ask the AI Study Companion)"
+                    className="flex-1 py-2.5 px-4 bg-input border border-line rounded-lg text-ink text-sm outline-none focus:border-primary focus:bg-app transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
+                    required
+                  />
+                  <button
+                    type="submit"
+                    disabled={isPosting || !newPostContent.trim()}
+                    className="inline-flex items-center justify-center gap-1.5 py-2.5 px-4.5 rounded-lg font-bold text-sm bg-primary text-ink-on-primary hover:bg-primary-hover hover:border-primary-hover transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isPosting ? (
+                      <div className="w-4 h-4 border-2 border-ink-on-primary border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <Send size={14} />
+                        <span>Send</span>
+                      </>
+                    )}
+                  </button>
+                </form>
               </div>
             )}
-          </div>
-        </div>
+          </>
         )}
 
         {/* Share Module Modal */}
@@ -531,6 +1100,99 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
                   className="inline-flex items-center justify-center gap-2 py-2 px-4 rounded-md font-semibold text-xs transition-all duration-200 cursor-pointer bg-primary text-ink-on-primary border border-primary hover:bg-primary-hover hover:border-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSharing ? 'Sharing...' : 'Share with Group'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Remove Member Confirmation Modal */}
+        {removeConfirmMember && (
+          <div className="fixed inset-0 bg-[rgba(5,5,5,0.7)] backdrop-blur-sm z-3000 flex items-center justify-center p-4">
+            <div className="bg-card border border-line rounded-2xl p-6 max-w-md w-full shadow-lg text-center">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold text-ink flex items-center gap-2">
+                  Remove Group Member
+                </h3>
+                <button 
+                  onClick={() => setRemoveConfirmMember(null)} 
+                  className="bg-transparent border-0 text-ink-muted hover:text-ink cursor-pointer p-1"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="mb-6 text-left">
+                <p className="text-sm text-ink-muted leading-relaxed">
+                  Are you sure you want to remove <span className="font-semibold text-ink">{removeConfirmMember.name}</span> from this group? This action will immediately revoke their access to shared study modules and group discussion.
+                </p>
+              </div>
+
+              <div className="flex gap-3 justify-end">
+                <button 
+                  type="button" 
+                  onClick={() => setRemoveConfirmMember(null)} 
+                  className="inline-flex items-center justify-center gap-2 py-2 px-4 rounded-md font-semibold text-xs transition-all duration-200 cursor-pointer bg-transparent border border-line text-ink hover:bg-input hover:border-line-strong"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    handleRemoveMember(removeConfirmMember.id);
+                    setRemoveConfirmMember(null);
+                  }}
+                  className="inline-flex items-center justify-center gap-2 py-2 px-4 rounded-md font-semibold text-xs transition-all duration-200 cursor-pointer bg-red-500 hover:bg-red-600 text-white border border-red-500 hover:border-red-600"
+                >
+                  Remove Member
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Transfer Ownership Confirmation Modal */}
+        {transferConfirmMember && (
+          <div className="fixed inset-0 bg-[rgba(5,5,5,0.7)] backdrop-blur-sm z-3000 flex items-center justify-center p-4">
+            <div className="bg-card border border-line rounded-2xl p-6 max-w-md w-full shadow-lg text-center">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold text-ink flex items-center gap-2">
+                  <Crown size={18} className="text-amber-400" /> Transfer Group Ownership
+                </h3>
+                <button 
+                  onClick={() => setTransferConfirmMember(null)} 
+                  className="bg-transparent border-0 text-ink-muted hover:text-ink cursor-pointer p-1"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="mb-6 text-left">
+                <p className="text-sm text-ink-muted leading-relaxed">
+                  Are you sure you want to transfer ownership of this group to <span className="font-semibold text-ink">{transferConfirmMember.name}</span>? 
+                  <span className="block mt-2 font-medium text-amber-400">Warning: You will no longer be the owner and will lose creator permissions (such as removing members, inviting users, or transferring ownership).</span>
+                </p>
+              </div>
+
+              <div className="flex gap-3 justify-end">
+                <button 
+                  type="button" 
+                  onClick={() => setTransferConfirmMember(null)} 
+                  disabled={isTransferringOwnershipId !== null}
+                  className="inline-flex items-center justify-center gap-2 py-2 px-4 rounded-md font-semibold text-xs transition-all duration-200 cursor-pointer bg-transparent border border-line text-ink hover:bg-input hover:border-line-strong disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    handleTransferOwnership(transferConfirmMember.id);
+                    setTransferConfirmMember(null);
+                  }}
+                  disabled={isTransferringOwnershipId !== null}
+                  className="inline-flex items-center justify-center gap-2 py-2 px-4 rounded-md font-semibold text-xs transition-all duration-200 cursor-pointer bg-amber-500 hover:bg-amber-600 text-white border border-amber-500 hover:border-amber-600 disabled:opacity-50"
+                >
+                  {isTransferringOwnershipId === transferConfirmMember.id ? 'Transferring...' : 'Transfer Ownership'}
                 </button>
               </div>
             </div>

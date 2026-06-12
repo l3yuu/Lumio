@@ -455,7 +455,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                       {([
                         { tab: 'overview' as const, icon: <Layers size={18} />, label: 'Overview Panels' },
                         { tab: 'modules'  as const, icon: <FileText size={18} />, label: 'My Study Modules' },
-                        { tab: 'notifications' as const, icon: <Bell size={18} />, label: 'Notifications' },
                         { tab: 'groups'   as const, icon: <Users size={18} />, label: 'Collaborative Circles' },
                         { tab: 'tools'    as const, icon: <Sparkles size={18} />, label: 'Study Tools' },
                         { tab: 'calendar' as const, icon: <Calendar size={18} />, label: 'Exam Calendar' },

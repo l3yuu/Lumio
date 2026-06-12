@@ -86,7 +86,7 @@ def get_my_invitations(
 
 
 @router.post("/invitations/{invitation_id}/accept", response_model=schemas.StudyGroupOut)
-def accept_invitation(
+async def accept_invitation(
     invitation_id: int,
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db)
@@ -104,7 +104,8 @@ def accept_invitation(
         raise HTTPException(status_code=404, detail="Group no longer exists")
 
     invitation.status = 'accepted'
-    if current_user not in group.members:
+    is_new_member = current_user not in group.members
+    if is_new_member:
         group.members.append(current_user)
 
     # Notify the inviter that their invitation was accepted
@@ -119,6 +120,15 @@ def accept_invitation(
     db.add(notif)
     db.commit()
     db.refresh(group)
+
+    if is_new_member:
+        await discussion_manager.broadcast_member_joined(group.id, {
+            "name": current_user.name,
+            "email": current_user.email,
+            "avatar": current_user.avatar,
+            "online": True
+        })
+
     return group
 
 
@@ -139,6 +149,93 @@ def decline_invitation(
     invitation.status = 'declined'
     db.commit()
     return {"message": "Invitation declined"}
+
+
+@router.post("/{group_id}/join-via-link", response_model=schemas.StudyGroupOut)
+async def join_group_via_link(
+    group_id: int,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    group = db.query(models.StudyGroup).filter(models.StudyGroup.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Study group not found")
+
+    is_new_member = current_user not in group.members
+    if is_new_member:
+        group.members.append(current_user)
+        db.commit()
+        db.refresh(group)
+
+    if is_new_member:
+        await discussion_manager.broadcast_member_joined(group.id, {
+            "name": current_user.name,
+            "email": current_user.email,
+            "avatar": current_user.avatar,
+            "online": True
+        })
+
+    return group
+
+
+@router.delete("/{group_id}/members/{user_id}", response_model=schemas.StudyGroupOut)
+async def remove_group_member(
+    group_id: int,
+    user_id: int,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    group = db.query(models.StudyGroup).filter(models.StudyGroup.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Study group not found")
+
+    if group.creator_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the group owner can remove members")
+
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="Cannot remove yourself. Use the leave group option.")
+
+    member_to_remove = db.query(models.User).filter(models.User.id == user_id).first()
+    if not member_to_remove or member_to_remove not in group.members:
+        raise HTTPException(status_code=404, detail="Member not found in this study group")
+
+    group.members.remove(member_to_remove)
+    db.commit()
+    db.refresh(group)
+
+    await discussion_manager.broadcast_member_removed(group_id, user_id)
+
+    return group
+
+
+@router.post("/{group_id}/transfer-ownership/{user_id}", response_model=schemas.StudyGroupOut)
+async def transfer_group_ownership(
+    group_id: int,
+    user_id: int,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    group = db.query(models.StudyGroup).filter(models.StudyGroup.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Study group not found")
+
+    if group.creator_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the group owner can transfer ownership")
+
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="You are already the owner of this group")
+
+    new_owner = db.query(models.User).filter(models.User.id == user_id).first()
+    if not new_owner or new_owner not in group.members:
+        raise HTTPException(status_code=404, detail="New owner must be a member of this study group")
+
+    group.creator_id = user_id
+    db.commit()
+    db.refresh(group)
+
+    await discussion_manager.broadcast_ownership_transferred(group_id, user_id)
+
+    return group
 
 
 @router.get("/{group_id}", response_model=schemas.StudyGroupOut)
@@ -441,6 +538,85 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
+class DiscussionManager:
+    def __init__(self):
+        self.active_connections: Dict[int, Set[WebSocket]] = {}
+
+    async def connect(self, group_id: int, websocket: WebSocket):
+        await websocket.accept()
+        if group_id not in self.active_connections:
+            self.active_connections[group_id] = set()
+        self.active_connections[group_id].add(websocket)
+
+    def disconnect(self, group_id: int, websocket: WebSocket):
+        if group_id in self.active_connections:
+            self.active_connections[group_id].discard(websocket)
+            if not self.active_connections[group_id]:
+                self.active_connections.pop(group_id, None)
+
+    async def broadcast_new_posts(self, group_id: int, posts: list):
+        if group_id in self.active_connections:
+            message = {
+                "type": "new_posts",
+                "posts": posts
+            }
+            for connection in list(self.active_connections[group_id]):
+                try:
+                    await connection.send_text(json.dumps(message))
+                except Exception:
+                    self.disconnect(group_id, connection)
+
+    async def broadcast_user_status(self, group_id: int, email: str, online: bool):
+        if group_id in self.active_connections:
+            message = {
+                "type": "user_status",
+                "email": email,
+                "online": online
+            }
+            for connection in list(self.active_connections[group_id]):
+                try:
+                    await connection.send_text(json.dumps(message))
+                except Exception:
+                    self.disconnect(group_id, connection)
+
+    async def broadcast_member_joined(self, group_id: int, member: dict):
+        if group_id in self.active_connections:
+            message = {
+                "type": "member_joined",
+                "member": member
+            }
+            for connection in list(self.active_connections[group_id]):
+                try:
+                    await connection.send_text(json.dumps(message))
+                except Exception:
+                    self.disconnect(group_id, connection)
+
+    async def broadcast_member_removed(self, group_id: int, user_id: int):
+        if group_id in self.active_connections:
+            message = {
+                "type": "member_removed",
+                "user_id": user_id
+            }
+            for connection in list(self.active_connections[group_id]):
+                try:
+                    await connection.send_text(json.dumps(message))
+                except Exception:
+                    self.disconnect(group_id, connection)
+
+    async def broadcast_ownership_transferred(self, group_id: int, new_owner_id: int):
+        if group_id in self.active_connections:
+            message = {
+                "type": "ownership_transferred",
+                "creator_id": new_owner_id
+            }
+            for connection in list(self.active_connections[group_id]):
+                try:
+                    await connection.send_text(json.dumps(message))
+                except Exception:
+                    self.disconnect(group_id, connection)
+
+discussion_manager = DiscussionManager()
+
 @router.websocket("/ws/{group_id}/quiz/{module_id}")
 async def websocket_endpoint(websocket: WebSocket, group_id: int, module_id: int, token: str, db: Session = Depends(get_db)):
     # Authenticate user from JWT token passed in query parameters
@@ -558,3 +734,156 @@ async def websocket_endpoint(websocket: WebSocket, group_id: int, module_id: int
             if hasattr(manager, session_id_attr):
                 delattr(manager, session_id_attr)
         await manager.broadcast_roster(room_id)
+
+
+@router.websocket("/ws/{group_id}/discussion")
+async def websocket_discussion_endpoint(
+    websocket: WebSocket,
+    group_id: int,
+    token: str,
+    db: Session = Depends(get_db)
+):
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        user_id: int = payload.get("user_id")
+        if not user_id:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+    except Exception:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    group = db.query(models.StudyGroup).filter(models.StudyGroup.id == group_id).first()
+    if not user or not group or user not in group.members:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
+    await discussion_manager.connect(group_id, websocket)
+    await discussion_manager.broadcast_user_status(group_id, user.email, True)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        discussion_manager.disconnect(group_id, websocket)
+        await discussion_manager.broadcast_user_status(group_id, user.email, False)
+
+
+@router.get("/{group_id}/discussion", response_model=List[schemas.GroupPostOut])
+def get_group_discussion(
+    group_id: int,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    group = db.query(models.StudyGroup).filter(models.StudyGroup.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Study group not found")
+    if current_user not in group.members:
+        raise HTTPException(status_code=403, detail="Not a member of this study group")
+    
+    return db.query(models.GroupPost).filter(models.GroupPost.group_id == group_id).order_by(models.GroupPost.id.asc()).all()
+
+
+@router.post("/{group_id}/discussion", response_model=List[schemas.GroupPostOut])
+async def post_to_group_discussion(
+    group_id: int,
+    post_in: schemas.GroupPostCreate,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    group = db.query(models.StudyGroup).filter(models.StudyGroup.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Study group not found")
+    if current_user not in group.members:
+        raise HTTPException(status_code=403, detail="Not a member of this study group")
+
+    created_str = now_ph().strftime("%b %d, %Y %H:%M")
+    user_post = models.GroupPost(
+        group_id=group_id,
+        user_id=current_user.id,
+        user_name=current_user.name,
+        user_avatar=current_user.avatar,
+        content=post_in.content,
+        created_at=created_str,
+        is_ai=False
+    )
+    db.add(user_post)
+    db.commit()
+    db.refresh(user_post)
+
+    created_posts = [user_post]
+
+    content_lower = post_in.content.lower()
+    if "@ai" in content_lower or "@tutor" in content_lower:
+        query = post_in.content.replace("@ai", "").replace("@AI", "").replace("@tutor", "").replace("@TUTOR", "").strip()
+        if not query:
+            query = "What is this module about?"
+            
+        context_parts = []
+        for m in group.modules:
+            if m.source_content:
+                context_parts.append(m.source_content)
+        context = "\n\n".join(context_parts)
+        
+        api_key = settings.GEMINI_API_KEY
+        if not api_key or api_key == "YOUR_GEMINI_API_KEY":
+            from .tutor import generate_mock_tutor_response
+            ai_answer = generate_mock_tutor_response(query)
+        else:
+            try:
+                from google import genai
+                client = genai.Client(api_key=api_key)
+                prompt = f"""
+You are "Lumio", an expert academic tutor participating in a study group chat.
+Answer the student's question clearly, educationally, and concisely. Use bullet points or simple paragraphs.
+Use the group's shared study context provided below as your primary source of information.
+
+Shared Study Context:
+---
+{context[:12000]}
+---
+
+Student Question:
+"{query}"
+"""
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=prompt
+                )
+                ai_answer = response.text if response.text else "I analyzed the shared materials but couldn't generate a clear explanation. Let's try another question!"
+            except Exception as e:
+                print(f"Error querying Gemini inside group discussion: {e}")
+                from .tutor import generate_mock_tutor_response
+                ai_answer = generate_mock_tutor_response(query)
+                
+        ai_post = models.GroupPost(
+            group_id=group_id,
+            user_id=None,
+            user_name="Lumio",
+            user_avatar=None,
+            content=ai_answer,
+            created_at=now_ph().strftime("%b %d, %Y %H:%M"),
+            is_ai=True
+        )
+        db.add(ai_post)
+        db.commit()
+        db.refresh(ai_post)
+        created_posts.append(ai_post)
+
+    # Broadcast new posts to all active websocket connections
+    posts_out = [
+        {
+            "id": p.id,
+            "group_id": p.group_id,
+            "user_id": p.user_id,
+            "user_name": p.user_name,
+            "user_avatar": p.user_avatar,
+            "content": p.content,
+            "created_at": p.created_at,
+            "is_ai": p.is_ai
+        }
+        for p in created_posts
+    ]
+    await discussion_manager.broadcast_new_posts(group_id, posts_out)
+
+    return created_posts

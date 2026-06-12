@@ -27,6 +27,7 @@ import { API_BASE_URL } from './config'
 import type { View, AuthTab, DashboardTab, User, Module, StudyGroup, GroupInvitation, UserResponse, ModuleResponse, QuizQuestionResponse, GroupQuizSessionResponse, GroupQuizRankResponse, StudyGroupResponse, Notification } from './types'
 
 const mapUser = (data: UserResponse): User => ({
+  id: data.id,
   name: data.name,
   email: data.email,
   avatar: data.avatar,
@@ -76,7 +77,9 @@ const mapModule = (m: ModuleResponse): Module => ({
 const mapGroup = (g: StudyGroupResponse): StudyGroup => ({
   id: g.id,
   name: g.name,
+  creator_id: g.creator_id,
   members: (g.members || []).map(m => ({
+    id: m.id,
     name: m.name,
     email: m.email,
     avatar: m.avatar,
@@ -164,6 +167,7 @@ function App() {
   const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
   const [newModuleDifficulty, setNewModuleDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
   const [newModuleSubject, setNewModuleSubject] = useState('General');
+  const [newModuleNumQuestions, setNewModuleNumQuestions] = useState<number>(10);
 
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
@@ -327,8 +331,56 @@ function App() {
     }
   ]);
 
+  const checkAndJoinPendingGroup = (token: string) => {
+    const pendingGroupIdStr = localStorage.getItem('pending_join_group_id');
+    if (!pendingGroupIdStr) return;
+    const pendingGroupId = parseInt(pendingGroupIdStr, 10);
+    if (isNaN(pendingGroupId)) {
+      localStorage.removeItem('pending_join_group_id');
+      return;
+    }
+
+    fetch(`${API_BASE_URL}/api/groups/${pendingGroupId}/join-via-link`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    .then(async res => {
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.detail || 'Failed to join group via link');
+      return data;
+    })
+    .then(joinedGroup => {
+      localStorage.removeItem('pending_join_group_id');
+      setGroups(prev => {
+        const mapped = mapGroup(joinedGroup);
+        if (prev.some(g => g.id === mapped.id)) {
+          return prev.map(g => g.id === mapped.id ? mapped : g);
+        }
+        return [mapped, ...prev];
+      });
+      setView('dashboard');
+      setDashboardTab('groups');
+      setSelectedGroupId(joinedGroup.id);
+    })
+    .catch(err => {
+      console.error('Error joining group via link:', err);
+      localStorage.removeItem('pending_join_group_id');
+    });
+  };
+
   // Hydrate user and data from backend if token exists
   useEffect(() => {
+    // Check for pending group invitation in URL
+    const params = new URLSearchParams(window.location.search);
+    const joinGroupId = params.get('join_group');
+    if (joinGroupId) {
+      localStorage.setItem('pending_join_group_id', joinGroupId);
+      // Clear query parameter from the URL to keep it clean
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
     const token = localStorage.getItem('token');
     if (token) {
       fetch(`${API_BASE_URL}/api/auth/me`, {
@@ -371,12 +423,19 @@ function App() {
         .catch(err => console.error('Error fetching invitations:', err));
 
         fetchNotifications();
+
+        // Check if there is a pending group to join
+        checkAndJoinPendingGroup(token);
       })
       .catch(() => {
         localStorage.removeItem('token');
         setUser(null);
         setView('landing');
       });
+    } else if (joinGroupId) {
+      // Redirect unauthenticated user to the auth page
+      setView('auth');
+      setAuthTab('login');
     }
   }, []);
 
@@ -414,6 +473,9 @@ function App() {
     .catch(err => console.error('Error fetching invitations:', err));
 
     fetchNotifications();
+
+    // Check if there is a pending group to join after successful login/registration
+    checkAndJoinPendingGroup(token);
   };
 
   // Heartbeat — keeps the current user marked as online every 60s
@@ -598,6 +660,7 @@ function App() {
     formData.append('name', newModuleName);
     formData.append('subject', newModuleSubject);
     formData.append('difficulty', newModuleDifficulty);
+    formData.append('num_questions', String(newModuleNumQuestions));
     
     if (selectedFile) {
       formData.append('file', selectedFile);
@@ -636,6 +699,7 @@ function App() {
       setSelectedFile(null);
       setNewModuleDifficulty('medium');
       setNewModuleSubject('General');
+      setNewModuleNumQuestions(10);
       setIsUploadOpen(false);
 
       // Refetch user profile to update quota state
@@ -900,6 +964,27 @@ function App() {
                             }`}
                           >
                             {level}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <label className="text-[0.9rem] font-semibold text-ink">Number of Questions</label>
+                      <div className="flex gap-2">
+                        {([10, 20, 30] as const).map((num) => (
+                          <button
+                            key={num}
+                            type="button"
+                            onClick={() => setNewModuleNumQuestions(num)}
+                            disabled={isGeneratingQuiz || isQuotaExceeded}
+                            className={`flex-1 py-2 rounded-md font-bold text-xs capitalize border transition-all duration-150 ${
+                              newModuleNumQuestions === num
+                                ? 'bg-primary text-ink-on-primary border-primary shadow-glow-primary-soft'
+                                : 'bg-input border-line text-ink-muted hover:text-ink hover:border-line-strong'
+                            }`}
+                          >
+                            {num} Questions
                           </button>
                         ))}
                       </div>

@@ -134,12 +134,12 @@ def extract_study_sentences(text: str, limit: int = 10) -> List[str]:
     return candidates
 
 
-def generate_mock_questions(module_name: str, text_content: Optional[str] = None) -> List[dict]:
-    """Generates 10 local fallback questions, using lesson content when available."""
+def generate_mock_questions(module_name: str, text_content: Optional[str] = None, num_questions: int = 10) -> List[dict]:
+    """Generates fallback questions, using lesson content when available."""
     logger.info(f"Generating mock questions as fallback for module: {module_name}")
     study_sentences = extract_study_sentences(build_lesson_excerpt(text_content or "", module_name, max_chars=8000))
     questions = []
-    for index, sentence in enumerate(study_sentences[:10]):
+    for index, sentence in enumerate(study_sentences[:num_questions]):
         questions.append({
             "question": f"According to the lesson, which statement is accurate?",
             "options": [
@@ -203,11 +203,11 @@ def generate_mock_questions(module_name: str, text_content: Optional[str] = None
             "correct_answer_index": 0
         }
     ]
-    return (questions + generic_questions)[:10]
+    return (questions + generic_questions * 3)[:num_questions]
 
-def generate_quiz_questions(module_name: str, text_content: Optional[str] = None, file_bytes: Optional[bytes] = None, file_filename: Optional[str] = None, difficulty: str = "medium") -> tuple:
+def generate_quiz_questions(module_name: str, text_content: Optional[str] = None, file_bytes: Optional[bytes] = None, file_filename: Optional[str] = None, difficulty: str = "medium", num_questions: int = 10) -> tuple:
     """
-    Generates 10 multiple choice questions.
+    Generates the requested number of multiple choice questions.
     Attempts to use Gemini API if text content is available and GEMINI_API_KEY is configured.
     Falls back to generate_mock_questions otherwise.
     Returns (questions, extracted_text) tuple.
@@ -246,7 +246,7 @@ def generate_quiz_questions(module_name: str, text_content: Optional[str] = None
         elif not extracted_text:
             logger.warning("No study content extracted. Using local mock questions fallback.")
             print("DEBUG: No study content extracted. Using local mock questions fallback.")
-        return generate_mock_questions(module_name, extracted_text), extracted_text
+        return generate_mock_questions(module_name, extracted_text, num_questions), extracted_text
 
     # 4. Invoke Gemini API
     try:
@@ -265,7 +265,7 @@ def generate_quiz_questions(module_name: str, text_content: Optional[str] = None
         lesson_excerpt = build_lesson_excerpt(extracted_text, module_name)
         prompt = f"""
 You are an expert academic tutor.
-Analyze the lesson content provided below and generate exactly 10 high-quality multiple choice questions (MCQs) to test a student's comprehension of what the lesson teaches.
+Analyze the lesson content provided below and generate exactly {num_questions} high-quality multiple choice questions (MCQs) to test a student's comprehension of what the lesson teaches.
 
 DIFFICULTY LEVEL: {difficulty.upper()}
 Instruction for this difficulty level:
@@ -311,11 +311,11 @@ Lesson content to quiz from:
                         "options": q.get("options"),
                         "correct_answer_index": q.get("correct_answer_index")
                     })
-                return formatted_questions[:10], extracted_text
+                return formatted_questions[:num_questions], extracted_text
 
         logger.warning("Gemini API returned an empty or invalid response. Falling back to mock questions.")
-        return generate_mock_questions(module_name, extracted_text), extracted_text
+        return generate_mock_questions(module_name, extracted_text, num_questions), extracted_text
 
     except Exception as e:
         logger.error(f"Exception during Gemini API call: {str(e)}")
-        return generate_mock_questions(module_name, extracted_text), extracted_text
+        return generate_mock_questions(module_name, extracted_text, num_questions), extracted_text

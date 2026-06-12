@@ -367,15 +367,35 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({
                   {index + 1}. {q.question}
                 </div>
                 <div className="flex flex-col gap-3">
-                  {q.options.map((option, optIdx) => (
-                    <button
-                      key={optIdx}
-                      className={`flex items-center py-4 px-5 rounded-lg border border-line bg-app text-ink cursor-pointer font-medium transition-all duration-150 text-left hover:border-primary hover:bg-glass ${selectedAnswers[q.id] === optIdx ? 'border-primary bg-primary/5' : ''}`}
-                      onClick={() => handleSelectAnswer(q.id, optIdx)}
-                    >
-                      {option}
-                    </button>
-                  ))}
+                  {q.options.map((option, optIdx) => {
+                    const selected = selectedAnswers[q.id];
+                    const isAnswered = selected !== undefined;
+                    const correct = q.correctAnswerIndex;
+                    
+                    let statusClass = '';
+                    if (isAnswered && !isMockMode) {
+                      if (optIdx === correct) {
+                        statusClass = '!border-primary !bg-primary/10 !text-primary';
+                      } else if (optIdx === selected && selected !== correct) {
+                        statusClass = '!border-danger !bg-danger/10 !text-danger';
+                      }
+                    } else {
+                      if (selected === optIdx) {
+                        statusClass = 'border-primary bg-primary/5';
+                      }
+                    }
+                    
+                    return (
+                      <button
+                        key={optIdx}
+                        disabled={isAnswered && !isMockMode}
+                        className={`flex items-center py-4 px-5 rounded-lg border border-line bg-app text-ink cursor-pointer font-medium transition-all duration-150 text-left hover:border-primary hover:bg-glass ${statusClass} ${isAnswered && !isMockMode ? 'cursor-default' : ''}`}
+                        onClick={() => handleSelectAnswer(q.id, optIdx)}
+                      >
+                        {option}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             ))}

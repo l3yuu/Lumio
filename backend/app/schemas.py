@@ -165,6 +165,7 @@ class ExamOut(ExamBase):
 
 # --- GROUP MEMBER SCHEMAS ---
 class GroupMemberOut(BaseModel):
+    id: int
     name: str
     email: str
     avatar: Optional[str] = None
@@ -325,6 +326,24 @@ class ChatSessionOut(BaseModel):
     messages: List[ChatMessageSchema]
     created_at: datetime
     updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# --- DISCUSSION FORUM SCHEMAS ---
+class GroupPostCreate(BaseModel):
+    content: str
+
+class GroupPostOut(BaseModel):
+    id: int
+    group_id: int
+    user_id: Optional[int] = None
+    user_name: str
+    user_avatar: Optional[str] = None
+    content: str
+    created_at: str
+    is_ai: bool
 
     class Config:
         from_attributes = True

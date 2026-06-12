@@ -30,6 +30,7 @@ export interface Notification {
 }
 
 export interface User {
+  id?: number;
   name: string;
   email: string;
   avatar?: string;
@@ -79,6 +80,7 @@ export interface Module {
 }
 
 export interface GroupMember {
+  id?: number;
   name: string;
   email: string;
   avatar?: string;
@@ -104,6 +106,7 @@ export interface GroupQuizSession {
 export interface StudyGroup {
   id: number;
   name: string;
+  creator_id?: number;
   members: GroupMember[];
   modules: Module[];
   quizSessions: GroupQuizSession[];
@@ -179,12 +182,14 @@ export interface GroupQuizSessionResponse {
 export interface StudyGroupResponse {
   id: number;
   name: string;
+  creator_id?: number;
   members: GroupMember[];
   modules?: ModuleResponse[];
   quiz_sessions?: GroupQuizSessionResponse[];
 }
 
 export interface UserResponse {
+  id?: number;
   name: string;
   email: string;
   avatar?: string;

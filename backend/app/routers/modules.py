@@ -38,6 +38,7 @@ def create_module(
     text_content: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
     difficulty: str = Form("medium"),
+    num_questions: int = Form(10),
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -79,13 +80,14 @@ def create_module(
         file_bytes = file.file.read()
         file_filename = file.filename
         
-    # Generate 10 multiple choice questions using AI (or fallback)
+    # Generate multiple choice questions using AI (or fallback)
     questions_data, extracted_text = generate_quiz_questions(
         module_name=name,
         text_content=text_content,
         file_bytes=file_bytes,
         file_filename=file_filename,
-        difficulty=difficulty
+        difficulty=difficulty,
+        num_questions=num_questions
     )
     
     # Format date nicely
