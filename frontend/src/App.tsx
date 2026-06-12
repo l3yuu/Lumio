@@ -629,6 +629,31 @@ function App() {
   };
 
   const handleFileSelection = (file: File) => {
+    // 1. Validate file extension
+    const allowedExtensions = ['.pdf', '.txt', '.docx'];
+    const fileNameLower = file.name.toLowerCase();
+    const hasValidExtension = allowedExtensions.some(ext => fileNameLower.endsWith(ext));
+
+    // 2. Validate MIME type
+    const allowedMimeTypes = [
+      'application/pdf',
+      'text/plain',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ];
+    const hasValidMime = allowedMimeTypes.includes(file.type);
+
+    if (!hasValidExtension || !hasValidMime) {
+      alert('Security Alert: Only PDF, TXT, and DOCX files are allowed.');
+      return;
+    }
+
+    // 3. Validate file size (10MB limit)
+    const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      alert('Security Alert: File size exceeds the maximum limit of 10MB.');
+      return;
+    }
+
     setSelectedFile(file);
     if (!newModuleName) {
       const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;

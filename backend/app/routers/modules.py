@@ -9,11 +9,29 @@ from .. import models, schemas, auth
 from ..quiz_generator import generate_quiz_questions
 from ..ratelimit import modules_limiter
 from ..time_utils import now_ph, today_ph_str
+import re
 
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "uploads")
 
 router = APIRouter(prefix="/api/modules", tags=["modules"])
 
+ALLOWED_EXTENSIONS = {"pdf", "txt", "docx"}
+ALLOWED_MIME_TYPES = {
+    "application/pdf",
+    "text/plain",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+}
+
+def sanitize_filename(filename: str) -> str:
+    # Keep only the base filename (strip folder paths)
+    filename = os.path.basename(filename)
+    # Strip directory traversal characters, control characters, and unsafe characters
+    filename = re.sub(r'[\x00-\x1f\\/*?:"<>|]', '_', filename)
+    # Remove leading dots to prevent dot-dot execution or hidden files
+    filename = filename.lstrip('.')
+    if not filename:
+        filename = 'file'
+    return filename
 
 def get_source_media_type(filename: Optional[str]) -> str:
     if not filename:
@@ -77,8 +95,42 @@ def create_module(
     file_bytes = None
     file_filename = None
     if file:
+        # 1. Validate file size (avoid loading huge files into memory)
+        try:
+            file.file.seek(0, 2)
+            file_size = file.file.tell()
+            file.file.seek(0)
+        except Exception:
+            file_size = 0
+
+        MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+        if file_size > MAX_FILE_SIZE:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Security Alert: File size exceeds the maximum limit of 10MB."
+            )
+
+        # 2. Validate file extension
+        orig_filename = file.filename or ""
+        ext = orig_filename.lower().split('.')[-1] if '.' in orig_filename else ''
+        if ext not in ALLOWED_EXTENSIONS:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Security Alert: Invalid file format. Only PDF, TXT, and DOCX files are allowed."
+            )
+
+        # 3. Validate MIME type
+        content_type = file.content_type or ""
+        is_octet_stream_txt = (ext == "txt" and content_type == "application/octet-stream")
+        if content_type not in ALLOWED_MIME_TYPES and not is_octet_stream_txt:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Security Alert: File content type does not match allowed types."
+            )
+
+        # 4. Sanitize filename to prevent directory traversal
+        file_filename = sanitize_filename(orig_filename)
         file_bytes = file.file.read()
-        file_filename = file.filename
         
     # Generate multiple choice questions using AI (or fallback)
     questions_data, extracted_text = generate_quiz_questions(

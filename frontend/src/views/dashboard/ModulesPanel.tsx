@@ -148,7 +148,7 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
                     type="text"
                     value={editingFolderName}
                     onChange={(e) => setEditingFolderName(e.target.value)}
-                    className="text-xs bg-transparent text-ink-on-primary font-bold outline-none max-w-[90px] border-b border-ink-on-primary/30 py-0 px-0"
+                    className="text-xs bg-transparent text-ink-on-primary font-bold outline-none max-w-22.5 border-b border-ink-on-primary/30 py-0 px-0"
                     autoFocus
                   />
                   <button type="submit" className="p-0.5 text-ink-on-primary hover:scale-110 transition-transform cursor-pointer">
@@ -223,7 +223,7 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
               placeholder="Folder name..."
               value={newFolderName}
               onChange={(e) => setNewFolderName(e.target.value)}
-              className="text-xs bg-transparent text-ink outline-none max-w-[120px] py-1 border-0"
+              className="text-xs bg-transparent text-ink outline-none max-w-30 py-1 border-0"
               autoFocus
             />
             <button type="submit" className="px-2.5 py-1 bg-primary text-ink-on-primary text-[10px] rounded-full font-bold cursor-pointer hover:bg-primary-hover transition-colors">
@@ -339,7 +339,7 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
                 key={m.id}
               >
                 <div className="flex flex-col gap-1.5 pointer-events-none min-w-0 flex-1">
-                  <span className="font-bold text-base max-md:text-[0.95rem] text-left break-words leading-snug">{m.name}</span>
+                  <span className="font-bold text-base max-md:text-[0.95rem] text-left wrap-break-word leading-snug">{m.name}</span>
                   <div className="text-[0.8rem] max-md:text-[0.75rem] text-ink-muted flex items-center gap-x-4 gap-y-1.5 flex-wrap">
                     <span>Date: {m.date}</span>
                     <span>Size: {m.size}</span>
@@ -443,7 +443,7 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
       {/* Source Content Modal */}
       {viewSourceModule && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-3000 flex items-center justify-center p-4 sm:p-6">
-          <div className="bg-[#323639] border border-white/10 rounded-2xl w-full max-w-[950px] h-[85vh] flex flex-col overflow-hidden shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-[#323639] border border-white/10 rounded-2xl w-full max-w-237.5 h-[85vh] flex flex-col overflow-hidden shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
             {/* Toolbar */}
             <div className="flex items-center justify-between px-4 py-2.5 bg-[#202124] border-b border-[#1c1d20] shrink-0">
               <div className="flex items-center gap-3">
@@ -456,7 +456,7 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
                 </button>
                 <div className="flex items-center gap-2">
                   <FileText size={16} className="text-red-400" />
-                  <span className="text-sm font-medium text-white max-w-[200px] sm:max-w-[320px] truncate">{viewSourceModule.name}</span>
+                  <span className="text-sm font-medium text-white max-w-50 sm:max-w-[320px] truncate">{viewSourceModule.name}</span>
                 </div>
                 {viewSourceModule.sourceFilename && (
                   <span className="text-xs text-gray-400 hidden sm:inline">{viewSourceModule.sourceFilename}</span>
@@ -518,7 +518,7 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
             <div className="flex-1 overflow-auto flex items-start justify-center p-6 bg-[#323639]">
               {viewSourceModule.sourceFilename?.toLowerCase().endsWith('.pdf') && sourceFileUrl ? (
                 <div
-                  className="bg-white rounded shadow-2xl overflow-hidden transition-transform duration-200 origin-top my-4 w-full max-w-[850px]"
+                  className="bg-white rounded shadow-2xl overflow-hidden transition-transform duration-200 origin-top my-4 w-full max-w-212.5"
                   style={{ transform: `scale(${pdfZoom / 100})` }}
                 >
                   <iframe
@@ -530,7 +530,7 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
                 </div>
               ) : (
                 <div
-                  className="bg-white rounded shadow-[0_4px_24px_rgba(0,0,0,0.25)] p-12 sm:p-16 w-full max-w-[850px] min-h-[calc(85vh-120px)] my-4 text-gray-900 font-sans transition-transform duration-200 origin-top text-left"
+                  className="bg-white rounded shadow-[0_4px_24px_rgba(0,0,0,0.25)] p-12 sm:p-16 w-full max-w-212.5 min-h-[calc(85vh-120px)] my-4 text-gray-900 font-sans transition-transform duration-200 origin-top text-left"
                   style={{ transform: `scale(${pdfZoom / 100})` }}
                 >
                   {isLoadingSource ? (

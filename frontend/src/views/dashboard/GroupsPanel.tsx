@@ -194,7 +194,17 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
 
     return () => {
       if (socketRef.current) {
-        socketRef.current.close();
+        const ws = socketRef.current;
+        ws.onmessage = null;
+        ws.onclose = null;
+        ws.onerror = null;
+        if (ws.readyState === WebSocket.CONNECTING) {
+          ws.onopen = () => {
+            ws.close();
+          };
+        } else {
+          ws.close();
+        }
         socketRef.current = null;
       }
     };
@@ -570,7 +580,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
               <button onClick={() => { setSelectedGroupId(null); setConfirmLeave(false); setGroupSettingsOpen(false); }} className="btn btn-outline border-none bg-transparent hover:bg-glass text-ink-muted hover:text-ink px-3 py-1.5 text-xs mb-4 inline-flex items-center gap-1">
                 ← Back to Groups
               </button>
-              <h2 className="text-[1.8rem] max-md:text-[1.4rem] mb-1 break-words">{activeGroup.name}</h2>
+              <h2 className="text-[1.8rem] max-md:text-[1.4rem] mb-1 wrap-break-word">{activeGroup.name}</h2>
               <p className="text-ink-muted text-[0.9rem]">Collaborative Study Room</p>
             </div>
             <div className="flex flex-col items-end gap-2 text-right max-md:items-start max-md:text-left max-md:w-full">
@@ -641,7 +651,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
                     value={inviteEmail}
                     onChange={(e) => { setInviteEmail(e.target.value); setInviteError(''); }}
                     disabled={isInviting || inviteSuccess}
-                    className="py-1.5 px-3 text-xs bg-input border border-line rounded-lg text-ink transition-all duration-150 outline-none focus:border-primary w-[180px] max-md:w-full disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="py-1.5 px-3 text-xs bg-input border border-line rounded-lg text-ink transition-all duration-150 outline-none focus:border-primary w-45 max-md:w-full disabled:opacity-60 disabled:cursor-not-allowed"
                     required
                   />
                   <button
@@ -895,7 +905,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
                       {activeGroup.modules.map((m) => (
                         <div className="flex max-md:flex-col max-md:items-stretch max-md:gap-3 md:justify-between md:items-center bg-app border border-line rounded-lg p-4 max-md:p-3.5 md:px-5" key={m.id}>
                           <div className="flex flex-col gap-1 min-w-0">
-                            <span className="font-bold text-base max-md:text-[0.95rem] text-left break-words leading-snug">{m.name}</span>
+                            <span className="font-bold text-base max-md:text-[0.95rem] text-left wrap-break-word leading-snug">{m.name}</span>
                             <div className="text-[0.75rem] text-ink-muted flex gap-4"><span>Questions: {m.questionsCount}</span></div>
                           </div>
                           <button onClick={() => startGroupQuiz(m, activeGroup.id)} className="btn btn-primary px-3.5 py-2 text-[0.8rem] max-md:w-full max-md:justify-center max-md:py-2.5 shrink-0">Take Group Quiz</button>
@@ -914,7 +924,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
                       {activeGroup.quizSessions.map((s, idx) => (
                         <div key={idx} className="bg-app border border-line rounded-xl p-4 max-md:p-3.5 md:px-5">
                           <div className="flex justify-between items-center mb-3 max-md:flex-col max-md:items-start max-md:gap-2">
-                            <span className="font-bold text-[0.95rem] text-left break-words">{s.moduleName}</span>
+                            <span className="font-bold text-[0.95rem] text-left wrap-break-word">{s.moduleName}</span>
                             <span className="inline-flex items-center gap-1 text-[0.7rem] font-bold uppercase tracking-wider py-1 px-2.5 rounded-full border bg-primary-soft text-primary border-primary-line">Avg: {s.avgScore}</span>
                           </div>
                           <div className="flex flex-wrap gap-2">
@@ -929,7 +939,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="bg-card border border-line rounded-xl p-6 max-md:p-4 flex flex-col h-[550px] max-md:h-[min(65vh,520px)] min-h-[360px] shadow-lg animate-in fade-in duration-200">
+              <div className="bg-card border border-line rounded-xl p-6 max-md:p-4 flex flex-col h-137.5 max-md:h-[min(65vh,520px)] min-h-90 shadow-lg animate-in fade-in duration-200">
                 <div className="flex justify-between items-center pb-3 border-b border-line mb-4 shrink-0 max-md:flex-col max-md:items-start max-md:gap-3">
                   <div className="min-w-0">
                     <h3 className="text-[1.15rem] font-bold text-ink flex items-center gap-2 m-0">
@@ -1221,13 +1231,13 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
           <h4 className="text-[0.9rem] font-semibold text-ink-muted uppercase tracking-wider mb-3 flex items-center gap-2">
             <Mail size={15} />
             Pending Invitations
-            <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-white text-[0.65rem] font-bold">{invitations.length}</span>
+            <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-red-500 text-white text-[0.65rem] font-bold">{invitations.length}</span>
           </h4>
           <div className="flex flex-col gap-3">
             {invitations.map(inv => (
               <div key={inv.id} className="bg-card border border-line rounded-xl p-4 max-md:p-3.5 flex items-center gap-4 flex-wrap max-md:flex-col max-md:items-stretch max-md:gap-3">
                 {/* Inviter avatar */}
-                <div className="flex-shrink-0">
+                <div className="shrink-0">
                   {inv.inviter_avatar && inv.inviter_avatar !== '' ? (
                     <img
                       src={inv.inviter_avatar}
@@ -1258,7 +1268,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
                   </p>
                   <p className="text-[0.75rem] text-ink-muted mt-0.5">{inv.created_at}</p>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0 max-md:w-full">
+                <div className="flex items-center gap-2 shrink-0 max-md:w-full">
                   <button
                     onClick={() => onDeclineInvitation(inv.id)}
                     className="inline-flex items-center gap-1 py-1.5 px-3 rounded-md text-[0.8rem] font-semibold bg-transparent border border-line text-ink-muted hover:bg-glass hover:text-ink transition-all max-md:flex-1 max-md:justify-center"
@@ -1280,7 +1290,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
       <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-6 max-md:grid-cols-1 max-md:gap-4">
         {groups.map((group) => (
           <div className="bg-card border border-line rounded-xl p-5 max-md:p-4 flex flex-col h-full" key={group.id}>
-            <h4 className="text-xl max-md:text-lg mb-2 text-left break-words">{group.name}</h4>
+            <h4 className="text-xl max-md:text-lg mb-2 text-left wrap-break-word">{group.name}</h4>
             <span className="text-[0.85rem] text-ink-muted text-left">{group.members.filter(m => m.email !== user.email).length + 1} Members | {group.modules.length} Shared Modules</span>
 
             <div className="flex items-center mt-3">

@@ -112,7 +112,17 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({
     socketRef.current = ws;
 
     return () => {
-      ws.close();
+      ws.onmessage = null;
+      ws.onerror = null;
+      ws.onclose = null;
+      ws.onopen = null;
+      if (ws.readyState === WebSocket.CONNECTING) {
+        ws.onopen = () => {
+          ws.close();
+        };
+      } else {
+        ws.close();
+      }
       socketRef.current = null;
     };
   }, [isGroupQuizMode, selectedGroupId, activeQuizModule.id]);

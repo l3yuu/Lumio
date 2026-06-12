@@ -42,14 +42,14 @@ export const LandingView: React.FC<LandingViewProps> = ({ user, setView, setAuth
     <>
       <header className="grid grid-cols-[1.1fr_0.9fr] items-center gap-16 py-20 max-md:grid-cols-1 max-md:text-center max-md:gap-10 max-md:py-8">
         <motion.div
-          className="max-w-[580px] max-md:max-w-full max-md:mx-auto max-md:px-1"
+          className="max-w-145 max-md:max-w-full max-md:mx-auto max-md:px-1"
           initial={{ opacity: 0, x: -50 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.7, ease: "easeOut" }}
         >
           <div className="text-primary text-[0.85rem] max-md:text-[0.75rem] font-bold uppercase tracking-[0.12em] mb-5 max-md:mb-3">Interactive Study Companion</div>
           <h1 className="text-[3.5rem] max-md:text-[2rem] max-sm:text-[1.75rem] leading-[1.15] max-md:leading-[1.2] mb-6 max-md:mb-4 tracking-[-0.03em] font-bold">
-            Turn lecture notes into <span className="text-primary bg-gradient-to-r from-primary-tint-2 to-primary-soft px-1 rounded">practice quizzes</span>
+            Turn lecture notes into <span className="text-primary bg-linear-to-r from-primary-tint-2 to-primary-soft px-1 rounded">practice quizzes</span>
           </h1>
           <p className="text-[1.15rem] max-md:text-base text-ink-muted leading-relaxed mb-10 max-md:mb-8">
             Upload your syllabus outlines, textbook chapters, or lecture PDFs. Lumio instantly compiles concept-mapped practice exams and scorecards for you and your study groups.
@@ -111,7 +111,7 @@ export const LandingView: React.FC<LandingViewProps> = ({ user, setView, setAuth
         viewport={{ once: true, margin: "-50px" }}
         transition={{ duration: 0.6 }}
       >
-        <span className="text-[0.8rem] font-semibold uppercase tracking-[0.1em] text-ink-muted">Integrates & Works With Your Outlines</span>
+        <span className="text-[0.8rem] font-semibold uppercase tracking-widest text-ink-muted">Integrates & Works With Your Outlines</span>
         <div className="flex flex-wrap justify-center items-center gap-10">
           {[
             { label: 'PDF Documents', path: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2 14 8 20 8 M16 13 x2=8 M16 17 x2=8 M10 9" },
@@ -225,7 +225,7 @@ export const LandingView: React.FC<LandingViewProps> = ({ user, setView, setAuth
           >
             <div className="flex flex-col gap-6">
               <div className="flex gap-4 items-start">
-                <div className="w-11 h-11 rounded-lg flex items-center justify-center flex-shrink-0 bg-primary-soft text-primary"><Users size={20} /></div>
+                <div className="w-11 h-11 rounded-lg flex items-center justify-center shrink-0 bg-primary-soft text-primary"><Users size={20} /></div>
                 <div>
                   <h3 className="text-[1.15rem] mb-2 text-ink">Create Private Study Groups</h3>
                   <p className="text-ink-muted text-[0.95rem] leading-normal">
@@ -235,7 +235,7 @@ export const LandingView: React.FC<LandingViewProps> = ({ user, setView, setAuth
               </div>
 
               <div className="flex gap-4 items-start">
-                <div className="w-11 h-11 rounded-lg flex items-center justify-center flex-shrink-0 bg-primary-soft text-primary"><Trophy size={20} /></div>
+                <div className="w-11 h-11 rounded-lg flex items-center justify-center shrink-0 bg-primary-soft text-primary"><Trophy size={20} /></div>
                 <div>
                   <h3 className="text-[1.15rem] mb-2 text-ink">Synchronized Live Group Quizzes</h3>
                   <p className="text-ink-muted text-[0.95rem] leading-normal">
@@ -245,7 +245,7 @@ export const LandingView: React.FC<LandingViewProps> = ({ user, setView, setAuth
               </div>
 
               <div className="flex gap-4 items-start">
-                <div className="w-11 h-11 rounded-lg flex items-center justify-center flex-shrink-0 bg-primary-soft text-primary"><Clock size={20} /></div>
+                <div className="w-11 h-11 rounded-lg flex items-center justify-center shrink-0 bg-primary-soft text-primary"><Clock size={20} /></div>
                 <div>
                   <h3 className="text-[1.15rem] mb-2 text-ink">Interactive Group Scorecards</h3>
                   <p className="text-ink-muted text-[0.95rem] leading-normal">
@@ -262,7 +262,7 @@ export const LandingView: React.FC<LandingViewProps> = ({ user, setView, setAuth
             viewport={{ once: true, margin: "-100px" }}
             transition={{ duration: 0.6 }}
           >
-            <div className="bg-card border border-line rounded-xl shadow-lg overflow-hidden flex flex-col w-full min-h-[320px]">
+            <div className="bg-card border border-line rounded-xl shadow-lg overflow-hidden flex flex-col w-full min-h-80">
               <div className="h-10 bg-app border-b border-line flex items-center px-4 gap-2">
               <div className="flex gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-danger"></span>
@@ -286,14 +286,14 @@ export const LandingView: React.FC<LandingViewProps> = ({ user, setView, setAuth
                 <div className="flex flex-col gap-3 mb-6">
                   <div className="flex justify-between items-center">
                     <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full border-[1.5px] border-line font-bold text-xs flex items-center justify-center relative flex-shrink-0 bg-success text-ink-on-primary after:content-[''] after:absolute after:bottom-0 after:right-0 after:w-2 after:h-2 after:bg-primary after:rounded-full after:border-[1.5px] after:border-card">S</div>
+                      <div className="w-6 h-6 rounded-full border-[1.5px] border-line font-bold text-xs flex items-center justify-center relative shrink-0 bg-success text-ink-on-primary after:content-[''] after:absolute after:bottom-0 after:right-0 after:w-2 after:h-2 after:bg-primary after:rounded-full after:border-[1.5px] after:border-card">S</div>
                       <span className="text-[0.8rem] text-ink">Sarah Miller</span>
                     </div>
                     <span className="text-xs text-primary font-bold">Accuracy: 92%</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full border-[1.5px] border-line font-bold text-xs flex items-center justify-center relative flex-shrink-0 bg-blue text-ink-inverse after:content-[''] after:absolute after:bottom-0 after:right-0 after:w-2 after:h-2 after:bg-primary after:rounded-full after:border-[1.5px] after:border-card">A</div>
+                      <div className="w-6 h-6 rounded-full border-[1.5px] border-line font-bold text-xs flex items-center justify-center relative shrink-0 bg-blue text-ink-inverse after:content-[''] after:absolute after:bottom-0 after:right-0 after:w-2 after:h-2 after:bg-primary after:rounded-full after:border-[1.5px] after:border-card">A</div>
                       <span className="text-[0.8rem] text-ink">Alex Chen</span>
                     </div>
                     <span className="text-xs text-primary font-bold">Accuracy: 88%</span>
@@ -371,7 +371,7 @@ export const LandingView: React.FC<LandingViewProps> = ({ user, setView, setAuth
               "As a third-year medical student, the volume of cellular and anatomy slides is overwhelming. Lumio converts my textbook chapters into customizable MCQs in seconds. It has cut my study review hours in half."
             </p>
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full border-[1.5px] border-line font-bold text-[0.8rem] flex items-center justify-center relative flex-shrink-0 bg-success text-ink-on-primary">M</div>
+              <div className="w-8 h-8 rounded-full border-[1.5px] border-line font-bold text-[0.8rem] flex items-center justify-center relative shrink-0 bg-success text-ink-on-primary">M</div>
               <div>
                 <h5 className="m-0 mb-0.5 text-[0.9rem] font-semibold text-ink">Maria Santos</h5>
                 <span className="text-xs text-ink-muted">Medical Student, Stanford</span>
@@ -385,7 +385,7 @@ export const LandingView: React.FC<LandingViewProps> = ({ user, setView, setAuth
               "Our study group has synchronized test scores weekly now. We upload law outlines, host a live group lobby, and track who's getting ahead. Spaced repetition features are exceptionally high fidelity."
             </p>
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full border-[1.5px] border-line font-bold text-[0.8rem] flex items-center justify-center relative flex-shrink-0 bg-blue text-ink-inverse">K</div>
+              <div className="w-8 h-8 rounded-full border-[1.5px] border-line font-bold text-[0.8rem] flex items-center justify-center relative shrink-0 bg-blue text-ink-inverse">K</div>
               <div>
                 <h5 className="m-0 mb-0.5 text-[0.9rem] font-semibold text-ink">Kofi Anan</h5>
                 <span className="text-xs text-ink-muted">Law Candidate, NYU</span>
@@ -399,7 +399,7 @@ export const LandingView: React.FC<LandingViewProps> = ({ user, setView, setAuth
               "I was skeptical about AI essay grading, but the critique parameters on Lumio matched my professor's rubric exactly. The condensed textbooks summary feature keeps me from getting bogged down in fluff."
             </p>
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full border-[1.5px] border-line font-bold text-[0.8rem] flex items-center justify-center relative flex-shrink-0 bg-primary text-ink-on-primary">L</div>
+              <div className="w-8 h-8 rounded-full border-[1.5px] border-line font-bold text-[0.8rem] flex items-center justify-center relative shrink-0 bg-primary text-ink-on-primary">L</div>
               <div>
                 <h5 className="m-0 mb-0.5 text-[0.9rem] font-semibold text-ink">Lina Henderson</h5>
                 <span className="text-xs text-ink-muted">Computer Science, MIT</span>
@@ -421,7 +421,7 @@ export const LandingView: React.FC<LandingViewProps> = ({ user, setView, setAuth
           <p className="text-ink-muted text-base">Everything you need to know about the Lumio companion app</p>
         </motion.div>
 
-        <div className="max-w-[800px] mx-auto mt-12 flex flex-col gap-4">
+        <div className="max-w-200 mx-auto mt-12 flex flex-col gap-4">
           {[
             {
               q: "What file formats does Lumio support?",
@@ -481,14 +481,14 @@ export const LandingView: React.FC<LandingViewProps> = ({ user, setView, setAuth
 
       <section className="pb-16">
         <motion.div
-          className="relative bg-gradient-to-br from-success/10 to-transparent bg-card border border-line rounded-2xl p-16 px-12 max-md:p-8 max-md:px-5 text-center my-24 max-md:my-12 flex flex-col items-center gap-6 max-md:gap-4 overflow-hidden"
+          className="relative bg-linear-to-br from-success/10 to-transparent bg-card border border-line rounded-2xl p-16 px-12 max-md:p-8 max-md:px-5 text-center my-24 max-md:my-12 flex flex-col items-center gap-6 max-md:gap-4 overflow-hidden"
           initial={{ opacity: 0, scale: 0.96 }}
           whileInView={{ opacity: 1, scale: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
         >
           <h2 className="text-[2.25rem] max-md:text-[1.75rem] m-0 tracking-[-0.03em] font-bold">Ready to Ace Your Next Exam?</h2>
-          <p className="text-[1.1rem] max-md:text-base text-ink-muted max-w-[580px] mb-2">Join thousands of students who are generating quiz modules, practicing flashcards, and tracking team achievements daily on Lumio.</p>
+          <p className="text-[1.1rem] max-md:text-base text-ink-muted max-w-145 mb-2">Join thousands of students who are generating quiz modules, practicing flashcards, and tracking team achievements daily on Lumio.</p>
           <div className="flex gap-4 max-md:flex-col max-md:w-full max-md:max-w-sm flex-wrap justify-center">
             <motion.button
               whileHover={{ scale: 1.05 }}
