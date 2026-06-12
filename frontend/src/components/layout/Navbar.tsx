@@ -26,6 +26,10 @@ interface NavbarProps {
   onAcceptInvitation?: (id: number) => void;
   onDeclineInvitation?: (id: number) => void;
   onToggleAiSidebar?: () => void;
+  isPwaInstallable?: boolean;
+  onPwaInstall?: () => void;
+  showPwaBanner?: boolean;
+  onDismissPwaBanner?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -50,6 +54,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   onAcceptInvitation,
   onDeclineInvitation,
   onToggleAiSidebar,
+  isPwaInstallable = false,
+  onPwaInstall = () => {},
+  showPwaBanner = false,
+  onDismissPwaBanner = () => {},
 }) => {
   const [notifOpen, setNotifOpen] = React.useState(false);
   const [userMenuOpen, setUserMenuOpen] = React.useState(false);
@@ -72,6 +80,30 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <nav className="navbar fixed top-0 left-0 right-0 z-50 w-full border-b border-line bg-app/85 backdrop-blur-xl">
+      {/* PWA Dismissible Top Banner */}
+      {showPwaBanner && isPwaInstallable && view !== 'auth' && (
+        <div className="bg-primary text-ink-on-primary py-2 px-4 flex items-center justify-between text-xs sm:text-sm font-semibold select-none border-b border-primary-hover relative z-50">
+          <div className="flex items-center gap-2 overflow-hidden mr-6">
+            <Sparkles size={14} className="shrink-0 animate-pulse text-ink-on-primary" />
+            <span className="truncate">Download the Lumio mobile app for a full-screen experience!</span>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <button 
+              onClick={onPwaInstall}
+              className="bg-ink-on-primary text-primary px-3 py-0.5 rounded-md text-[0.75rem] font-bold shadow-sm hover:opacity-90 transition active:scale-95 cursor-pointer"
+            >
+              Install
+            </button>
+            <button 
+              onClick={onDismissPwaBanner}
+              className="hover:bg-[rgba(0,0,0,0.1)] p-0.5 rounded transition cursor-pointer"
+              aria-label="Close installation banner"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        </div>
+      )}
       <div className={
         !user
           ? "max-w-300 w-full mx-auto py-3 px-6 lg:px-8 flex justify-between items-center"
@@ -442,6 +474,17 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               {/* Scrollable content */}
               <div className="flex flex-col flex-1 overflow-y-auto">
+                {isPwaInstallable && (
+                  <div className="px-4 py-3 border-b border-line shrink-0">
+                    <button
+                      onClick={() => { onPwaInstall(); setMobileMenuOpen(false); }}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-primary text-[0.9rem] font-bold text-primary bg-primary/10 hover:bg-primary/15 transition-all duration-150 cursor-pointer"
+                    >
+                      <Sparkles size={16} className="animate-pulse text-primary" />
+                      <span>Install Mobile App</span>
+                    </button>
+                  </div>
+                )}
                 {user ? (
                   <>
                     {/* ACCOUNT section */}

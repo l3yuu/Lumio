@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Layers, FileText, Users, Sparkles, Calendar, Settings } from 'lucide-react';
+import { Layers, FileText, Users, Sparkles, Calendar, Settings, Shield } from 'lucide-react';
 import type { User, Module, DashboardTab } from '../../types';
 
 interface DashboardSidebarProps {
@@ -26,7 +26,19 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
   completeQuest,
   invitationCount,
 }) => {
-  const items: { tab: DashboardTab; icon: React.ReactNode; label: string; matches: (tab: DashboardTab, gid: number | null) => boolean; badge: number }[] = [
+  const isAdminMode = user.role === 'superadmin' && dashboardTab.startsWith('admin');
+
+  // SVG Icons for Sales and Groups Created to keep it clean and robust
+  const DollarIcon = <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>;
+  const GroupListIcon = <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>;
+
+  const items: { tab: DashboardTab; icon: React.ReactNode; label: string; matches: (tab: DashboardTab, gid: number | null) => boolean; badge: number }[] = isAdminMode ? [
+    { tab: 'admin-overview', icon: <Layers size={18} />, label: 'Overview Panels', matches: (tab) => tab === 'admin-overview', badge: 0 },
+    { tab: 'admin-users', icon: <Users size={18} />, label: 'User Management', matches: (tab) => tab === 'admin-users', badge: 0 },
+    { tab: 'admin-sales', icon: DollarIcon, label: 'Sales & Revenue', matches: (tab) => tab === 'admin-sales', badge: 0 },
+    { tab: 'admin-modules', icon: <FileText size={18} />, label: 'Modules Created', matches: (tab) => tab === 'admin-modules', badge: 0 },
+    { tab: 'admin-groups', icon: GroupListIcon, label: 'Groups Created', matches: (tab) => tab === 'admin-groups', badge: 0 },
+  ] : [
     { tab: 'overview', icon: <Layers size={18} />, label: 'Overview Panels', matches: (tab, gid) => tab === 'overview' && gid === null, badge: 0 },
     { tab: 'modules', icon: <FileText size={18} />, label: 'My Study Modules', matches: (tab, gid) => tab === 'modules' && gid === null, badge: 0 },
     { tab: 'groups', icon: <Users size={18} />, label: 'Collaborative Circles', matches: (tab, gid) => tab === 'groups' || gid !== null, badge: invitationCount },
@@ -85,8 +97,31 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
         </button>
       ))}
 
+      {user.role === 'superadmin' && (
+        <button
+          className={`${btnClass(false)} mt-auto max-md:mt-0 mb-2 border border-primary/20 hover:border-primary bg-primary-soft/30 hover:bg-primary-soft text-primary`}
+          onClick={() => {
+            if (isAdminMode) {
+              setDashboardTab('overview');
+            } else {
+              setDashboardTab('admin-overview');
+            }
+            setActiveQuizModule(null);
+            setSelectedGroupId(null);
+          }}
+          title={isCollapsed ? (isAdminMode ? 'Switch to Student View' : 'Switch to Admin View') : undefined}
+        >
+          <div className={iconClass(false)}>
+            {isAdminMode ? <Sparkles size={18} className="text-primary animate-pulse" /> : <Shield size={18} className="text-primary" />}
+          </div>
+          <span className={labelClass()}>
+            {isAdminMode ? 'Student View' : 'Admin Portal'}
+          </span>
+        </button>
+      )}
+
       <button
-        className={`${btnClass(dashboardTab === 'settings' && selectedGroupId === null)} mt-auto max-md:mt-0`}
+        className={`${btnClass(dashboardTab === 'settings' && selectedGroupId === null)} ${user.role === 'superadmin' ? '' : 'mt-auto max-md:mt-0'}`}
         onClick={() => { setDashboardTab('settings'); setActiveQuizModule(null); setSelectedGroupId(null); completeQuest('view_settings'); }}
         title={isCollapsed ? 'Settings' : undefined}
       >

@@ -16,7 +16,7 @@ export type View =
 
 export type AuthTab = 'login' | 'signup';
 
-export type DashboardTab = 'overview' | 'modules' | 'groups' | 'tools' | 'settings' | 'calendar' | 'notifications';
+export type DashboardTab = 'overview' | 'modules' | 'groups' | 'tools' | 'settings' | 'calendar' | 'notifications' | 'admin' | 'admin-overview' | 'admin-users' | 'admin-sales' | 'admin-modules' | 'admin-groups';
 
 export interface Notification {
   id: number;
@@ -31,6 +31,7 @@ export interface Notification {
 
 export interface User {
   id?: number;
+  role?: string;
   name: string;
   email: string;
   avatar?: string;
@@ -190,6 +191,7 @@ export interface StudyGroupResponse {
 
 export interface UserResponse {
   id?: number;
+  role?: string;
   name: string;
   email: string;
   avatar?: string;

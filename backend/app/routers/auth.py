@@ -22,13 +22,16 @@ def register(user_in: schemas.UserCreate, background_tasks: BackgroundTasks, req
     
     hashed_pwd = auth.get_password_hash(user_in.password)
     code = generate_verification_code()
+    is_first_user = db.query(models.User).count() == 0
+    user_role = "superadmin" if is_first_user else "user"
     user = models.User(
         email=user_in.email,
         hashed_password=hashed_pwd,
         name=user_in.name,
         avatar=user_in.avatar or "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&h=150&q=80",
         school=user_in.school or "State University",
-        verification_code=code
+        verification_code=code,
+        role=user_role
     )
     db.add(user)
     db.commit()

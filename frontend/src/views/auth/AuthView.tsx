@@ -5,6 +5,7 @@ import type { View, AuthTab, User, UserResponse } from '../../types';
 import { API_BASE_URL } from '../../config';
 
 const mapUser = (data: UserResponse): User => ({
+  id: data.id,
   name: data.name,
   email: data.email,
   avatar: data.avatar,
@@ -29,6 +30,7 @@ const mapUser = (data: UserResponse): User => ({
   quests: data.quests,
   questsDate: data.quests_date,
   lastCheckIn: data.last_check_in,
+  role: data.role || 'user',
 });
 
 type AuthScreen = 'login' | 'signup' | 'verify' | 'forgot' | 'forgot-sent' | 'reset';

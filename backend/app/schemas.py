@@ -37,6 +37,7 @@ class UserUpdate(BaseModel):
     quests_date: Optional[str] = None
     last_check_in: Optional[str] = None
     folders: Optional[List[str]] = None
+    role: Optional[str] = None
 
 class UserOut(UserBase):
     id: int
@@ -61,6 +62,7 @@ class UserOut(UserBase):
     quests_date: Optional[str] = None
     last_check_in: Optional[str] = None
     folders: Optional[List[str]] = None
+    role: Optional[str] = "user"
 
     class Config:
         from_attributes = True
@@ -78,6 +80,9 @@ class RegisterResponse(Token):
 class TokenData(BaseModel):
     user_id: Optional[int] = None
     email: Optional[str] = None
+
+class RoleUpdate(BaseModel):
+    role: str
 
 
 # --- QUIZ QUESTION SCHEMAS ---

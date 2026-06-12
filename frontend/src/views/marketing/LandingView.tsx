@@ -8,9 +8,17 @@ interface LandingViewProps {
   user: User | null;
   setView: (view: View) => void;
   setAuthTab: (tab: AuthTab) => void;
+  isPwaInstallable?: boolean;
+  onPwaInstall?: () => void;
 }
 
-export const LandingView: React.FC<LandingViewProps> = ({ user, setView, setAuthTab }) => {
+export const LandingView: React.FC<LandingViewProps> = ({ 
+  user, 
+  setView, 
+  setAuthTab,
+  isPwaInstallable = false,
+  onPwaInstall = () => {},
+}) => {
   const [landingFaqOpen, setLandingFaqOpen] = useState<number | null>(null);
 
   const studyTools = [
@@ -79,6 +87,17 @@ export const LandingView: React.FC<LandingViewProps> = ({ user, setView, setAuth
             >
               How it Works
             </motion.button>
+            {isPwaInstallable && (
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={onPwaInstall}
+                className="inline-flex items-center justify-center gap-2 text-sm font-bold transition-all duration-150 no-underline cursor-pointer bg-primary/10 text-primary border border-primary/20 rounded-md px-4 py-2 max-md:py-3 hover:bg-primary/20 hover:border-primary/30"
+              >
+                <Sparkles size={16} className="animate-pulse" />
+                <span>Install Mobile App</span>
+              </motion.button>
+            )}
           </div>
         </motion.div>
 

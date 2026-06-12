@@ -53,6 +53,7 @@ const mapUser = (data: UserResponse): User => ({
   questsDate: data.quests_date,
   lastCheckIn: data.last_check_in,
   folders: data.folders,
+  role: data.role || 'user',
 });
 
 const mapModule = (m: ModuleResponse): Module => ({
@@ -178,6 +179,56 @@ function App() {
 
   // Notifications
   const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  // PWA Install State
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showPwaBanner, setShowPwaBanner] = useState(() => {
+    return localStorage.getItem('dismissed-pwa-banner') !== 'true';
+  });
+  const [isIos, setIsIos] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [isIosInstructionOpen, setIsIosInstructionOpen] = useState(false);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    const userAgent = window.navigator.userAgent.toLowerCase();
+    const ios = /iphone|ipad|ipod/.test(userAgent);
+    setIsIos(ios);
+
+    const standalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
+    setIsStandalone(standalone);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handlePwaInstall = async () => {
+    if (isIos) {
+      setIsIosInstructionOpen(true);
+      return;
+    }
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      console.log('User accepted the PWA install prompt');
+    }
+    setDeferredPrompt(null);
+  };
+
+  const handleDismissPwaBanner = () => {
+    setShowPwaBanner(false);
+    localStorage.setItem('dismissed-pwa-banner', 'true');
+  };
+
+  const isPwaInstallable = !isStandalone && (!!deferredPrompt || isIos);
 
   const fetchNotifications = () => {
     const token = localStorage.getItem('token');
@@ -381,6 +432,7 @@ function App() {
       window.history.replaceState({}, document.title, window.location.pathname);
     }
 
+
     const token = localStorage.getItem('token');
     if (token) {
       fetch(`${API_BASE_URL}/api/auth/me`, {
@@ -391,9 +443,14 @@ function App() {
         return res.json();
       })
       .then(userData => {
-        setUser(mapUser(userData));
+        const mappedUser = mapUser(userData);
+        setUser(mappedUser);
         setView('dashboard');
-        
+        // Superadmins go to the admin overview by default
+        if (mappedUser.role === 'superadmin') {
+          setDashboardTab('admin-overview');
+        }
+
         // Fetch modules
         fetch(`${API_BASE_URL}/api/modules`, {
           headers: { 'Authorization': `Bearer ${token}` }
@@ -445,6 +502,10 @@ function App() {
     localStorage.setItem('token', token);
     setUser(userData);
     setView('dashboard');
+    // Superadmins go to the admin overview by default
+    if (userData.role === 'superadmin') {
+      setDashboardTab('admin-overview');
+    }
     
     // Fetch modules
     fetch(`${API_BASE_URL}/api/modules`, {
@@ -823,6 +884,10 @@ function App() {
             onAcceptInvitation={handleAcceptInvitation}
             onDeclineInvitation={handleDeclineInvitation}
             onToggleAiSidebar={() => setIsAiSidebarOpen(!isAiSidebarOpen)}
+            isPwaInstallable={isPwaInstallable}
+            onPwaInstall={handlePwaInstall}
+            showPwaBanner={showPwaBanner}
+            onDismissPwaBanner={handleDismissPwaBanner}
           />
         )}
 
@@ -842,6 +907,8 @@ function App() {
               user={user}
               setView={setView}
               setAuthTab={setAuthTab}
+              isPwaInstallable={isPwaInstallable}
+              onPwaInstall={handlePwaInstall}
             />
           )}
 
@@ -1191,6 +1258,53 @@ function App() {
                   <button type="submit" className="inline-flex items-center justify-center gap-2 py-2.5 px-5 rounded-md font-semibold text-sm transition-all duration-200 no-underline cursor-pointer bg-primary text-ink-on-primary border border-primary hover:bg-primary-hover hover:border-primary-hover hover:shadow-glow-primary-btn">Create Group</button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* iOS PWA Instruction Modal */}
+        {isIosInstructionOpen && (
+          <div className="fixed inset-0 bg-[rgba(5,5,5,0.7)] backdrop-blur-sm z-3000 flex items-center justify-center p-4">
+            <div className="bg-card border border-line rounded-2xl p-6 max-w-100 w-full shadow-lg relative text-ink">
+              <button 
+                onClick={() => setIsIosInstructionOpen(false)}
+                className="absolute top-4 right-4 hover:bg-[rgba(255,255,255,0.05)] p-1 rounded transition text-ink-muted hover:text-ink cursor-pointer border-0 bg-transparent flex items-center justify-center"
+                aria-label="Close instructions modal"
+              >
+                <X size={18} />
+              </button>
+              
+              <div className="flex flex-col items-center text-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                  <Sparkles size={24} />
+                </div>
+                <h3 className="text-xl font-bold">Install Lumio on iOS</h3>
+                <p className="text-sm text-ink-muted leading-relaxed">
+                  Get a native-like experience by adding Lumio to your home screen. It takes less than 10 seconds:
+                </p>
+              </div>
+
+              <div className="my-6 bg-input rounded-xl border border-line p-4 flex flex-col gap-4 text-sm">
+                <div className="flex gap-3 items-start">
+                  <span className="w-6 h-6 rounded-full bg-line flex items-center justify-center text-xs font-bold shrink-0">1</span>
+                  <span>Tap the <strong>Share</strong> button at the bottom of Safari (the box with an up-arrow).</span>
+                </div>
+                <div className="flex gap-3 items-start">
+                  <span className="w-6 h-6 rounded-full bg-line flex items-center justify-center text-xs font-bold shrink-0">2</span>
+                  <span>Scroll down the menu and select <strong>Add to Home Screen</strong>.</span>
+                </div>
+                <div className="flex gap-3 items-start">
+                  <span className="w-6 h-6 rounded-full bg-line flex items-center justify-center text-xs font-bold shrink-0">3</span>
+                  <span>Tap <strong>Add</strong> in the top-right corner.</span>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setIsIosInstructionOpen(false)}
+                className="w-full py-2.5 bg-primary text-ink-on-primary rounded-xl font-bold hover:bg-primary-hover hover:shadow-glow-primary-btn transition cursor-pointer border-0"
+              >
+                Got it
+              </button>
             </div>
           </div>
         )}

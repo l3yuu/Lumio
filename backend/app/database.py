@@ -57,6 +57,8 @@ def ensure_runtime_schema():
         user_columns = {column["name"] for column in inspector.get_columns("users")}
         if "folders" not in user_columns:
             statements.append("ALTER TABLE users ADD COLUMN folders JSON")
+        if "role" not in user_columns:
+            statements.append("ALTER TABLE users ADD COLUMN role VARCHAR(50) DEFAULT 'user'")
 
     if not statements:
         return

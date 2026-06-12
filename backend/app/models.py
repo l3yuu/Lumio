@@ -39,6 +39,7 @@ class User(Base):
     level = Column(Integer, default=1)
     xp = Column(Integer, default=0)
     is_verified = Column(Boolean, default=False)
+    role = Column(String(50), default="user", nullable=False)
     verification_code = Column(String(6), nullable=True)
     reset_code = Column(String(6), nullable=True)
     streak = Column(Integer, default=0)

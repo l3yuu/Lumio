@@ -14,6 +14,7 @@ import { SettingsPanel } from './SettingsPanel';
 import { QuizPanel } from './QuizPanel';
 import { CalendarPanel } from './CalendarPanel';
 import { NotificationsPanel } from './NotificationsPanel';
+import { AdminPanel } from './AdminPanel';
 import { FlashcardsTool } from '../tools/FlashcardsTool';
 import { EssayGraderTool } from '../tools/EssayGraderTool';
 import { CondenserTool } from '../tools/CondenserTool';
@@ -1622,6 +1623,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     setNotifSounds={setNotifSounds}
                     setNotifEmails={setNotifEmails}
                   />
+                )}
+
+                {dashboardTab.startsWith('admin') && selectedGroupId === null && user.role === 'superadmin' && (
+                  <AdminPanel user={user} currentTab={dashboardTab} setDashboardTab={handleSetDashboardTab} />
                 )}
               </motion.div>
             </AnimatePresence>

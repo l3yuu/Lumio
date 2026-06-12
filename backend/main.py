@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine, Base, ensure_runtime_schema
-from app.routers import auth, modules, exams, groups, notifications, tutor
+from app.routers import auth, modules, exams, groups, notifications, tutor, admin
 
 # Create database tables automatically
 Base.metadata.create_all(bind=engine)
@@ -39,6 +39,7 @@ app.include_router(exams.router)
 app.include_router(groups.router)
 app.include_router(notifications.router)
 app.include_router(tutor.router)
+app.include_router(admin.router)
 
 import asyncio
 from app.scheduler import exam_reminder_scheduler
