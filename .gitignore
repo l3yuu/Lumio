@@ -28,3 +28,4 @@ Thumbs.db
 
 # Node (frontend handles its own, but catch any at root)
 node_modules/
+.aider*

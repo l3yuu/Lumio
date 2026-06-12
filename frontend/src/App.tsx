@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Sparkles, HelpCircle, Layers, UploadCloud, Timer, FileText, X, Loader2
 } from 'lucide-react'
@@ -181,28 +181,28 @@ function App() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
   // PWA Install State
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  interface BeforeInstallPromptEvent extends Event {
+    prompt: () => Promise<void>;
+    userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+  }
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showPwaBanner, setShowPwaBanner] = useState(() => {
     return localStorage.getItem('dismissed-pwa-banner') !== 'true';
   });
-  const [isIos, setIsIos] = useState(false);
-  const [isStandalone, setIsStandalone] = useState(false);
+  const isIos = useMemo(() => /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase()), []);
+  const isStandalone = useMemo(
+    () => window.matchMedia('(display-mode: standalone)').matches || 'standalone' in window.navigator,
+    []
+  );
   const [isIosInstructionOpen, setIsIosInstructionOpen] = useState(false);
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
-      setDeferredPrompt(e);
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-    const userAgent = window.navigator.userAgent.toLowerCase();
-    const ios = /iphone|ipad|ipod/.test(userAgent);
-    setIsIos(ios);
-
-    const standalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
-    setIsStandalone(standalone);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);

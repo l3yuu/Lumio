@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Shield, Users, Layers, Activity, Search, Loader2, CheckCircle2, XCircle, Trash2 } from 'lucide-react';
 import { API_BASE_URL } from '../../config';
 import type { User, DashboardTab } from '../../types';
@@ -71,7 +71,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
   const [error, setError] = useState<string | null>(null);
   const [submittingId, setSubmittingId] = useState<number | null>(null);
 
-  const fetchAdminData = async () => {
+  const fetchAdminData = useCallback(async () => {
     setLoading(true);
     setError(null);
     const token = localStorage.getItem('token');
@@ -123,19 +123,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
         setGroups(groupsJson);
       }
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err.message || 'An unexpected error occurred.');
+      setError(err instanceof Error ? err.message : 'An unexpected error occurred.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentTab]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchAdminData();
-    // Reset search query when tab changes
     setSearchQuery('');
-  }, [currentTab]);
+  }, [currentTab, fetchAdminData]);
 
   const handleUpdateRole = async (userId: number, currentRole: string) => {
     const nextRole = currentRole === 'superadmin' ? 'user' : 'superadmin';
@@ -168,8 +168,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
 
       const updatedUser = await res.json();
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: updatedUser.role } : u));
-    } catch (err: any) {
-      alert(err.message || 'Error updating role.');
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Error updating role.');
     } finally {
       setSubmittingId(null);
     }
@@ -200,8 +200,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
       }
 
       setUsers(prev => prev.filter(u => u.id !== userId));
-    } catch (err: any) {
-      alert(err.message || 'Error deleting user.');
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Error deleting user.');
     } finally {
       setSubmittingId(null);
     }
@@ -227,8 +227,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
       }
 
       setModules(prev => prev.filter(m => m.id !== moduleId));
-    } catch (err: any) {
-      alert(err.message || 'Error deleting module.');
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Error deleting module.');
     } finally {
       setSubmittingId(null);
     }
@@ -254,8 +254,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
       }
 
       setGroups(prev => prev.filter(g => g.id !== groupId));
-    } catch (err: any) {
-      alert(err.message || 'Error deleting group.');
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Error deleting group.');
     } finally {
       setSubmittingId(null);
     }
