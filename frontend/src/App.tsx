@@ -434,8 +434,10 @@ function App() {
       });
     } else if (joinGroupId) {
       // Redirect unauthenticated user to the auth page
-      setView('auth');
-      setAuthTab('login');
+      setTimeout(() => {
+        setView('auth');
+        setAuthTab('login');
+      }, 0);
     }
   }, []);
 

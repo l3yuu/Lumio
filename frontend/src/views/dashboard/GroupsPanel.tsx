@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, ChevronRight, X, Users, Mail, Check, Settings, Bell, MessageSquare, Send, Sparkles, Copy, MoreVertical, Trash2, Crown } from 'lucide-react';
-import type { User, Module, StudyGroup, GroupInvitation, StudyGroupResponse, ModuleResponse, QuizQuestionResponse, GroupQuizSessionResponse, GroupQuizRankResponse } from '../../types';
+import type { User, Module, StudyGroup, GroupInvitation, StudyGroupResponse, ModuleResponse, QuizQuestionResponse, GroupQuizSessionResponse, GroupQuizRankResponse, GroupMember } from '../../types';
 import { API_BASE_URL, WS_BASE_URL } from '../../config';
 
 interface GroupsPanelProps {
@@ -62,9 +62,11 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
   const [selectedPostIdForTime, setSelectedPostIdForTime] = useState<number | null>(null);
 
   useEffect(() => {
-    setActiveTab('study');
-    setDiscussionPosts([]);
-    setSelectedPostIdForTime(null);
+    setTimeout(() => {
+      setActiveTab('study');
+      setDiscussionPosts([]);
+      setSelectedPostIdForTime(null);
+    }, 0);
   }, [selectedGroupId]);
 
   useEffect(() => {
@@ -89,7 +91,9 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
       const token = localStorage.getItem('token');
       if (!token) return;
 
-      setIsLoadingPosts(true);
+      setTimeout(() => {
+        setIsLoadingPosts(true);
+      }, 0);
       fetch(`${API_BASE_URL}/api/groups/${selectedGroupId}/discussion`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -194,7 +198,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
         socketRef.current = null;
       }
     };
-  }, [selectedGroupId]);
+  }, [selectedGroupId, setGroups, setSelectedGroupId, user.id]);
 
   const handlePostMessage = (e: React.FormEvent) => {
     e.preventDefault();
@@ -380,33 +384,33 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
         id: updatedGroup.id,
         name: updatedGroup.name,
         creator_id: updatedGroup.creator_id,
-        members: (updatedGroup.members || []).map((m: any) => ({
+        members: (updatedGroup.members || []).map((m: GroupMember) => ({
           id: m.id,
           name: m.name,
           email: m.email,
           avatar: m.avatar,
           online: m.online,
         })),
-        modules: updatedGroup.modules ? updatedGroup.modules.map((m: any) => ({
+        modules: updatedGroup.modules ? updatedGroup.modules.map((m: ModuleResponse) => ({
           id: m.id,
           name: m.name,
           date: m.date,
           size: m.size,
           subject: m.subject || 'General',
           questionsCount: m.questionsCount !== undefined ? m.questionsCount : (m.questions ? m.questions.length : 0),
-          questions: m.questions ? m.questions.map((q: any) => ({
+          questions: m.questions ? m.questions.map((q: QuizQuestionResponse) => ({
             id: q.id,
             question: q.question,
             options: q.options,
             correctAnswerIndex: q.correct_answer_index
           })) : []
         })) : [],
-        quizSessions: updatedGroup.quiz_sessions ? updatedGroup.quiz_sessions.map((s: any) => ({
+        quizSessions: updatedGroup.quiz_sessions ? updatedGroup.quiz_sessions.map((s: GroupQuizSessionResponse) => ({
           id: s.id,
           moduleName: s.module_name,
           date: s.date,
           avgScore: s.avg_score,
-          rankings: s.rankings ? s.rankings.map((r: any) => ({
+          rankings: s.rankings ? s.rankings.map((r: GroupQuizRankResponse) => ({
             name: r.name,
             score: r.score,
             percentage: r.percentage,
@@ -444,33 +448,33 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
         id: updatedGroup.id,
         name: updatedGroup.name,
         creator_id: updatedGroup.creator_id,
-        members: (updatedGroup.members || []).map((m: any) => ({
+        members: (updatedGroup.members || []).map((m: GroupMember) => ({
           id: m.id,
           name: m.name,
           email: m.email,
           avatar: m.avatar,
           online: m.online,
         })),
-        modules: updatedGroup.modules ? updatedGroup.modules.map((m: any) => ({
+        modules: updatedGroup.modules ? updatedGroup.modules.map((m: ModuleResponse) => ({
           id: m.id,
           name: m.name,
           date: m.date,
           size: m.size,
           subject: m.subject || 'General',
           questionsCount: m.questionsCount !== undefined ? m.questionsCount : (m.questions ? m.questions.length : 0),
-          questions: m.questions ? m.questions.map((q: any) => ({
+          questions: m.questions ? m.questions.map((q: QuizQuestionResponse) => ({
             id: q.id,
             question: q.question,
             options: q.options,
             correctAnswerIndex: q.correct_answer_index
           })) : []
         })) : [],
-        quizSessions: updatedGroup.quiz_sessions ? updatedGroup.quiz_sessions.map((s: any) => ({
+        quizSessions: updatedGroup.quiz_sessions ? updatedGroup.quiz_sessions.map((s: GroupQuizSessionResponse) => ({
           id: s.id,
           moduleName: s.module_name,
           date: s.date,
           avgScore: s.avg_score,
-          rankings: s.rankings ? s.rankings.map((r: any) => ({
+          rankings: s.rankings ? s.rankings.map((r: GroupQuizRankResponse) => ({
             name: r.name,
             score: r.score,
             percentage: r.percentage,
