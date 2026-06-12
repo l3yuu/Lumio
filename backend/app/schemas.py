@@ -137,6 +137,10 @@ class FolderRename(BaseModel):
 
 
 # --- EXAM SCHEMAS ---
+class ExamTopic(BaseModel):
+    text: str
+    completed: bool
+
 class ExamBase(BaseModel):
     title: str
     subject: str
@@ -144,6 +148,7 @@ class ExamBase(BaseModel):
     raw_date: Optional[str] = None
     priority: str  # high, medium, low
     completed: Optional[bool] = False
+    topics: Optional[List[ExamTopic]] = None
 
 class ExamCreate(ExamBase):
     pass

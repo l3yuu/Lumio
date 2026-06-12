@@ -112,17 +112,17 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35 }}
-        className={`border rounded-xl px-7 py-6 mb-2 ${style.banner}`}
+        className={`border rounded-xl px-4 py-4 sm:px-7 sm:py-6 mb-2 ${style.banner}`}
       >
-        <div className="flex items-start gap-4">
-          <div className={`p-2.5 rounded-xl shrink-0 mt-0.5 ${style.icon}`}>
-            <Sparkles size={20} />
+        <div className="flex items-start gap-3 sm:gap-4">
+          <div className={`p-2 sm:p-2.5 rounded-xl shrink-0 mt-0.5 ${style.icon}`}>
+            <Sparkles size={18} className="sm:w-5 sm:h-5" />
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="text-[1.75rem] font-bold mb-1.5 leading-tight">
+            <h2 className="text-xl sm:text-[1.75rem] font-bold mb-1.5 leading-tight">
               {companion.greeting}, {user.name}!
             </h2>
-            <p className="text-ink-muted text-[0.9rem] leading-relaxed m-0">
+            <p className="text-ink-muted text-xs sm:text-[0.9rem] leading-relaxed m-0">
               {companion.message}
             </p>
             {companion.actionLabel && companion.actionTab && (
@@ -140,33 +140,33 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
 
       <div className="grid grid-cols-[1.2fr_1fr] gap-6 mb-0 max-md:grid-cols-1">
         <div className="flex flex-col gap-6">
-          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
             <div 
               onClick={() => setIsCheckInOpen(true)}
-              className="bg-card border border-line rounded-xl flex flex-col gap-1 p-4 cursor-pointer hover:scale-[1.02] hover:border-primary transition-all duration-200 select-none"
+              className="bg-card border border-line rounded-xl flex flex-col gap-1 p-3 sm:p-4 cursor-pointer hover:scale-[1.02] hover:border-primary transition-all duration-200 select-none"
               title="Click to claim your daily check-in"
             >
-              <div className="bg-primary-soft text-primary p-2 rounded-lg w-fit mb-1"><Flame size={16} /></div>
-              <div className="text-2xl font-bold tracking-tight">{user.streak !== undefined ? user.streak : 5}</div>
-              <div className="text-[0.7rem] text-ink-muted font-medium uppercase tracking-wider">Day Streak</div>
+              <div className="bg-primary-soft text-primary p-1.5 sm:p-2 rounded-lg w-fit mb-0.5 sm:mb-1"><Flame size={14} className="sm:w-4 sm:h-4" /></div>
+              <div className="text-xl sm:text-2xl font-bold tracking-tight">{user.streak !== undefined ? user.streak : 5}</div>
+              <div className="text-[0.6rem] sm:text-[0.7rem] text-ink-muted font-medium uppercase tracking-wider truncate"><span className="hidden sm:inline">Day </span>Streak</div>
             </div>
             <div 
               onClick={() => setDashboardTab('groups')}
-              className="bg-card border border-line rounded-xl flex flex-col gap-1 p-4 cursor-pointer hover:scale-[1.02] hover:border-primary transition-all duration-200 select-none"
+              className="bg-card border border-line rounded-xl flex flex-col gap-1 p-3 sm:p-4 cursor-pointer hover:scale-[1.02] hover:border-primary transition-all duration-200 select-none"
               title="Click to view Collaborative Circles"
             >
-              <div className="bg-cyan-soft-2 text-accent-cyan p-2 rounded-lg w-fit mb-1"><Users size={16} /></div>
-              <div className="text-2xl font-bold tracking-tight">{groupsCount}</div>
-              <div className="text-[0.7rem] text-ink-muted font-medium uppercase tracking-wider">Circles</div>
+              <div className="bg-cyan-soft-2 text-accent-cyan p-1.5 sm:p-2 rounded-lg w-fit mb-0.5 sm:mb-1"><Users size={14} className="sm:w-4 sm:h-4" /></div>
+              <div className="text-xl sm:text-2xl font-bold tracking-tight">{groupsCount}</div>
+              <div className="text-[0.6rem] sm:text-[0.7rem] text-ink-muted font-medium uppercase tracking-wider truncate">Circles</div>
             </div>
             <div 
               onClick={() => setDashboardTab('modules')}
-              className="bg-card border border-line rounded-xl flex flex-col gap-1 p-4 cursor-pointer hover:scale-[1.02] hover:border-primary transition-all duration-200 select-none"
+              className="bg-card border border-line rounded-xl flex flex-col gap-1 p-3 sm:p-4 cursor-pointer hover:scale-[1.02] hover:border-primary transition-all duration-200 select-none"
               title="Click to view My Study Modules"
             >
-              <div className="bg-success/10 text-primary p-2 rounded-lg w-fit mb-1"><Trophy size={16} /></div>
-              <div className="text-2xl font-bold tracking-tight">{user.quizzesCount !== undefined ? user.quizzesCount : 12}</div>
-              <div className="text-[0.7rem] text-ink-muted font-medium uppercase tracking-wider">Quizzes</div>
+              <div className="bg-success/10 text-primary p-1.5 sm:p-2 rounded-lg w-fit mb-0.5 sm:mb-1"><Trophy size={14} className="sm:w-4 sm:h-4" /></div>
+              <div className="text-xl sm:text-2xl font-bold tracking-tight">{user.quizzesCount !== undefined ? user.quizzesCount : 12}</div>
+              <div className="text-[0.6rem] sm:text-[0.7rem] text-ink-muted font-medium uppercase tracking-wider truncate">Quizzes</div>
             </div>
           </div>
 
@@ -175,9 +175,9 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
               <Calendar size={16} className="text-primary" /> Activity Intensity
             </h3>
             <p className="text-[0.75rem] text-ink-muted mb-4">Study hours over the last two weeks.</p>
-            <div className="flex items-center gap-1.5 flex-wrap">
+            <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto pb-1.5 flex-nowrap scrollbar-thin">
               {heatmapData.map((data, index) => (
-                <div key={index} className="flex flex-col items-center flex-1 min-w-8">
+                <div key={index} className="flex flex-col items-center flex-1 min-w-10 shrink-0">
                   <div 
                     style={{ width: '100%', height: '36px', borderRadius: '6px', background: getActivityColor(data.level), border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', color: data.level > 2 ? '#121212' : 'var(--text-primary)', fontWeight: 'bold' }} 
                     title={`${data.hours} study hours on ${data.label}.`}
@@ -204,19 +204,19 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
               {isAddingExam && (
                 <motion.form initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} onSubmit={handleAddExam} className="bg-app border border-line rounded-lg p-4 mb-5 flex flex-col gap-3 overflow-hidden">
                   <div className="text-[0.9rem] font-bold border-b border-line pb-1">Add New Exam Countdown</div>
-                  <div className="flex gap-3">
+                  <div className="flex flex-col sm:flex-row gap-3">
                     <div className="flex-1">
                       <label className="text-[0.75rem] font-semibold text-ink mb-1">Exam Name</label>
                       <input type="text" placeholder="e.g. Biology Final" className="w-full bg-input border border-line rounded-md text-ink text-sm transition-all duration-150 outline-none focus:border-primary focus:bg-app m-0 text-[0.8rem] py-1.5 px-2 h-8" value={newExamTitle} onChange={(e) => setNewExamTitle(e.target.value)} required />
                     </div>
-                    <div className="w-30">
+                    <div className="w-full sm:w-30 shrink-0">
                       <label className="text-[0.75rem] font-semibold text-ink mb-1">Subject Folder</label>
                       <select className="w-full bg-input border border-line rounded-md text-ink text-sm transition-all duration-150 outline-none focus:border-primary focus:bg-app m-0 text-[0.8rem] py-1.5 px-2 h-8" value={newExamSubject} onChange={(e) => setNewExamSubject(e.target.value)}>
                         {subjects.map(subj => (<option key={subj} value={subj === 'All' ? 'General' : subj}>{subj === 'All' ? 'General' : subj}</option>))}
                       </select>
                     </div>
                   </div>
-                  <div className="flex gap-3 items-end">
+                  <div className="flex flex-col sm:flex-row gap-3">
                     <div className="flex-1">
                       <label className="text-[0.75rem] font-semibold text-ink mb-1">Exam Date</label>
                       <input type="date" className="w-full bg-input border border-line rounded-md text-ink text-sm transition-all duration-150 outline-none focus:border-primary focus:bg-app m-0 text-[0.8rem] py-1.5 px-2 h-8" value={newExamDate} onChange={(e) => setNewExamDate(e.target.value)} required />
@@ -244,12 +244,12 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
                 <div className="text-center p-4 text-ink-muted text-[0.85rem]">No upcoming exams. Click "Add Exam" to schedule one!</div>
               ) : (
                 exams.map((exam) => (
-                  <div className="flex items-start gap-4 relative z-2" key={exam.id}>
-                    <div className={`w-3.5 h-3.5 rounded-full bg-line border-[3px] border-card mt-1.25 shrink-0 z-3 transition-all duration-200 ${exam.priority === 'high' ? 'bg-danger' : exam.priority === 'medium' ? 'bg-warning' : 'bg-accent-cyan'}`}></div>
-                    <div className="flex grow items-center justify-between bg-app border border-line rounded-lg p-3 px-4 transition-all duration-200 hover:translate-x-1 hover:border-primary">
-                      <div className="flex flex-col gap-1">
-                        <span className="text-[0.9rem] font-bold text-ink">{exam.title}</span>
-                        <div className="text-[0.75rem] text-ink-muted flex items-center gap-2">
+                  <div className="flex items-start gap-2.5 sm:gap-4 relative z-2" key={exam.id}>
+                    <div className={`w-3.5 h-3.5 rounded-full bg-line border-[3px] border-card mt-3 shrink-0 z-3 transition-all duration-200 ${exam.priority === 'high' ? 'bg-danger' : exam.priority === 'medium' ? 'bg-warning' : 'bg-accent-cyan'}`}></div>
+                    <div className="flex items-center justify-between gap-3 bg-app border border-line rounded-lg p-3 px-3 sm:px-4 transition-all duration-200 hover:translate-x-1 hover:border-primary grow min-w-0">
+                      <div className="flex flex-col gap-1 min-w-0 flex-1">
+                        <span className="text-[0.88rem] font-bold text-ink truncate" title={exam.title}>{exam.title}</span>
+                        <div className="text-[0.72rem] text-ink-muted flex flex-wrap items-center gap-x-2 gap-y-0.5">
                           <span>{exam.date}</span>
                           <span className="opacity-50">•</span>
                           <span onClick={() => { setDashboardTab('modules'); setSelectedSubject(exam.subject === 'General' ? 'All' : exam.subject); }} className="timeline-subject-tag text-primary font-semibold cursor-pointer inline-flex items-center gap-0.5 p-0.5 px-1.5 rounded bg-primary-tint-5 transition-all duration-200 hover:bg-primary-soft-2 hover:text-primary-hover" title={`Click to review ${exam.subject} modules`}>
@@ -257,10 +257,10 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
                           </span>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 shrink-0">
                         {finishingExamId !== exam.id && (
-                          <span className={`text-[0.75rem] font-bold rounded px-2 py-0.5 whitespace-nowrap ${exam.priority === 'high' ? 'bg-danger-soft text-danger border border-danger-line' : exam.priority === 'medium' ? 'bg-warning-soft text-warning border border-warning-line' : 'bg-cyan-soft-2 text-accent-cyan border border-cyan-line'}`}>
-                            {exam.daysRemaining === 0 ? 'Today!' : `${exam.daysRemaining} days left`}
+                          <span className={`text-[0.7rem] font-bold rounded px-2 py-0.5 whitespace-nowrap ${exam.priority === 'high' ? 'bg-danger-soft text-danger border border-danger-line' : exam.priority === 'medium' ? 'bg-warning-soft text-warning border border-warning-line' : 'bg-cyan-soft-2 text-accent-cyan border border-cyan-line'}`}>
+                            {exam.daysRemaining === 0 ? 'Today!' : `${exam.daysRemaining}d left`}
                           </span>
                         )}
                         {finishingExamId !== exam.id && (
@@ -332,9 +332,9 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
                     <line x1="35" y1="15" x2="380" y2="15" stroke="var(--border)" strokeWidth="1" strokeDasharray="4 4" />
                     <line x1="35" y1="75" x2="380" y2="75" stroke="var(--border)" strokeWidth="1" strokeDasharray="4 4" />
                     <line x1="35" y1="135" x2="380" y2="135" stroke="var(--border)" strokeWidth="1" />
-                    <text x="25" y="19" fill="var(--text-secondary)" fontSize="10" textAnchor="end">100%</text>
-                    <text x="25" y="79" fill="var(--text-secondary)" fontSize="10" textAnchor="end">50%</text>
-                    <text x="25" y="139" fill="var(--text-secondary)" fontSize="10" textAnchor="end">0%</text>
+                    <text x="25" y="19" fill="var(--text-secondary)" className="text-[9px] sm:text-[10px]" textAnchor="end">100%</text>
+                    <text x="25" y="79" fill="var(--text-secondary)" className="text-[9px] sm:text-[10px]" textAnchor="end">50%</text>
+                    <text x="25" y="139" fill="var(--text-secondary)" className="text-[9px] sm:text-[10px]" textAnchor="end">0%</text>
                     {quizHistory.length >= 2 && pathData ? (
                       <>
                         {pathData.areaPath && <path d={pathData.areaPath} fill="url(#chartGlow)" />}
@@ -346,14 +346,14 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
                             <circle cx={p.x} cy={p.y} r="4" fill="#181818" stroke="var(--primary)" strokeWidth="2.5" />
                             <g className="chart-tooltip">
                               <rect x={p.x - 25} y={p.y - 28} width="50" height="20" rx="4" fill="var(--bg-card)" stroke="var(--border)" strokeWidth="1" />
-                              <text x={p.x} y={p.y - 15} fill="var(--text-primary)" fontSize="10" fontWeight="bold" textAnchor="middle">{quizHistory[i]}%</text>
+                              <text x={p.x} y={p.y - 15} fill="var(--text-primary)" className="text-[9px] sm:text-[10px]" fontWeight="bold" textAnchor="middle">{quizHistory[i]}%</text>
                             </g>
-                            <text x={p.x} y="152" fill="var(--text-secondary)" fontSize="9" textAnchor="middle">Q{i + 1}</text>
+                            <text x={p.x} y="152" fill="var(--text-secondary)" className="text-[8px] sm:text-[9px]" textAnchor="middle">Q{i + 1}</text>
                           </g>
                         ))}
                       </>
                     ) : (
-                      <text x="200" y="80" fill="var(--text-secondary)" fontSize="12" textAnchor="middle">Complete quizzes to generate performance graphs.</text>
+                      <text x="200" y="80" fill="var(--text-secondary)" className="text-[10px] sm:text-xs" textAnchor="middle">Complete quizzes to generate performance graphs.</text>
                     )}
                   </svg>
                 </div>
@@ -397,15 +397,15 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
                   </div>
                 ) : (
                   user.focusAreas.map((rec, i) => (
-                    <div key={i} className="flex items-center justify-between gap-4 p-2.5 px-3 bg-amber-bg border border-amber-border rounded-lg transition-all duration-200 hover:bg-amber-border hover:border-amber-border-strong hover:-translate-y-px">
-                      <div className="grow">
-                        <div className="flex items-center gap-1.5 mb-0.5">
+                    <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-2.5 px-3 bg-amber-bg border border-amber-border rounded-lg transition-all duration-200 hover:bg-amber-border hover:border-amber-border-strong hover:-translate-y-px">
+                      <div className="grow min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5 mb-1">
                           <span className="text-[0.8rem] font-bold text-ink">{rec.concept}</span>
                           <span className="text-[0.65rem] font-semibold bg-warning-soft text-warning py-0.5 px-1.5 rounded border border-warning-line">{rec.score}% accuracy</span>
                         </div>
-                        <p className="text-[0.75rem] text-ink-muted m-0">{rec.desc}</p>
+                        <p className="text-[0.75rem] text-ink-muted m-0 leading-relaxed">{rec.desc}</p>
                       </div>
-                      <button onClick={() => { setDashboardTab('modules'); setSelectedSubject(rec.subject); }} className="btn btn-outline px-2 py-1 text-[0.7rem] h-6 shrink-0" type="button">Review</button>
+                      <button onClick={() => { setDashboardTab('modules'); setSelectedSubject(rec.subject); }} className="btn btn-outline px-2 py-1 text-[0.7rem] h-6 shrink-0 self-end sm:self-center" type="button">Review</button>
                     </div>
                   ))
                 )}
@@ -462,12 +462,12 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
                  </div>
                ) : (
                  spacedRepetitionList.map((item) => (
-                   <div key={item.id} className="flex items-center justify-between p-3 bg-app border border-line rounded-lg">
-                     <div className="flex flex-col gap-0.5">
-                       <span className="text-[0.85rem] font-semibold text-ink">{item.name}</span>
+                   <div key={item.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-app border border-line rounded-lg">
+                     <div className="flex flex-col gap-0.5 min-w-0">
+                       <span className="text-[0.85rem] font-semibold text-ink truncate" title={item.name}>{item.name}</span>
                        <span className="text-[0.7rem] text-ink-muted">Recall Strength: {item.progress}%</span>
                      </div>
-                     <span style={{ fontSize: '0.7rem', background: item.dueIn.includes('hours') ? 'rgba(239, 68, 68, 0.1)' : 'rgba(255, 255, 255, 0.05)', color: item.dueIn.includes('hours') ? '#ef4444' : 'var(--text-secondary)', border: '1px solid currentColor', borderRadius: '4px', padding: '0.15rem 0.4rem', fontWeight: 'bold' }}>
+                     <span className="self-end sm:self-center shrink-0" style={{ fontSize: '0.7rem', background: item.dueIn.includes('hours') ? 'rgba(239, 68, 68, 0.1)' : 'rgba(255, 255, 255, 0.05)', color: item.dueIn.includes('hours') ? '#ef4444' : 'var(--text-secondary)', border: '1px solid currentColor', borderRadius: '4px', padding: '0.15rem 0.4rem', fontWeight: 'bold' }}>
                        Due in {item.dueIn}
                      </span>
                    </div>
@@ -485,7 +485,7 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-card border border-line rounded-2xl p-8 max-w-105 w-full shadow-lg relative text-center"
+              className="bg-card border border-line rounded-2xl p-5 sm:p-8 max-w-105 w-full shadow-lg relative text-center"
             >
               <div className="flex items-center justify-center mx-auto mb-4 bg-primary-soft text-primary p-3 rounded-full w-14 h-14">
                 <Flame size={28} />

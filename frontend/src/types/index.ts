@@ -217,6 +217,11 @@ export interface UserResponse {
   folders?: string[];
 }
 
+export interface ExamTopic {
+  text: string;
+  completed: boolean;
+}
+
 export interface ExamDeadline {
   id: number;
   title: string;
@@ -227,6 +232,7 @@ export interface ExamDeadline {
   priority: 'high' | 'medium' | 'low';
   completed?: boolean;
   score?: string;
+  topics?: ExamTopic[];
 }
 
 export interface ChatMessage {

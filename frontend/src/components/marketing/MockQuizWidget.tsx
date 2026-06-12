@@ -6,26 +6,26 @@ export const MockQuizWidget: React.FC = () => {
   const [authMockOptionSelected, setAuthMockOptionSelected] = useState<number | null>(null);
 
   return (
-    <div className="relative mb-4 bg-app border border-line rounded-xl overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-line bg-black/10">
-        <div className="flex gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-danger"></span>
-          <span className="w-2.5 h-2.5 rounded-full bg-warning"></span>
-          <span className="w-2.5 h-2.5 rounded-full bg-success"></span>
+    <div className="relative mb-4 max-md:mb-0 bg-app border border-line rounded-xl max-md:rounded-lg overflow-hidden">
+      <div className="flex items-center justify-between px-3 max-md:px-2 py-2 max-md:py-1.5 border-b border-line bg-black/10">
+        <div className="flex gap-1.5 max-md:gap-1 shrink-0">
+          <span className="w-2.5 h-2.5 max-md:w-2 max-md:h-2 rounded-full bg-danger"></span>
+          <span className="w-2.5 h-2.5 max-md:w-2 max-md:h-2 rounded-full bg-warning"></span>
+          <span className="w-2.5 h-2.5 max-md:w-2 max-md:h-2 rounded-full bg-success"></span>
         </div>
-        <div className="text-sm text-ink-muted font-medium">Cellular Biology 101 - Quiz</div>
+        <div className="text-sm max-md:text-xs text-ink-muted font-medium truncate ml-2">Cellular Biology 101 - Quiz</div>
       </div>
-      <div className="p-5">
-        <div className="flex justify-between items-center mb-2 text-sm">
-          <span className="px-2 py-0.5 bg-success/10 text-primary font-semibold rounded">Active Quiz</span>
-          <span className="text-ink-muted">Time Left: 0:45</span>
+      <div className="p-5 max-md:p-3">
+        <div className="flex justify-between items-center mb-2 max-md:mb-1.5 text-sm max-md:text-xs gap-2">
+          <span className="px-2 py-0.5 bg-success/10 text-primary font-semibold rounded shrink-0">Active Quiz</span>
+          <span className="text-ink-muted shrink-0">Time Left: 0:45</span>
         </div>
 
-        <h4 className="text-base text-ink mb-3 leading-snug font-semibold">
+        <h4 className="text-base max-md:text-sm text-ink mb-3 max-md:mb-2 leading-snug font-semibold">
           Which organelle converts chemical energy from food into compounds the cell can use?
         </h4>
 
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 max-md:gap-1.5">
           {[
             { text: "Chloroplasts", id: 0 },
             { text: "Mitochondria", id: 1 },
@@ -51,9 +51,9 @@ export const MockQuizWidget: React.FC = () => {
                 key={opt.id}
                 onClick={() => authMockOptionSelected === null && setAuthMockOptionSelected(opt.id)}
                 disabled={isAnswered}
-                className={`flex items-center gap-3 w-full p-2 px-3 bg-card border border-line rounded-lg text-ink text-left cursor-pointer text-sm transition-all duration-200 ${stateClasses}`}
+                className={`flex items-center gap-3 max-md:gap-2 w-full p-2 px-3 max-md:p-1.5 max-md:px-2.5 bg-card border border-line rounded-lg text-ink text-left cursor-pointer text-sm max-md:text-xs transition-all duration-200 ${stateClasses}`}
               >
-                <span className="w-6 h-6 rounded-full border border-current flex items-center justify-center text-xs font-bold flex-shrink-0">
+                <span className="w-6 h-6 max-md:w-5 max-md:h-5 rounded-full border border-current flex items-center justify-center text-xs max-md:text-[10px] font-bold flex-shrink-0">
                   {String.fromCharCode(65 + opt.id)}
                 </span>
                 <span>{opt.text}</span>

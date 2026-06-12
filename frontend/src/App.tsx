@@ -809,7 +809,7 @@ function App() {
                 ? "flex-1"
                 : view === 'dashboard'
                   ? "max-w-full w-full p-0 flex-1"
-                  : "max-w-300 mx-auto pt-4 px-4 sm:px-8 pb-16 flex-1 w-full overflow-x-hidden"
+                  : "max-w-300 mx-auto pt-2 max-md:pt-4 px-5 sm:px-8 pb-16 flex-1 w-full overflow-x-hidden"
           }
         >
           {view === 'landing' && (

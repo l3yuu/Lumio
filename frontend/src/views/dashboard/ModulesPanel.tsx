@@ -95,12 +95,12 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
   };
 
   return (
-    <div className="bg-card border border-line rounded-xl p-5">
-      <div className="flex justify-between items-center mb-6 gap-4 flex-wrap">
+    <div className="bg-card border border-line rounded-xl p-5 max-md:p-4">
+      <div className="flex justify-between items-center mb-6 gap-4 flex-wrap max-md:flex-col max-md:items-stretch max-md:gap-3">
         <h3 className="text-[1.15rem] flex items-center gap-2 m-0 shrink-0">
           My Study Modules {modules.length > 0 && <span className="text-[0.85rem] text-ink-muted font-normal">({modules.length})</span>}
         </h3>
-        <div className="flex items-center gap-3 flex-1 max-w-[320px] md:ml-auto">
+        <div className="flex items-center gap-3 flex-1 max-w-[320px] max-md:max-w-none md:ml-auto">
           <div className="relative w-full">
             <input
               type="text"
@@ -112,7 +112,7 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted pointer-events-none" />
           </div>
         </div>
-        <button onClick={() => setIsUploadOpen(true)} className="btn btn-primary shrink-0">
+        <button onClick={() => setIsUploadOpen(true)} className="btn btn-primary shrink-0 max-md:w-full max-md:justify-center">
           <Plus size={18} /> Add Module
         </button>
       </div>
@@ -302,7 +302,7 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
             console.error('Error handling dropped module:', err);
           }
         }}
-        className={`border-2 border-dashed rounded-xl p-6 mb-6 text-center transition-all duration-300 flex flex-col items-center justify-center gap-2 cursor-pointer select-none ${
+        className={`border-2 border-dashed rounded-xl p-6 max-md:p-4 mb-6 text-center transition-all duration-300 flex flex-col items-center justify-center gap-2 cursor-pointer select-none ${
           isDragOver
             ? 'border-primary bg-primary-soft/30 scale-[1.01] shadow-glow-primary-soft'
             : 'border-line bg-app/40 hover:bg-app/60 hover:border-primary/40'
@@ -333,14 +333,14 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
                   e.dataTransfer.effectAllowed = 'copy';
                 }}
                 onClick={() => handleViewSource(m)}
-                className={`flex justify-between items-center bg-app border border-line rounded-lg p-4 px-5 hover:border-primary/50 cursor-pointer hover:scale-[1.005] transition-all duration-200 select-none relative ${
+                className={`flex max-md:flex-col max-md:items-stretch max-md:gap-3 md:justify-between md:items-center bg-app border border-line rounded-lg p-4 max-md:p-3.5 md:px-5 hover:border-primary/50 cursor-pointer md:hover:scale-[1.005] transition-all duration-200 select-none relative ${
                   openMenuModuleId === m.id ? 'z-30 shadow-lg' : 'z-0'
                 }`}
                 key={m.id}
               >
-                <div className="flex flex-col gap-1 pointer-events-none">
-                  <span className="font-bold text-base text-left">{m.name}</span>
-                  <div className="text-[0.8rem] text-ink-muted flex items-center gap-4 flex-wrap">
+                <div className="flex flex-col gap-1.5 pointer-events-none min-w-0 flex-1">
+                  <span className="font-bold text-base max-md:text-[0.95rem] text-left break-words leading-snug">{m.name}</span>
+                  <div className="text-[0.8rem] max-md:text-[0.75rem] text-ink-muted flex items-center gap-x-4 gap-y-1.5 flex-wrap">
                     <span>Date: {m.date}</span>
                     <span>Size: {m.size}</span>
                     <span>Questions: {m.questionsCount}</span>
@@ -365,13 +365,13 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
                     )}
                   </div>
                 </div>
-                <div className="flex gap-2.5 items-center shrink-0">
+                <div className="flex gap-2.5 items-center shrink-0 max-md:w-full max-md:pt-0.5">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       startQuiz(m);
                     }}
-                    className="btn btn-primary"
+                    className="btn btn-primary max-md:flex-1 max-md:justify-center max-md:py-2.5"
                   >
                     {moduleScore ? (
                       <>
@@ -384,13 +384,13 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
                     )}
                   </button>
 
-                  <div className="relative">
+                  <div className="relative shrink-0">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         setOpenMenuModuleId(openMenuModuleId === m.id ? null : m.id);
                       }}
-                      className="btn btn-outline p-2 bg-transparent border-line text-ink-muted hover:text-ink hover:bg-glass"
+                      className="btn btn-outline p-2 max-md:p-2.5 bg-transparent border-line text-ink-muted hover:text-ink hover:bg-glass"
                       title="More Options"
                     >
                       <MoreVertical size={16} />

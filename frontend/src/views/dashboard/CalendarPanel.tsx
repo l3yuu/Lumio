@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Plus, Trash2, Calendar as CalendarIcon, CheckCircle2, Trophy } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Trash2, Calendar as CalendarIcon, CheckCircle2, Trophy, X } from 'lucide-react';
 import type { ExamDeadline } from '../../types';
 
 interface CalendarPanelProps {
@@ -33,6 +33,7 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
   const [viewDate, setViewDate] = useState(new Date());
   const [finishingExamId, setFinishingExamId] = useState<number | null>(null);
   const [finishScore, setFinishScore] = useState('');
+  const [selectedDate, setSelectedDate] = useState<{ day: number; month: number; year: number } | null>(null);
 
   const startFinishing = (examId: number) => {
     setFinishingExamId(examId);
@@ -78,6 +79,12 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
     return map;
   }, [exams]);
 
+  const selectedDayExams = useMemo(() => {
+    if (!selectedDate) return [];
+    const key = `${selectedDate.year}-${selectedDate.month}-${selectedDate.day}`;
+    return examMap[key] || [];
+  }, [selectedDate, examMap]);
+
   const getExamsForDay = (day: number) => {
     const key = `${year}-${month}-${day}`;
     return examMap[key] || [];
@@ -115,8 +122,8 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
               className="bg-app border border-line rounded-lg p-4 mb-6 flex flex-col gap-3 overflow-hidden"
             >
               <div className="text-[0.9rem] font-bold border-b border-line pb-1">Log New Exam</div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-3">
                   <label className="text-[0.75rem] font-semibold text-ink mb-1">Exam Title</label>
                   <input type="text" placeholder="e.g. Biology Final" className="w-full bg-input border border-line rounded-md text-ink text-sm px-3 py-2 outline-none focus:border-primary" value={newExamTitle} onChange={(e) => setNewExamTitle(e.target.value)} required />
                 </div>
@@ -155,10 +162,13 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
 
         <div className="grid grid-cols-7 gap-px bg-line rounded-lg overflow-hidden">
           {DAYS.map(d => (
-            <div key={d} className="bg-card px-2 py-2 text-center text-[0.65rem] font-bold text-ink-muted uppercase tracking-wider">{d}</div>
+            <div key={d} className="bg-card px-2 py-2 text-center text-[0.65rem] font-bold text-ink-muted uppercase tracking-wider">
+              <span className="hidden sm:inline">{d}</span>
+              <span className="inline sm:hidden">{d[0]}</span>
+            </div>
           ))}
           {Array.from({ length: firstDayOfMonth }).map((_, i) => (
-            <div key={`empty-${i}`} className="bg-card min-h-[80px] p-1.5" />
+            <div key={`empty-${i}`} className="bg-card min-h-[50px] sm:min-h-[80px] p-1 sm:p-1.5" />
           ))}
           {Array.from({ length: daysInMonth }).map((_, i) => {
             const day = i + 1;
@@ -166,7 +176,8 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
             return (
               <div
                 key={day}
-                className={`bg-card min-h-[80px] p-1.5 transition-all duration-150 hover:bg-glass ${
+                onClick={() => setSelectedDate({ day, month, year })}
+                className={`bg-card min-h-[50px] sm:min-h-[80px] p-1 sm:p-1.5 transition-all duration-150 hover:bg-glass cursor-pointer flex flex-col justify-between ${
                   isToday(day) ? 'ring-1 ring-primary ring-inset' : ''
                 }`}
               >
@@ -175,7 +186,8 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
                 }`}>
                   {day}
                 </span>
-                <div className="flex flex-col gap-0.5 mt-0.5">
+                {/* Desktop View: Show title pills */}
+                <div className="hidden sm:flex flex-col gap-0.5 mt-0.5">
                   {dayExams.slice(0, 2).map(exam => (
                     <span key={exam.id} className={`text-[0.55rem] font-bold text-white px-1 py-0.5 rounded truncate leading-tight ${priorityColor(exam.priority)}`} title={exam.title}>
                       {exam.title}
@@ -185,6 +197,18 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
                     <span className="text-[0.55rem] text-ink-muted font-semibold px-1">+{dayExams.length - 2} more</span>
                   )}
                 </div>
+                {/* Mobile View: Show event dots */}
+                {dayExams.length > 0 && (
+                  <div className="flex sm:hidden flex-row gap-0.5 justify-center mt-1 flex-wrap">
+                    {dayExams.map(exam => (
+                      <span
+                        key={exam.id}
+                        className={`w-1.5 h-1.5 rounded-full shrink-0 ${priorityColor(exam.priority)}`}
+                        title={exam.title}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -204,11 +228,11 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
               .map(exam => (
                 <div key={exam.id} className="bg-app border border-line rounded-lg p-3 px-4 hover:border-primary/50 transition-all duration-200">
                   <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
                       <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${priorityColor(exam.priority)}`} />
-                      <div className="flex flex-col min-w-0">
+                      <div className="flex flex-col min-w-0 flex-1">
                         <span className="text-[0.85rem] font-semibold text-ink truncate">{exam.title}</span>
-                        <span className="text-[0.7rem] text-ink-muted flex items-center gap-2">
+                        <span className="text-[0.7rem] text-ink-muted flex flex-wrap items-center gap-x-2 gap-y-0.5">
                           <span>{exam.date}</span>
                           <span className="opacity-50">•</span>
                           <span>{exam.subject}</span>
@@ -280,11 +304,11 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
           <div className="flex flex-col gap-2">
             {completedExams.map(exam => (
               <div key={exam.id} className="flex items-center justify-between bg-app border border-line rounded-lg p-3 px-4">
-                <div className="flex items-center gap-3 min-w-0">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
                   <CheckCircle2 size={16} className="text-primary shrink-0" />
-                  <div className="flex flex-col min-w-0">
+                  <div className="flex flex-col min-w-0 flex-1">
                     <span className="text-[0.85rem] font-semibold text-ink truncate">{exam.title}</span>
-                    <span className="text-[0.7rem] text-ink-muted flex items-center gap-2">
+                    <span className="text-[0.7rem] text-ink-muted flex flex-wrap items-center gap-x-2 gap-y-0.5">
                       <span>{exam.date}</span>
                       <span className="opacity-50">•</span>
                       <span>{exam.subject}</span>
@@ -298,6 +322,142 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
                 )}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Day Detail Modal */}
+      {selectedDate && (
+        <div className="fixed inset-0 bg-[rgba(5,5,5,0.7)] backdrop-blur-sm z-3000 flex items-center justify-center p-4">
+          <div className="bg-card border border-line rounded-2xl p-4 sm:p-6 max-w-lg w-full shadow-lg flex flex-col gap-4">
+            <div className="flex justify-between items-center pb-3 border-b border-line">
+              <h3 className="text-lg font-bold text-ink flex items-center gap-2 m-0">
+                <CalendarIcon size={18} className="text-primary" /> 
+                Schedule for {MONTHS[selectedDate.month]} {selectedDate.day}, {selectedDate.year}
+              </h3>
+              <button 
+                onClick={() => setSelectedDate(null)} 
+                className="bg-transparent border-0 text-ink-muted hover:text-ink cursor-pointer p-1"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto max-h-96 py-2 flex flex-col gap-3">
+              {selectedDayExams.length === 0 ? (
+                <div className="text-center py-8 text-ink-muted flex flex-col items-center gap-3">
+                  <span className="text-sm">No exams scheduled for this day.</span>
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      const yyyy = selectedDate.year;
+                      const mm = String(selectedDate.month + 1).padStart(2, '0');
+                      const dd = String(selectedDate.day).padStart(2, '0');
+                      setNewExamDate(`${yyyy}-${mm}-${dd}`);
+                      setIsAddingExam(true);
+                      setSelectedDate(null);
+                    }}
+                    className="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold text-xs transition-all duration-200 cursor-pointer bg-primary text-ink-on-primary border border-primary hover:bg-primary-hover hover:border-primary-hover"
+                  >
+                    <Plus size={12} /> Log Exam for this Day
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {selectedDayExams.map(exam => (
+                    <div key={exam.id} className="bg-app border border-line rounded-xl p-4 flex flex-col gap-3">
+                      <div className="flex justify-between items-start gap-4">
+                        <div className="flex items-start gap-2.5 min-w-0">
+                          <div className={`w-3 h-3 rounded-full shrink-0 mt-1 ${priorityColor(exam.priority)}`} />
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-sm font-bold text-ink leading-snug">{exam.title}</span>
+                            <span className="text-xs text-ink-muted mt-0.5">
+                              {exam.subject} • {priorityLabel(exam.priority)} Priority
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[0.65rem] font-bold px-2 py-0.5 rounded ${
+                            exam.daysRemaining === 0 ? 'bg-danger-soft text-danger border border-danger-line' :
+                            exam.daysRemaining <= 3 ? 'bg-warning-soft text-warning border border-warning-line' :
+                            'bg-cyan-soft-2 text-accent-cyan border border-cyan-line'
+                          }`}>
+                            {exam.daysRemaining === 0 ? 'Today' : `${exam.daysRemaining}d left`}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Modal inner actions (Mark finished / Delete) */}
+                      <div className="flex flex-col sm:flex-row gap-2 sm:justify-between sm:items-center pt-2 border-t border-line mt-1">
+                        {finishingExamId === exam.id ? (
+                          <div className="flex flex-wrap items-center gap-2 w-full">
+                            <label className="text-[0.75rem] font-semibold text-ink shrink-0">Your score</label>
+                            <input
+                              type="text"
+                              placeholder="e.g. 85%"
+                              value={finishScore}
+                              onChange={(e) => setFinishScore(e.target.value)}
+                              className="flex-1 min-w-[100px] bg-input border border-line rounded-md text-ink text-xs px-2.5 py-1.5 outline-none focus:border-primary"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleCompleteExam(exam.id, finishScore);
+                                setFinishingExamId(null);
+                                setFinishScore('');
+                              }}
+                              disabled={!finishScore.trim()}
+                              className="btn btn-primary px-2.5 py-1.5 text-[0.7rem] disabled:opacity-50"
+                            >
+                              Finish
+                            </button>
+                            <button 
+                              type="button" 
+                              onClick={() => setFinishingExamId(null)} 
+                              className="btn btn-outline px-2.5 py-1.5 text-[0.7rem]"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => setFinishingExamId(exam.id)}
+                              className="inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold text-xs transition-all duration-200 cursor-pointer bg-primary text-ink-on-primary border border-primary hover:bg-primary-hover hover:border-primary-hover w-full sm:w-auto"
+                            >
+                              <CheckCircle2 size={12} /> Mark as Finished
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (window.confirm(`Are you sure you want to delete this exam: ${exam.title}?`)) {
+                                  handleDeleteExam(exam.id);
+                                }
+                              }}
+                              className="inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold text-xs transition-all duration-200 cursor-pointer bg-transparent border border-danger-line text-danger hover:bg-danger-soft w-full sm:w-auto"
+                            >
+                              <Trash2 size={12} /> Delete
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-3 border-t border-line mt-1">
+              <button
+                type="button"
+                onClick={() => setSelectedDate(null)}
+                className="inline-flex items-center justify-center gap-2 py-2 px-4 rounded-md font-semibold text-xs transition-all duration-200 cursor-pointer bg-transparent border border-line text-ink hover:bg-input hover:border-line-strong"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -564,16 +564,16 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
 
     return (
       <div>
-        <div className="bg-[linear-gradient(135deg,rgba(62,207,142,0.04),rgba(6,182,212,0.04))] border border-line rounded-xl p-6 mb-8">
-          <div className="flex justify-between items-start gap-4 flex-wrap">
-            <div>
+        <div className="bg-[linear-gradient(135deg,rgba(62,207,142,0.04),rgba(6,182,212,0.04))] border border-line rounded-xl p-6 max-md:p-4 mb-8">
+          <div className="flex justify-between items-start gap-4 flex-wrap max-md:flex-col max-md:gap-3">
+            <div className="min-w-0">
               <button onClick={() => { setSelectedGroupId(null); setConfirmLeave(false); setGroupSettingsOpen(false); }} className="btn btn-outline border-none bg-transparent hover:bg-glass text-ink-muted hover:text-ink px-3 py-1.5 text-xs mb-4 inline-flex items-center gap-1">
                 ← Back to Groups
               </button>
-              <h2 className="text-[1.8rem] mb-1">{activeGroup.name}</h2>
+              <h2 className="text-[1.8rem] max-md:text-[1.4rem] mb-1 break-words">{activeGroup.name}</h2>
               <p className="text-ink-muted text-[0.9rem]">Collaborative Study Room</p>
             </div>
-            <div className="flex flex-col items-end gap-2 text-right">
+            <div className="flex flex-col items-end gap-2 text-right max-md:items-start max-md:text-left max-md:w-full">
               <div className="flex items-center gap-2">
                 <span className="inline-flex items-center gap-1 text-[0.7rem] font-bold uppercase tracking-wider py-1 px-2.5 rounded-full border bg-primary-soft text-primary border-primary-line">Group Active</span>
                 <button
@@ -588,8 +588,8 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
             </div>
           </div>
 
-          <div className="flex justify-between items-center mt-6 pt-4 border-t border-line flex-wrap gap-4">
-            <div className="flex items-center">
+          <div className="flex justify-between items-center mt-6 pt-4 border-t border-line flex-wrap gap-4 max-md:flex-col max-md:items-stretch">
+            <div className="flex items-center max-md:overflow-x-auto max-md:pb-1 max-md:-mx-1 max-md:px-1">
               {/* Current user */}
               <div className="relative -ml-2 first:ml-0">
                 {user.avatar ? (
@@ -632,22 +632,22 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
               ))}
             </div>
 
-            <div className="flex flex-col items-end gap-1.5">
-              <div className="flex items-center gap-2 max-w-md w-full sm:justify-end flex-wrap">
-                <form onSubmit={handleInviteMember} className="flex items-center gap-2">
+            <div className="flex flex-col items-end gap-1.5 max-md:items-stretch max-md:w-full">
+              <div className="flex items-center gap-2 max-w-md w-full sm:justify-end flex-wrap max-md:flex-col max-md:items-stretch">
+                <form onSubmit={handleInviteMember} className="flex items-center gap-2 max-md:flex-col max-md:w-full max-md:items-stretch">
                   <input
                     type="email"
                     placeholder="Partner's email..."
                     value={inviteEmail}
                     onChange={(e) => { setInviteEmail(e.target.value); setInviteError(''); }}
                     disabled={isInviting || inviteSuccess}
-                    className="py-1.5 px-3 text-xs bg-input border border-line rounded-lg text-ink transition-all duration-150 outline-none focus:border-primary w-[180px] disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="py-1.5 px-3 text-xs bg-input border border-line rounded-lg text-ink transition-all duration-150 outline-none focus:border-primary w-[180px] max-md:w-full disabled:opacity-60 disabled:cursor-not-allowed"
                     required
                   />
                   <button
                     type="submit"
                     disabled={isInviting || inviteSuccess}
-                    className={`inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold text-xs transition-all duration-200 cursor-pointer border disabled:cursor-not-allowed ${
+                    className={`inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold text-xs transition-all duration-200 cursor-pointer border disabled:cursor-not-allowed max-md:w-full ${
                       inviteSuccess
                         ? 'bg-emerald-500 text-white border-emerald-500 opacity-90'
                         : 'bg-primary text-ink-on-primary border-primary hover:bg-primary-hover hover:border-primary-hover disabled:opacity-60'
@@ -664,7 +664,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
                 <button
                   type="button"
                   onClick={handleCopyInviteLink}
-                  className={`inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold text-xs transition-all duration-200 cursor-pointer border ${
+                  className={`inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold text-xs transition-all duration-200 cursor-pointer border max-md:w-full ${
                     copiedLink
                       ? 'bg-emerald-500 text-white border-emerald-500 opacity-90'
                       : 'bg-glass border-line hover:bg-glass-hover text-ink hover:text-primary'
@@ -685,14 +685,14 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
         </div>
 
         {groupSettingsOpen ? (
-          <div className="bg-card border border-line rounded-xl p-5 mt-6">
+          <div className="bg-card border border-line rounded-xl p-5 max-md:p-4 mt-6">
             <h3 className="text-[1.15rem] mb-5 flex items-center gap-2">
               <Settings size={18} /> Group Settings
             </h3>
             <div className="flex flex-col gap-4">
               {/* Notification Toggle */}
-              <div className="flex items-center justify-between p-4 bg-app border border-line rounded-lg">
-                <div className="flex items-center gap-3">
+              <div className="flex items-center justify-between p-4 bg-app border border-line rounded-lg max-md:flex-col max-md:items-stretch max-md:gap-3">
+                <div className="flex items-center gap-3 min-w-0">
                   <Bell size={18} className="text-ink-muted" />
                   <div>
                     <p className="text-sm font-semibold text-ink">Group Notifications</p>
@@ -702,7 +702,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
                 <button
                   onClick={handleToggleNotifs}
                   disabled={isTogglingNotifs}
-                  className={`relative w-11 h-6 rounded-full transition-all duration-200 cursor-pointer ${
+                  className={`relative w-11 h-6 rounded-full transition-all duration-200 cursor-pointer shrink-0 self-end max-md:self-start ${
                     groupNotifsEnabled ? 'bg-primary' : 'bg-input border border-line'
                   } ${isTogglingNotifs ? 'opacity-60 cursor-not-allowed' : ''}`}
                 >
@@ -817,28 +817,28 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
               </div>
 
               {/* Leave Group */}
-              <div className="flex items-center justify-between p-4 bg-app border border-line rounded-lg">
-                <div>
+              <div className="flex items-center justify-between p-4 bg-app border border-line rounded-lg max-md:flex-col max-md:items-stretch max-md:gap-3">
+                <div className="min-w-0">
                   <p className="text-sm font-semibold text-ink">Leave this group</p>
                   <p className="text-xs text-ink-muted mt-0.5">You will lose access to shared modules and scorecards.</p>
                 </div>
                 {!confirmLeave ? (
                   <button
                     onClick={() => setConfirmLeave(true)}
-                    className="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-[0.75rem] font-semibold bg-transparent border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-all duration-200"
+                    className="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-[0.75rem] font-semibold bg-transparent border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-all duration-200 shrink-0 max-md:w-full max-md:justify-center"
                   >
                     <X size={12} /> Leave Group
                   </button>
                 ) : (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 max-md:w-full">
                     <button
                       onClick={() => setConfirmLeave(false)}
-                      className="py-1.5 px-3 rounded-lg text-[0.72rem] font-semibold bg-transparent border border-line text-ink-muted hover:bg-glass transition-all"
+                      className="py-1.5 px-3 rounded-lg text-[0.72rem] font-semibold bg-transparent border border-line text-ink-muted hover:bg-glass transition-all max-md:flex-1"
                     >Cancel</button>
                     <button
                       onClick={handleLeaveGroup}
                       disabled={isLeaving}
-                      className="py-1.5 px-3 rounded-lg text-[0.72rem] font-semibold bg-red-500 text-white border border-red-500 hover:bg-red-600 transition-all disabled:opacity-60"
+                      className="py-1.5 px-3 rounded-lg text-[0.72rem] font-semibold bg-red-500 text-white border border-red-500 hover:bg-red-600 transition-all disabled:opacity-60 max-md:flex-1"
                     >
                       {isLeaving ? 'Leaving...' : 'Yes, Leave'}
                     </button>
@@ -850,11 +850,11 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
         ) : (
           <>
             {/* Tabs */}
-            <div className="flex gap-2 mb-6 border-b border-line pb-0.5 mt-6">
+            <div className="flex gap-2 mb-6 border-b border-line pb-0.5 mt-6 max-md:gap-1 overflow-x-auto scrollbar-none">
               <button
                 type="button"
                 onClick={() => setActiveTab('study')}
-                className={`py-2.5 px-5 border-b-2 font-bold text-sm transition-all duration-150 cursor-pointer ${
+                className={`py-2.5 px-5 max-md:px-3 max-md:py-2 max-md:text-xs border-b-2 font-bold text-sm transition-all duration-150 cursor-pointer whitespace-nowrap shrink-0 ${
                   activeTab === 'study'
                     ? 'border-primary text-primary'
                     : 'border-transparent text-ink-muted hover:text-ink'
@@ -865,7 +865,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
               <button
                 type="button"
                 onClick={() => setActiveTab('discussion')}
-                className={`py-2.5 px-5 border-b-2 font-bold text-sm transition-all duration-150 cursor-pointer flex items-center gap-2 ${
+                className={`py-2.5 px-5 max-md:px-3 max-md:py-2 max-md:text-xs border-b-2 font-bold text-sm transition-all duration-150 cursor-pointer flex items-center gap-2 whitespace-nowrap shrink-0 ${
                   activeTab === 'discussion'
                     ? 'border-primary text-primary'
                     : 'border-transparent text-ink-muted hover:text-ink'
@@ -877,13 +877,13 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
 
             {activeTab === 'study' ? (
               <div className="grid grid-cols-2 gap-6 max-md:grid-cols-1">
-                <div className="bg-card border border-line rounded-xl p-5">
-                  <div className="flex justify-between items-center mb-5">
+                <div className="bg-card border border-line rounded-xl p-5 max-md:p-4">
+                  <div className="flex justify-between items-center mb-5 max-md:flex-col max-md:items-stretch max-md:gap-3">
                     <h3 className="text-[1.15rem] flex items-center gap-2 m-0">Shared Modules</h3>
                     <button 
                       type="button" 
                       onClick={() => setIsShareModalOpen(true)}
-                      className="inline-flex items-center justify-center gap-1 py-1.5 px-3 rounded-lg font-semibold text-xs transition-all duration-200 cursor-pointer bg-transparent border border-line text-ink hover:bg-input hover:border-line-strong select-none"
+                      className="inline-flex items-center justify-center gap-1 py-1.5 px-3 rounded-lg font-semibold text-xs transition-all duration-200 cursor-pointer bg-transparent border border-line text-ink hover:bg-input hover:border-line-strong select-none max-md:w-full"
                     >
                       <Plus size={12} /> Share Module
                     </button>
@@ -893,28 +893,28 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
                   ) : (
                     <div className="flex flex-col gap-3">
                       {activeGroup.modules.map((m) => (
-                        <div className="flex justify-between items-center bg-app border border-line rounded-lg p-4 px-5" key={m.id}>
-                          <div className="flex flex-col gap-1">
-                            <span className="font-bold text-base text-left">{m.name}</span>
+                        <div className="flex max-md:flex-col max-md:items-stretch max-md:gap-3 md:justify-between md:items-center bg-app border border-line rounded-lg p-4 max-md:p-3.5 md:px-5" key={m.id}>
+                          <div className="flex flex-col gap-1 min-w-0">
+                            <span className="font-bold text-base max-md:text-[0.95rem] text-left break-words leading-snug">{m.name}</span>
                             <div className="text-[0.75rem] text-ink-muted flex gap-4"><span>Questions: {m.questionsCount}</span></div>
                           </div>
-                          <button onClick={() => startGroupQuiz(m, activeGroup.id)} className="btn btn-primary px-3.5 py-2 text-[0.8rem]">Take Group Quiz</button>
+                          <button onClick={() => startGroupQuiz(m, activeGroup.id)} className="btn btn-primary px-3.5 py-2 text-[0.8rem] max-md:w-full max-md:justify-center max-md:py-2.5 shrink-0">Take Group Quiz</button>
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
 
-                <div className="bg-card border border-line rounded-xl p-5">
+                <div className="bg-card border border-line rounded-xl p-5 max-md:p-4">
                   <h3 className="text-[1.15rem] mb-5 flex items-center gap-2">Group Scorecards</h3>
                   {activeGroup.quizSessions.length === 0 ? (
                     <div className="text-center p-8 text-ink-muted">No group quizzes taken yet. Launch a Group Quiz session to view scoreboard history!</div>
                   ) : (
                     <div className="flex flex-col gap-4">
                       {activeGroup.quizSessions.map((s, idx) => (
-                        <div key={idx} className="bg-app border border-line rounded-xl p-4 px-5">
-                          <div className="flex justify-between items-center mb-3">
-                            <span className="font-bold text-[0.95rem] text-left">{s.moduleName}</span>
+                        <div key={idx} className="bg-app border border-line rounded-xl p-4 max-md:p-3.5 md:px-5">
+                          <div className="flex justify-between items-center mb-3 max-md:flex-col max-md:items-start max-md:gap-2">
+                            <span className="font-bold text-[0.95rem] text-left break-words">{s.moduleName}</span>
                             <span className="inline-flex items-center gap-1 text-[0.7rem] font-bold uppercase tracking-wider py-1 px-2.5 rounded-full border bg-primary-soft text-primary border-primary-line">Avg: {s.avgScore}</span>
                           </div>
                           <div className="flex flex-wrap gap-2">
@@ -929,15 +929,15 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="bg-card border border-line rounded-xl p-6 flex flex-col h-[550px] shadow-lg animate-in fade-in duration-200">
-                <div className="flex justify-between items-center pb-3 border-b border-line mb-4 shrink-0">
-                  <div>
+              <div className="bg-card border border-line rounded-xl p-6 max-md:p-4 flex flex-col h-[550px] max-md:h-[min(65vh,520px)] min-h-[360px] shadow-lg animate-in fade-in duration-200">
+                <div className="flex justify-between items-center pb-3 border-b border-line mb-4 shrink-0 max-md:flex-col max-md:items-start max-md:gap-3">
+                  <div className="min-w-0">
                     <h3 className="text-[1.15rem] font-bold text-ink flex items-center gap-2 m-0">
-                      <Users size={18} className="text-primary" /> Group Discussion
+                      <Users size={18} className="text-primary shrink-0" /> Group Discussion
                     </h3>
                     <p className="text-xs text-ink-muted mt-0.5">Share notes, ask questions, or study with the AI.</p>
                   </div>
-                  <div className="flex items-center gap-1 bg-primary-soft/10 text-primary border border-primary-line px-2.5 py-1 rounded-full text-xs font-semibold">
+                  <div className="flex items-center gap-1 bg-primary-soft/10 text-primary border border-primary-line px-2.5 py-1 rounded-full text-xs font-semibold shrink-0 max-md:self-start">
                     <Sparkles size={12} />
                     <span>AI Study Companion Active</span>
                   </div>
@@ -965,7 +965,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
                         <div key={post.id} className={`flex flex-col w-full ${isCurrentUser ? 'items-end' : 'items-start'}`}>
                           <div
                             onClick={() => setSelectedPostIdForTime(prev => prev === post.id ? null : post.id)}
-                            className={`flex items-start gap-3 p-3.5 rounded-xl transition-all duration-150 max-w-[80%] cursor-pointer select-none ${
+                            className={`flex items-start gap-3 p-3.5 max-md:p-3 rounded-xl transition-all duration-150 max-w-[80%] max-md:max-w-[92%] cursor-pointer select-none ${
                               isAi 
                                 ? 'bg-[linear-gradient(135deg,rgba(62,207,142,0.06),rgba(6,182,212,0.06))] border border-primary-line/45 shadow-sm'
                                 : isCurrentUser 
@@ -1023,7 +1023,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
                 </div>
 
                 {/* Input Area */}
-                <form onSubmit={handlePostMessage} className="flex gap-2 shrink-0 pt-3 border-t border-line">
+                <form onSubmit={handlePostMessage} className="flex gap-2 max-md:flex-col shrink-0 pt-3 border-t border-line">
                   <input
                     ref={inputRef}
                     type="text"
@@ -1031,13 +1031,13 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
                     onChange={(e) => setNewPostContent(e.target.value)}
                     disabled={isPosting}
                     placeholder="Type your message... (Tag @ai to ask the AI Study Companion)"
-                    className="flex-1 py-2.5 px-4 bg-input border border-line rounded-lg text-ink text-sm outline-none focus:border-primary focus:bg-app transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="flex-1 py-2.5 px-4 max-md:py-3 bg-input border border-line rounded-lg text-ink text-sm outline-none focus:border-primary focus:bg-app transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed min-w-0"
                     required
                   />
                   <button
                     type="submit"
                     disabled={isPosting || !newPostContent.trim()}
-                    className="inline-flex items-center justify-center gap-1.5 py-2.5 px-4.5 rounded-lg font-bold text-sm bg-primary text-ink-on-primary hover:bg-primary-hover hover:border-primary-hover transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="inline-flex items-center justify-center gap-1.5 py-2.5 px-4.5 max-md:w-full rounded-lg font-bold text-sm bg-primary text-ink-on-primary hover:bg-primary-hover hover:border-primary-hover transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
                   >
                     {isPosting ? (
                       <div className="w-4 h-4 border-2 border-ink-on-primary border-t-transparent rounded-full animate-spin" />
@@ -1208,9 +1208,9 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mb-6 max-md:flex-col max-md:items-stretch max-md:gap-3">
         <h3 className="text-[1.15rem] flex items-center gap-2 m-0">My Study Groups</h3>
-        <button onClick={() => setIsGroupModalOpen(true)} className="btn btn-primary">
+        <button onClick={() => setIsGroupModalOpen(true)} className="btn btn-primary max-md:w-full max-md:justify-center">
           <Plus size={18} /> Create Study Group
         </button>
       </div>
@@ -1225,7 +1225,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
           </h4>
           <div className="flex flex-col gap-3">
             {invitations.map(inv => (
-              <div key={inv.id} className="bg-card border border-line rounded-xl p-4 flex items-center gap-4 flex-wrap">
+              <div key={inv.id} className="bg-card border border-line rounded-xl p-4 max-md:p-3.5 flex items-center gap-4 flex-wrap max-md:flex-col max-md:items-stretch max-md:gap-3">
                 {/* Inviter avatar */}
                 <div className="flex-shrink-0">
                   {inv.inviter_avatar && inv.inviter_avatar !== '' ? (
@@ -1258,16 +1258,16 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
                   </p>
                   <p className="text-[0.75rem] text-ink-muted mt-0.5">{inv.created_at}</p>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex items-center gap-2 flex-shrink-0 max-md:w-full">
                   <button
                     onClick={() => onDeclineInvitation(inv.id)}
-                    className="inline-flex items-center gap-1 py-1.5 px-3 rounded-md text-[0.8rem] font-semibold bg-transparent border border-line text-ink-muted hover:bg-glass hover:text-ink transition-all"
+                    className="inline-flex items-center gap-1 py-1.5 px-3 rounded-md text-[0.8rem] font-semibold bg-transparent border border-line text-ink-muted hover:bg-glass hover:text-ink transition-all max-md:flex-1 max-md:justify-center"
                   >
                     <X size={13} /> Decline
                   </button>
                   <button
                     onClick={() => onAcceptInvitation(inv.id)}
-                    className="inline-flex items-center gap-1 py-1.5 px-3 rounded-md text-[0.8rem] font-semibold bg-primary text-ink-on-primary hover:bg-primary-hover transition-all"
+                    className="inline-flex items-center gap-1 py-1.5 px-3 rounded-md text-[0.8rem] font-semibold bg-primary text-ink-on-primary hover:bg-primary-hover transition-all max-md:flex-1 max-md:justify-center"
                   >
                     <Check size={13} /> Accept
                   </button>
@@ -1277,10 +1277,10 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
           </div>
         </div>
       )}
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-6">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-6 max-md:grid-cols-1 max-md:gap-4">
         {groups.map((group) => (
-          <div className="bg-card border border-line rounded-xl p-5 flex flex-col h-full" key={group.id}>
-            <h4 className="text-xl mb-2 text-left">{group.name}</h4>
+          <div className="bg-card border border-line rounded-xl p-5 max-md:p-4 flex flex-col h-full" key={group.id}>
+            <h4 className="text-xl max-md:text-lg mb-2 text-left break-words">{group.name}</h4>
             <span className="text-[0.85rem] text-ink-muted text-left">{group.members.filter(m => m.email !== user.email).length + 1} Members | {group.modules.length} Shared Modules</span>
 
             <div className="flex items-center mt-3">
@@ -1322,8 +1322,8 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
               ))}
             </div>
 
-            <div className="mt-auto pt-4 flex justify-end">
-              <button onClick={() => { setSelectedGroupId(group.id); completeQuest('study_group'); }} className="btn btn-outline inline-flex items-center gap-1 px-4 py-2 text-[0.85rem]">
+            <div className="mt-auto pt-4 flex justify-end max-md:justify-stretch">
+              <button onClick={() => { setSelectedGroupId(group.id); completeQuest('study_group'); }} className="btn btn-outline inline-flex items-center gap-1 px-4 py-2 text-[0.85rem] max-md:w-full max-md:justify-center">
                 Enter Group <ChevronRight size={14} />
               </button>
             </div>

@@ -246,7 +246,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         </div>
 
         {/* Row 1: Display Name + Username + Email */}
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="flex flex-col gap-1.5">
             <label className="text-[0.85rem] font-semibold text-ink">Display Name</label>
             <input
@@ -297,7 +297,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         </div>
 
         {/* Row 2: School + Grade Level */}
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
             <label className="text-[0.85rem] font-semibold text-ink">School / Institution</label>
             <input
@@ -322,7 +322,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         </div>
 
         {/* Row 3: Study Goal + Language + Timezone */}
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="flex flex-col gap-1.5">
             <label className="text-[0.85rem] font-semibold text-ink flex items-center gap-1.5">
               <Target size={13} className="text-ink-muted" /> Study Goal
@@ -413,9 +413,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
           { label: 'Email Digest Reports', desc: 'Receive a weekly recap of your study hours, progress and group stats', value: notifEmails, set: setNotifEmails },
         ].map((item, i, arr) => (
           <div key={item.label} className={`flex justify-between items-center ${i < arr.length - 1 ? 'pb-4 border-b border-line' : ''}`}>
-            <div>
+            <div className="flex-1 min-w-0">
               <div className="font-semibold text-[0.88rem] text-ink">{item.label}</div>
-              <div className="text-[0.75rem] text-ink-muted mt-0.5">{item.desc}</div>
+              <div className="text-[0.75rem] text-ink-muted mt-0.5 leading-normal">{item.desc}</div>
             </div>
             <label className="toggle-switch shrink-0 ml-4">
               <input type="checkbox" checked={item.value} onChange={e => item.set(e.target.checked)} />
@@ -432,7 +432,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
           <h3 className="text-[1.1rem] font-bold m-0">Account</h3>
         </div>
 
-        <div className="flex items-center justify-between pb-4 border-b border-line">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-line">
           <div>
             <div className="font-semibold text-[0.88rem] text-ink">Email Verification</div>
             <div className="text-[0.75rem] text-ink-muted mt-0.5">
@@ -440,17 +440,17 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             </div>
           </div>
           {user.is_verified ? (
-            <span className="flex items-center gap-1.5 text-[0.8rem] font-semibold text-primary bg-primary/10 px-3 py-1.5 rounded-full">
+            <span className="flex items-center justify-center gap-1.5 text-[0.8rem] font-semibold text-primary bg-primary/10 px-3 py-1.5 rounded-full w-fit">
               <Check size={14} /> Verified
             </span>
           ) : (
-            <span className="flex items-center gap-1.5 text-[0.8rem] font-semibold text-yellow-400 bg-yellow-400/10 px-3 py-1.5 rounded-full">
+            <span className="flex items-center justify-center gap-1.5 text-[0.8rem] font-semibold text-yellow-400 bg-yellow-400/10 px-3 py-1.5 rounded-full w-fit">
               <AlertTriangle size={14} /> Unverified
             </span>
           )}
         </div>
 
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <div className="font-semibold text-[0.88rem] text-ink">Sign Out</div>
             <div className="text-[0.75rem] text-ink-muted mt-0.5">Sign out of your account on this device</div>
@@ -458,7 +458,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
           <button
             type="button"
             onClick={handleLogout}
-            className="flex items-center gap-2 px-4 py-2 text-[0.82rem] font-semibold rounded-lg border border-line text-ink-muted hover:text-ink hover:border-primary/50 transition-all duration-150 cursor-pointer"
+            className="flex items-center justify-center gap-2 px-4 py-2 text-[0.82rem] font-semibold rounded-lg border border-line text-ink-muted hover:text-ink hover:border-primary/50 transition-all duration-150 cursor-pointer w-full sm:w-auto"
           >
             <LogOut size={14} /> Sign Out
           </button>
@@ -498,7 +498,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
           }}
           className="flex flex-col gap-4"
         >
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="flex flex-col gap-1.5">
               <label className="text-[0.85rem] font-semibold text-ink">Current Password</label>
               <input type="password" className="w-full py-2 px-3 bg-input border border-line rounded-lg text-ink text-sm outline-none focus:border-primary focus:bg-app transition-all" placeholder="••••••••" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} required />
@@ -513,7 +513,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             </div>
           </div>
           <div className="flex justify-end">
-            <button type="submit" disabled={passwordLoading} className="btn btn-outline px-5 py-2.5 text-[0.85rem] disabled:opacity-50">
+            <button type="submit" disabled={passwordLoading} className="btn btn-outline px-5 py-2.5 text-[0.85rem] disabled:opacity-50 w-full sm:w-auto">
               {passwordLoading ? 'Updating...' : 'Update Password'}
             </button>
           </div>
@@ -529,7 +529,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         <p className="text-[0.8rem] text-ink-muted m-0">These actions are irreversible. Please proceed with caution.</p>
 
         {/* Delete all modules */}
-        <div className="flex items-center justify-between gap-4 pb-5 border-b border-red-500/20 flex-wrap">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-red-500/20">
           <div>
             <div className="font-semibold text-[0.88rem] text-ink flex items-center gap-1.5">
               <Trash2 size={14} className="text-red-400" /> Delete All Modules
@@ -539,7 +539,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
           <button
             type="button"
             onClick={handleDeleteModules}
-            className="px-4 py-2 text-[0.82rem] font-semibold rounded-lg border border-red-500/40 text-red-400 bg-red-500/10 hover:bg-red-500/20 transition-all duration-150 cursor-pointer shrink-0"
+            className="px-4 py-2 text-[0.82rem] font-semibold rounded-lg border border-red-500/40 text-red-400 bg-red-500/10 hover:bg-red-500/20 transition-all duration-150 cursor-pointer shrink-0 w-full sm:w-auto text-center"
           >
             Delete All Modules
           </button>
@@ -558,7 +558,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             <button
               type="button"
               onClick={() => setDeleteConfirm(true)}
-              className="self-start px-4 py-2 text-[0.82rem] font-semibold rounded-lg border border-red-500/50 text-red-400 bg-red-500/10 hover:bg-red-500/20 transition-all duration-150 cursor-pointer"
+              className="self-start px-4 py-2 text-[0.82rem] font-semibold rounded-lg border border-red-500/50 text-red-400 bg-red-500/10 hover:bg-red-500/20 transition-all duration-150 cursor-pointer w-full sm:w-auto text-center"
             >
               I want to delete my account
             </button>
@@ -578,18 +578,18 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 value={deleteInput}
                 onChange={e => setDeleteInput(e.target.value)}
               />
-              <div className="flex gap-3">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <button
                   type="button"
                   onClick={handleDeleteAccount}
-                  className="px-4 py-2 text-[0.82rem] font-bold rounded-lg bg-red-600 hover:bg-red-500 text-white transition-all duration-150 cursor-pointer"
+                  className="px-4 py-2 text-[0.82rem] font-bold rounded-lg bg-red-600 hover:bg-red-500 text-white transition-all duration-150 cursor-pointer w-full sm:w-auto text-center"
                 >
                   Permanently Delete Account
                 </button>
                 <button
                   type="button"
                   onClick={() => { setDeleteConfirm(false); setDeleteInput(''); }}
-                  className="px-4 py-2 text-[0.82rem] font-semibold rounded-lg border border-line text-ink-muted hover:text-ink transition-all duration-150 cursor-pointer"
+                  className="px-4 py-2 text-[0.82rem] font-semibold rounded-lg border border-line text-ink-muted hover:text-ink transition-all duration-150 cursor-pointer w-full sm:w-auto text-center"
                 >
                   Cancel
                 </button>

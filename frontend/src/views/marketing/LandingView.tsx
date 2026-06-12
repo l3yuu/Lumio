@@ -40,22 +40,22 @@ export const LandingView: React.FC<LandingViewProps> = ({ user, setView, setAuth
 
   return (
     <>
-      <header className="grid grid-cols-[1.1fr_0.9fr] items-center gap-16 py-20 max-md:grid-cols-1 max-md:text-center max-md:py-12">
+      <header className="grid grid-cols-[1.1fr_0.9fr] items-center gap-16 py-20 max-md:grid-cols-1 max-md:text-center max-md:gap-10 max-md:py-8">
         <motion.div
-          className="max-w-[580px] max-md:max-w-full max-md:mx-auto"
+          className="max-w-[580px] max-md:max-w-full max-md:mx-auto max-md:px-1"
           initial={{ opacity: 0, x: -50 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.7, ease: "easeOut" }}
         >
-          <div className="text-primary text-[0.85rem] font-bold uppercase tracking-[0.12em] mb-5">Interactive Study Companion</div>
-          <h1 className="text-[3.5rem] leading-[1.15] mb-6 tracking-[-0.03em] font-bold">
+          <div className="text-primary text-[0.85rem] max-md:text-[0.75rem] font-bold uppercase tracking-[0.12em] mb-5 max-md:mb-3">Interactive Study Companion</div>
+          <h1 className="text-[3.5rem] max-md:text-[2rem] max-sm:text-[1.75rem] leading-[1.15] max-md:leading-[1.2] mb-6 max-md:mb-4 tracking-[-0.03em] font-bold">
             Turn lecture notes into <span className="text-primary bg-gradient-to-r from-primary-tint-2 to-primary-soft px-1 rounded">practice quizzes</span>
           </h1>
-          <p className="text-[1.15rem] text-ink-muted leading-relaxed mb-10">
+          <p className="text-[1.15rem] max-md:text-base text-ink-muted leading-relaxed mb-10 max-md:mb-8">
             Upload your syllabus outlines, textbook chapters, or lecture PDFs. Lumio instantly compiles concept-mapped practice exams and scorecards for you and your study groups.
           </p>
 
-          <div className="flex gap-4">
+          <div className="flex gap-4 max-md:flex-col max-md:items-stretch max-md:gap-3 max-md:max-w-sm max-md:mx-auto max-md:w-full">
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -67,7 +67,7 @@ export const LandingView: React.FC<LandingViewProps> = ({ user, setView, setAuth
                   setView('auth');
                 }
               }}
-              className="inline-flex items-center justify-center gap-2 text-sm font-medium transition-all duration-150 no-underline cursor-pointer bg-primary text-ink-on-primary border border-primary rounded-md px-4 py-2 hover:bg-primary-hover hover:border-primary-hover"
+              className="inline-flex items-center justify-center gap-2 text-sm font-medium transition-all duration-150 no-underline cursor-pointer bg-primary text-ink-on-primary border border-primary rounded-md px-4 py-2 max-md:py-3 hover:bg-primary-hover hover:border-primary-hover"
             >
               Get Started Free
             </motion.button>
@@ -75,7 +75,7 @@ export const LandingView: React.FC<LandingViewProps> = ({ user, setView, setAuth
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setView('how-it-works')}
-              className="inline-flex items-center justify-center gap-2 text-sm font-medium transition-all duration-150 no-underline cursor-pointer bg-transparent text-ink border border-line rounded-md px-4 py-2 hover:bg-input hover:border-line-strong"
+              className="inline-flex items-center justify-center gap-2 text-sm font-medium transition-all duration-150 no-underline cursor-pointer bg-transparent text-ink border border-line rounded-md px-4 py-2 max-md:py-3 hover:bg-input hover:border-line-strong"
             >
               How it Works
             </motion.button>
@@ -83,20 +83,21 @@ export const LandingView: React.FC<LandingViewProps> = ({ user, setView, setAuth
         </motion.div>
 
         <motion.div
+          className="max-md:w-full max-md:max-w-md max-md:mx-auto"
           initial={{ opacity: 0, scale: 0.95, y: 40 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
         >
-          <div className="bg-card border border-line rounded-xl shadow-lg overflow-hidden flex flex-col w-full">
-            <div className="h-10 bg-app border-b border-line flex items-center px-4 gap-2">
-              <div className="flex gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-danger"></span>
-                <span className="w-2.5 h-2.5 rounded-full bg-warning"></span>
-                <span className="w-2.5 h-2.5 rounded-full bg-success"></span>
+          <div className="bg-card border border-line rounded-xl shadow-lg overflow-hidden flex flex-col w-full max-md:rounded-lg">
+            <div className="h-10 max-md:h-8 bg-app border-b border-line flex items-center px-4 max-md:px-3 gap-2">
+              <div className="flex gap-2 max-md:gap-1.5 shrink-0">
+                <span className="w-2.5 h-2.5 max-md:w-2 max-md:h-2 rounded-full bg-danger"></span>
+                <span className="w-2.5 h-2.5 max-md:w-2 max-md:h-2 rounded-full bg-warning"></span>
+                <span className="w-2.5 h-2.5 max-md:w-2 max-md:h-2 rounded-full bg-success"></span>
               </div>
-              <div className="flex-1 max-w-[320px] h-6 bg-card border border-line rounded mx-auto text-xs text-ink-muted flex items-center justify-center tracking-wide">lumio.study/simulator/cell-bio-101</div>
+              <div className="flex-1 min-w-0 max-w-[320px] h-6 max-md:h-5 bg-card border border-line rounded mx-auto text-xs max-md:text-[10px] text-ink-muted flex items-center justify-center tracking-wide truncate px-2">lumio.study/simulator/cell-bio-101</div>
             </div>
-            <div className="flex-1 p-6 bg-app flex flex-col gap-5 overflow-hidden text-sm">
+            <div className="flex-1 p-6 max-md:p-3 bg-app flex flex-col gap-5 max-md:gap-3 overflow-hidden text-sm max-md:text-xs">
               <MockQuizWidget />
             </div>
           </div>
@@ -174,7 +175,7 @@ export const LandingView: React.FC<LandingViewProps> = ({ user, setView, setAuth
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
         >
-          <h2 className="text-[2.25rem] mb-2 tracking-[-0.02em] font-bold">How Lumio Works</h2>
+          <h2 className="text-[2.25rem] max-md:text-[1.75rem] mb-2 tracking-[-0.02em] font-bold">How Lumio Works</h2>
           <p className="text-ink-muted text-base">Generate custom practice quizzes in three simple steps</p>
         </motion.div>
 
@@ -211,7 +212,7 @@ export const LandingView: React.FC<LandingViewProps> = ({ user, setView, setAuth
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
         >
-          <h2 className="text-[2.25rem] mb-2 tracking-[-0.02em] font-bold">Collaborative Study Groups</h2>
+          <h2 className="text-[2.25rem] max-md:text-[1.75rem] mb-2 tracking-[-0.02em] font-bold">Collaborative Study Groups</h2>
           <p className="text-ink-muted text-base">Create study groups, take live quizzes together, and track team progress on interactive scorecards.</p>
         </motion.div>
 
@@ -319,7 +320,7 @@ export const LandingView: React.FC<LandingViewProps> = ({ user, setView, setAuth
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
         >
-          <h2 className="text-[2.25rem] mb-2 tracking-[-0.02em] font-bold">AI Study Utilities</h2>
+          <h2 className="text-[2.25rem] max-md:text-[1.75rem] mb-2 tracking-[-0.02em] font-bold">AI Study Utilities</h2>
           <p className="text-ink-muted text-base">Everything you need to prepare for your next midterms or quizzes</p>
         </motion.div>
 
@@ -353,7 +354,7 @@ export const LandingView: React.FC<LandingViewProps> = ({ user, setView, setAuth
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
         >
-          <h2 className="text-[2.25rem] mb-2 tracking-[-0.02em] font-bold">Loved by Over 10,000+ Students</h2>
+          <h2 className="text-[2.25rem] max-md:text-[1.75rem] mb-2 tracking-[-0.02em] font-bold">Loved by Over 10,000+ Students</h2>
           <p className="text-ink-muted text-base">See how students around the world are elevating their study routines with Lumio</p>
         </motion.div>
 
@@ -416,7 +417,7 @@ export const LandingView: React.FC<LandingViewProps> = ({ user, setView, setAuth
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
         >
-          <h2 className="text-[2.25rem] mb-2 tracking-[-0.02em] font-bold">Frequently Asked Questions</h2>
+          <h2 className="text-[2.25rem] max-md:text-[1.75rem] mb-2 tracking-[-0.02em] font-bold">Frequently Asked Questions</h2>
           <p className="text-ink-muted text-base">Everything you need to know about the Lumio companion app</p>
         </motion.div>
 
@@ -480,19 +481,19 @@ export const LandingView: React.FC<LandingViewProps> = ({ user, setView, setAuth
 
       <section className="pb-16">
         <motion.div
-          className="relative bg-gradient-to-br from-success/10 to-transparent bg-card border border-line rounded-2xl p-16 px-12 text-center my-24 flex flex-col items-center gap-6 overflow-hidden"
+          className="relative bg-gradient-to-br from-success/10 to-transparent bg-card border border-line rounded-2xl p-16 px-12 max-md:p-8 max-md:px-5 text-center my-24 max-md:my-12 flex flex-col items-center gap-6 max-md:gap-4 overflow-hidden"
           initial={{ opacity: 0, scale: 0.96 }}
           whileInView={{ opacity: 1, scale: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
         >
-          <h2 className="text-[2.25rem] m-0 tracking-[-0.03em] font-bold">Ready to Ace Your Next Exam?</h2>
-          <p className="text-[1.1rem] text-ink-muted max-w-[580px] mb-2">Join thousands of students who are generating quiz modules, practicing flashcards, and tracking team achievements daily on Lumio.</p>
-          <div className="flex gap-4 flex-wrap justify-center">
+          <h2 className="text-[2.25rem] max-md:text-[1.75rem] m-0 tracking-[-0.03em] font-bold">Ready to Ace Your Next Exam?</h2>
+          <p className="text-[1.1rem] max-md:text-base text-ink-muted max-w-[580px] mb-2">Join thousands of students who are generating quiz modules, practicing flashcards, and tracking team achievements daily on Lumio.</p>
+          <div className="flex gap-4 max-md:flex-col max-md:w-full max-md:max-w-sm flex-wrap justify-center">
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              className="inline-flex items-center justify-center gap-2 text-sm font-bold transition-all duration-150 no-underline cursor-pointer bg-primary text-ink-on-primary border border-primary rounded-md px-7 py-3.5 hover:bg-primary-hover hover:border-primary-hover"
+              className="inline-flex items-center justify-center gap-2 text-sm font-bold transition-all duration-150 no-underline cursor-pointer bg-primary text-ink-on-primary border border-primary rounded-md px-7 py-3.5 max-md:w-full hover:bg-primary-hover hover:border-primary-hover"
               onClick={() => { setAuthTab('signup'); setView('auth'); }}
             >
               Get Started for Free
@@ -501,7 +502,7 @@ export const LandingView: React.FC<LandingViewProps> = ({ user, setView, setAuth
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setView('how-it-works')}
-              className="inline-flex items-center justify-center gap-2 text-sm font-medium transition-all duration-150 no-underline cursor-pointer bg-transparent text-ink border border-line rounded-md px-7 py-3.5 hover:bg-input hover:border-line-strong"
+              className="inline-flex items-center justify-center gap-2 text-sm font-medium transition-all duration-150 no-underline cursor-pointer bg-transparent text-ink border border-line rounded-md px-7 py-3.5 max-md:w-full hover:bg-input hover:border-line-strong"
             >
               Learn How It Works
             </motion.button>

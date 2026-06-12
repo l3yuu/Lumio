@@ -47,6 +47,11 @@ def ensure_runtime_schema():
                 statements.append("ALTER TABLE exam_deadlines ADD COLUMN completed INTEGER DEFAULT 0")
         if "score" not in exam_columns:
             statements.append("ALTER TABLE exam_deadlines ADD COLUMN score VARCHAR(50)")
+        if "topics" not in exam_columns:
+            if engine.dialect.name == "postgresql":
+                statements.append("ALTER TABLE exam_deadlines ADD COLUMN topics JSON")
+            else:
+                statements.append("ALTER TABLE exam_deadlines ADD COLUMN topics TEXT")
 
     if "users" in table_names:
         user_columns = {column["name"] for column in inspector.get_columns("users")}

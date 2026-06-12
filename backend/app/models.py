@@ -135,6 +135,7 @@ class ExamDeadline(Base):
     reminder_sent = Column(Boolean, default=False)
     completed = Column(Boolean, default=False)
     score = Column(String(50), nullable=True)
+    topics = Column(JSON, nullable=True)
 
     owner = relationship("User", back_populates="exams")
 

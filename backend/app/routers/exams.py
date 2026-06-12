@@ -54,7 +54,8 @@ def create_exam(exam_in: schemas.ExamCreate, current_user: models.User = Depends
         date=exam_in.date,
         raw_date=exam_in.raw_date,
         priority=exam_in.priority,
-        user_id=current_user.id
+        user_id=current_user.id,
+        topics=[{"text": t.text, "completed": t.completed} for t in exam_in.topics] if exam_in.topics else []
     )
     db.add(db_exam)
     db.commit()
@@ -101,6 +102,28 @@ def delete_exam(exam_id: int, current_user: models.User = Depends(auth.get_curre
     db.delete(exam)
     db.commit()
     return {"message": "Exam deleted successfully"}
+
+
+@router.put("/{exam_id}/topics", response_model=schemas.ExamOut)
+def update_exam_topics(
+    exam_id: int,
+    topics_in: List[schemas.ExamTopic],
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    exam = db.query(models.ExamDeadline).filter(
+        models.ExamDeadline.id == exam_id,
+        models.ExamDeadline.user_id == current_user.id
+    ).first()
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+        
+    exam.topics = [{"text": t.text, "completed": t.completed} for t in topics_in]
+    db.commit()
+    db.refresh(exam)
+    
+    exam.days_remaining = calculate_days_remaining(exam.raw_date or exam.date)
+    return exam
 
 @router.post("/trigger-reminders")
 def trigger_reminders(current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
