@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sun, Moon, Menu, X, ChevronRight, Sparkles, HelpCircle, Layers, Settings, Bell, FileText, Users, Calendar } from 'lucide-react';
+import { Sun, Moon, Menu, X, ChevronRight, Sparkles, Layers, Settings, Bell, FileText, Users, Calendar } from 'lucide-react';
 import type { User, View, AuthTab, DashboardTab, Module, Notification, GroupInvitation } from '../../types';
 
 interface NavbarProps {

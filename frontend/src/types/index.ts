@@ -49,7 +49,7 @@ export interface User {
   streak?: number;
   quizzesCount?: number;
   quizHistory?: number[];
-  studyTime?: { [key: string]: any };
+  studyTime?: { [key: string]: number | string };
   heatmapData?: { label: string; hours: number; level: number; date?: string }[];
   focusAreas?: { concept: string; subject: string; score: number; desc: string }[];
   spacedRecall?: { id: number; name: string; subject: string; dueIn: string; progress: number }[];

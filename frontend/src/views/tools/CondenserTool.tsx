@@ -17,6 +17,7 @@ interface CondenserHistory {
   created_at: string;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const CondenserTool: React.FC<CondenserToolProps> = ({ setView: _setView }) => {
   const [condenserInput, setCondenserInput] = useState('');
   const [isCondensing, setIsCondensing] = useState(false);
@@ -66,9 +67,9 @@ export const CondenserTool: React.FC<CondenserToolProps> = ({ setView: _setView 
         const err = await response.json().catch(() => ({}));
         throw new Error(err.detail || 'Failed to delete condenser history entry');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Delete condenser history error:', err);
-      alert(err.message || 'Failed to delete condenser history entry.');
+      alert((err instanceof Error ? err.message : null) || 'Failed to delete condenser history entry.');
     }
   };
 
@@ -112,9 +113,9 @@ export const CondenserTool: React.FC<CondenserToolProps> = ({ setView: _setView 
       const newRecord = await response.json();
       setCondensedResult(newRecord);
       setHistory(prev => [newRecord, ...prev]);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Condensing document error:', err);
-      setCondenserError(err.message || 'Failed to condense document. Please try again.');
+      setCondenserError((err instanceof Error ? err.message : null) || 'Failed to condense document. Please try again.');
     } finally {
       setIsCondensing(false);
     }

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Shield, Users, Layers, Activity, Search, Loader2, CheckCircle2, XCircle, Trash2, X, AlertTriangle, MessageSquare, Sparkles, Calendar } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { API_BASE_URL } from '../../config';
-import type { User, DashboardTab, Module } from '../../types';
+import type { User, DashboardTab, Module, QuizQuestionResponse } from '../../types';
 
 const BAN_REASONS = [
   "Inappropriate discussion or posts",
@@ -354,7 +354,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
         date: moduleData.date,
         size: moduleData.size,
         questionsCount: moduleData.questions_count || (moduleData.questions ? moduleData.questions.length : 0),
-        questions: (moduleData.questions || []).map((q: any) => ({
+        questions: (moduleData.questions || []).map((q: QuizQuestionResponse) => ({
           id: q.id,
           question: q.question,
           options: q.options,

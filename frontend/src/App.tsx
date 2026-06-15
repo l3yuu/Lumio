@@ -442,7 +442,7 @@ function App() {
   useEffect(() => {
     if (isUploadOpen) {
       const isPremium = user?.role === 'premium' || user?.role === 'superadmin';
-      setNewModuleDifficulty(isPremium ? 'medium' : 'easy');
+      setTimeout(() => setNewModuleDifficulty(isPremium ? 'medium' : 'easy'), 0);
     }
   }, [isUploadOpen, user]);
 
@@ -493,7 +493,7 @@ function App() {
             }
           });
         }, 2000);
-        showToast('success', 'Payment successful! Your account is upgrading to Pro Student.');
+        setTimeout(() => showToast('success', 'Payment successful! Your account is upgrading to Pro Student.'), 0);
       }
       
       // Clean URL parameters

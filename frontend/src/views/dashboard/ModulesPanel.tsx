@@ -59,7 +59,9 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
 
   const [selectedModuleIds, setSelectedModuleIds] = useState<number[]>([]);
   const [examName, setExamName] = useState('');
-  const [examDifficulty, setExamDifficulty] = useState<'easy' | 'medium' | 'hard'>('easy');
+  const [examDifficulty, setExamDifficulty] = useState<'easy' | 'medium' | 'hard'>(
+    user.is_premium ? 'medium' : 'easy'
+  );
   const [isGeneratingExam, setIsGeneratingExam] = useState(false);
   const [linkToCalendar, setLinkToCalendar] = useState(false);
   const [calendarExamDate, setCalendarExamDate] = useState(() => {
@@ -88,9 +90,6 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
   const dailyExamCount = getDailyExamCount();
   const dailyExamRemaining = Math.max(0, dailyExamLimit - dailyExamCount);
 
-  React.useEffect(() => {
-    setExamDifficulty(user.is_premium ? 'medium' : 'easy');
-  }, [user.is_premium]);
 
   const toggleModuleSelection = (id: number) => {
     const mod = modules.find(m => m.id === id);
@@ -166,9 +165,9 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
       localStorage.setItem(key, newCount.toString());
 
       showToast('success', '50-question consolidated exam generated successfully!');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error generating consolidated exam:', err);
-      showToast('error', err.message || 'Failed to generate consolidated exam');
+      showToast('error', (err instanceof Error ? err.message : null) || 'Failed to generate consolidated exam');
     } finally {
       setIsGeneratingExam(false);
     }

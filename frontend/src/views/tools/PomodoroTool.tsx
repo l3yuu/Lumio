@@ -9,6 +9,7 @@ interface PomodoroToolProps {
 
 type TimerMode = 'focus' | 'shortBreak' | 'longBreak';
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const PomodoroTool: React.FC<PomodoroToolProps> = ({ setView: _setView, onFocusSessionComplete }) => {
   // Modes & Settings State
   const [mode, setMode] = useState<TimerMode>('focus');

@@ -170,11 +170,13 @@ const getDeterministicDailyQuests = (userEmail: string, dateStr: string, pool: O
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   user, setUser, modules, groups, setModules, setGroups, setIsUploadOpen, setIsGroupModalOpen,
-  studyTools: _studyTools, dashboardTab, setDashboardTab, selectedGroupId, setSelectedGroupId,
+  dashboardTab, setDashboardTab, selectedGroupId, setSelectedGroupId,
   activeQuizModule, setActiveQuizModule, isSidebarCollapsed: isCollapsed, setView, handleLogout,
   invitations, onAcceptInvitation, onDeclineInvitation,
   notifications, onMarkNotificationRead, onMarkAllNotificationsRead, onRefreshNotifications,
   onFileDropped, isAiSidebarOpen, setIsAiSidebarOpen, showToast,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  studyTools: _studyTools,
 }) => {
   const [activeTool, setActiveTool] = useState<ActiveTool | null>(null);
   const [moduleToDelete, setModuleToDelete] = useState<Module | null>(null);
@@ -199,10 +201,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   // Map tool-specific tabs to activeTool
   useEffect(() => {
-    if (dashboardTab === 'tool-flashcards') setActiveTool('flashcards');
-    else if (dashboardTab === 'tool-essay') setActiveTool('essay-grader');
-    else if (dashboardTab === 'tool-condenser') setActiveTool('condenser');
-    else if (dashboardTab === 'tool-pomodoro') setActiveTool('pomodoro');
+    let tool: ActiveTool | null = null;
+    if (dashboardTab === 'tool-flashcards') tool = 'flashcards';
+    else if (dashboardTab === 'tool-essay') tool = 'essay-grader';
+    else if (dashboardTab === 'tool-condenser') tool = 'condenser';
+    else if (dashboardTab === 'tool-pomodoro') tool = 'pomodoro';
+    if (tool !== null) {
+      setTimeout(() => setActiveTool(tool), 0);
+    }
   }, [dashboardTab]);
 
   // Local setView for inline tool components: 'tools' goes back to tool list, else navigates away
@@ -550,6 +556,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     localStorage.setItem('lumio_exam_links', JSON.stringify(examQuizLinks));
   }, [examQuizLinks]);
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleLinkExamToQuiz = (examId: number, _quizName: string) => {
     setExamQuizLinks(prev => ({
       ...prev,

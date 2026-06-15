@@ -22,6 +22,7 @@ interface EssayHistory {
   created_at: string;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const EssayGraderTool: React.FC<EssayGraderToolProps> = ({ setView: _setView }) => {
   const [essayPrompt, setEssayPrompt] = useState('');
   const [essayInput, setEssayInput] = useState('');
@@ -76,9 +77,9 @@ export const EssayGraderTool: React.FC<EssayGraderToolProps> = ({ setView: _setV
         const err = await response.json().catch(() => ({}));
         throw new Error(err.detail || 'Failed to delete essay history entry');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Delete essay history error:', err);
-      alert(err.message || 'Failed to delete essay history entry.');
+      alert((err instanceof Error ? err.message : null) || 'Failed to delete essay history entry.');
     }
   };
 
@@ -137,9 +138,9 @@ export const EssayGraderTool: React.FC<EssayGraderToolProps> = ({ setView: _setV
         recommendations: newRecord.recommendations
       });
       setHistory(prev => [newRecord, ...prev]);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Grading essay error:', err);
-      setEssayError(err.message || 'Failed to grade essay. Please try again.');
+      setEssayError((err instanceof Error ? err.message : null) || 'Failed to grade essay. Please try again.');
     } finally {
       setIsGradingEssay(false);
     }

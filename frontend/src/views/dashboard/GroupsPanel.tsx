@@ -77,9 +77,11 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
     if (selectedGroupId !== null) {
       const activeGroup = groups.find(g => g.id === selectedGroupId);
       if (activeGroup) {
-        setNewGroupName(activeGroup.name);
-        setRenameError('');
-        setRenameSuccess(false);
+        setTimeout(() => {
+          setNewGroupName(activeGroup.name);
+          setRenameError('');
+          setRenameSuccess(false);
+        }, 0);
       }
     }
   }, [selectedGroupId, groups]);

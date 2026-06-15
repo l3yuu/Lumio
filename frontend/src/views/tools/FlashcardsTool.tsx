@@ -17,6 +17,7 @@ interface FlashcardHistory {
   created_at: string;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const FlashcardsTool: React.FC<FlashcardsToolProps> = ({ setView: _setView, user, setUser }) => {
   const [flashcardInput, setFlashcardInput] = useState('');
   const [isGeneratingFlashcards, setIsGeneratingFlashcards] = useState(false);
@@ -76,9 +77,9 @@ export const FlashcardsTool: React.FC<FlashcardsToolProps> = ({ setView: _setVie
         const err = await response.json().catch(() => ({}));
         throw new Error(err.detail || 'Failed to delete flashcard deck');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Delete flashcard error:', err);
-      alert(err.message || 'Failed to delete flashcard deck.');
+      alert((err instanceof Error ? err.message : null) || 'Failed to delete flashcard deck.');
     }
   };
 
@@ -142,9 +143,9 @@ export const FlashcardsTool: React.FC<FlashcardsToolProps> = ({ setView: _setVie
         st.flashcard_quota_used = (st.flashcard_quota_used || 0) + 1;
         setUser({ ...user, studyTime: st });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Flashcard generation error:', err);
-      setFlashcardError(err.message || 'Failed to generate flashcards. Please try again.');
+      setFlashcardError((err instanceof Error ? err.message : null) || 'Failed to generate flashcards. Please try again.');
     } finally {
       setIsGeneratingFlashcards(false);
     }
