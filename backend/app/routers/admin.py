@@ -244,10 +244,11 @@ def list_admin_modules(
     db: Session = Depends(get_db),
     current_admin: models.User = Depends(get_current_superadmin)
 ):
-    modules = db.query(models.Module).order_by(models.Module.id.desc()).all()
+    results = db.query(models.Module, models.User).join(
+        models.User, models.Module.user_id == models.User.id, isouter=True
+    ).order_by(models.Module.id.desc()).all()
     result = []
-    for m in modules:
-        owner = db.query(models.User).filter(models.User.id == m.user_id).first()
+    for m, owner in results:
         result.append({
             "id": m.id,
             "name": m.name,
@@ -261,16 +262,18 @@ def list_admin_modules(
         })
     return result
 
+
 @router.get("/exams")
 def list_admin_exams(
     db: Session = Depends(get_db),
     current_admin: models.User = Depends(get_current_superadmin)
 ):
     from .exams import calculate_days_remaining
-    exams = db.query(models.ExamDeadline).order_by(models.ExamDeadline.id.desc()).all()
+    results = db.query(models.ExamDeadline, models.User).join(
+        models.User, models.ExamDeadline.user_id == models.User.id, isouter=True
+    ).order_by(models.ExamDeadline.id.desc()).all()
     result = []
-    for e in exams:
-        owner = db.query(models.User).filter(models.User.id == e.user_id).first()
+    for e, owner in results:
         result.append({
             "id": e.id,
             "title": e.title,
@@ -285,15 +288,17 @@ def list_admin_exams(
         })
     return result
 
+
 @router.get("/groups")
 def list_admin_groups(
     db: Session = Depends(get_db),
     current_admin: models.User = Depends(get_current_superadmin)
 ):
-    groups = db.query(models.StudyGroup).order_by(models.StudyGroup.id.desc()).all()
+    results = db.query(models.StudyGroup, models.User).join(
+        models.User, models.StudyGroup.creator_id == models.User.id, isouter=True
+    ).order_by(models.StudyGroup.id.desc()).all()
     result = []
-    for g in groups:
-        creator = db.query(models.User).filter(models.User.id == g.creator_id).first() if g.creator_id else None
+    for g, creator in results:
         if creator and not creator.email.endswith("@example.com"):
             result.append({
                 "id": g.id,
