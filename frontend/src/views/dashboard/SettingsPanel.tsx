@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, AlertTriangle, Globe, BookOpen, Target, Clock, User as UserIcon, AtSign, Trash2, ShieldAlert, LogOut, ShieldCheck, CreditCard, Loader2, X, Camera } from 'lucide-react';
+import { Check, AlertTriangle, Globe, BookOpen, Target, Clock, User as UserIcon, AtSign, Trash2, ShieldAlert, LogOut, ShieldCheck, CreditCard, Sparkles, X, Camera } from 'lucide-react';
 import type { User, Module, View } from '../../types';
 import { API_BASE_URL } from '../../config';
 
@@ -48,7 +48,6 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   user, setUser, setModules, completeQuest, handleLogout,
   notifStudyGroup, notifQuizReminders, notifSounds, notifEmails,
   setNotifStudyGroup, setNotifQuizReminders, setNotifSounds, setNotifEmails,
-  setView,
 }) => {
   // Local draft for profile — saved explicitly via "Save Changes"
   const [draft, setDraft] = useState<User>(user);
@@ -61,7 +60,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordLoading, setPasswordLoading] = useState(false);
   
-  const [billingLoading, setBillingLoading] = useState(false);
+
   const [avatarModalOpen, setAvatarModalOpen] = useState(false);
   const [tempAvatar, setTempAvatar] = useState(draft.avatar);
 
@@ -70,35 +69,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     setAvatarModalOpen(true);
   };
 
-  const handleManageSubscription = () => {
-    setBillingLoading(true);
-    const token = localStorage.getItem('token');
-    if (!token) return;
 
-    fetch(`${API_BASE_URL}/api/payments/create-portal-session`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    })
-    .then(async res => {
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.detail || 'Failed to open billing portal');
-      return data;
-    })
-    .then(data => {
-      if (data.mock) {
-        alert('You clicked "Manage Subscription" in mock mode! To downgrade, use the "Simulate Downgrade" button below.');
-        setBillingLoading(false);
-      } else if (data.url) {
-        window.location.href = data.url;
-      }
-    })
-    .catch(err => {
-      showToast('error', err.message);
-      setBillingLoading(false);
-    });
-  };
 
 
   const handleLocalAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -625,46 +596,21 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
               </div>
             </div>
           </div>
-        ) : user.is_premium ? (
-          <div className="flex flex-col gap-4">
-            <div className="p-4 rounded-xl bg-primary-soft/10 border border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <div className="text-sm font-bold text-ink flex items-center gap-2">
-                  Lumio Pro Student
-                  <span className="text-[0.7rem] bg-primary/20 text-primary px-2.5 py-0.5 rounded-full font-bold">Active</span>
-                </div>
-                <div className="text-xs text-ink-muted mt-1 leading-relaxed">
-                  {user.premium_expires_at ? (
-                    `Fixed-term access (GCash/Maya Pass) • Expires on ${new Date(user.premium_expires_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`
-                  ) : (
-                    `Subscribed via Credit Card • Status: ${user.stripe_subscription_status || 'active'}`
-                  )}
-                </div>
-              </div>
-              <button
-                type="button"
-                disabled={billingLoading}
-                onClick={handleManageSubscription}
-                className="flex items-center justify-center gap-2 px-4 py-2 text-[0.82rem] font-semibold rounded-lg bg-primary hover:bg-primary-hover text-ink-on-primary hover:shadow-glow-primary-btn disabled:opacity-50 transition-all cursor-pointer w-full sm:w-auto"
-              >
-                {billingLoading ? <Loader2 size={14} className="animate-spin" /> : 'Manage Subscription'}
-              </button>
-            </div>
-          </div>
         ) : (
-          <div className="flex flex-col gap-4">
-            <div className="p-4 rounded-xl bg-app border border-line flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <div className="text-sm font-bold text-ink">Free Plan</div>
-                <div className="text-xs text-ink-muted mt-1">Upgrade to unlock unlimited document uploads, quiz generation, and AI Concept Tutors.</div>
+          <div className="relative overflow-hidden rounded-xl border border-dashed border-primary/30 bg-gradient-to-br from-primary/5 via-transparent to-primary/5 p-6 flex flex-col sm:flex-row sm:items-center gap-5">
+            {/* Glow orb */}
+            <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-primary/10 blur-2xl pointer-events-none" />
+            <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 shrink-0">
+              <Sparkles size={22} className="text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-bold text-ink">Lumio Pro</span>
+                <span className="text-[0.68rem] font-bold px-2 py-0.5 rounded-full bg-yellow-400/15 text-yellow-400 border border-yellow-400/30 tracking-wide uppercase">Coming Soon</span>
               </div>
-              <button
-                type="button"
-                onClick={() => setView('pricing')}
-                className="flex items-center justify-center gap-2 px-5 py-2.5 text-[0.82rem] font-bold rounded-lg bg-primary hover:bg-primary-hover text-ink-on-primary hover:shadow-glow-primary-btn transition-all cursor-pointer w-full sm:w-auto shrink-0"
-              >
-                Upgrade to Pro
-              </button>
+              <p className="text-xs text-ink-muted mt-1.5 leading-relaxed max-w-md">
+                Paid subscriptions are on the way! Unlock unlimited uploads, advanced quiz generation, AI Concept Tutors, and more. Stay tuned — we'll notify you when it launches.
+              </p>
             </div>
           </div>
         )}
