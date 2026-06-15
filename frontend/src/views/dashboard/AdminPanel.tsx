@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Shield, Users, Layers, Activity, Search, Loader2, CheckCircle2, XCircle, Trash2, X, AlertTriangle, MessageSquare, Sparkles, Calendar } from 'lucide-react';
+import { Shield, Users, Layers, Activity, Search, Loader2, CheckCircle2, XCircle, Trash2, X, AlertTriangle, MessageSquare, Sparkles, Calendar, FileText } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { API_BASE_URL } from '../../config';
 import type { User, DashboardTab, Module, QuizQuestionResponse } from '../../types';
@@ -24,6 +24,10 @@ interface HealthData {
   database: {
     status: string;
     latency_ms: number;
+  };
+  gemini?: {
+    status: string;
+    error: string | null;
   };
   counts: {
     users: number;
@@ -55,6 +59,14 @@ interface AdminModule {
   owner_name: string;
   questions_count: number;
   difficulty: string;
+  has_source_file?: boolean;
+}
+
+interface AdminGroupMember {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
 }
 
 interface AdminGroup {
@@ -65,6 +77,7 @@ interface AdminGroup {
   members_count: number;
   modules_count: number;
   is_banned?: boolean;
+  members?: AdminGroupMember[];
 }
 
 interface GroupPost {
@@ -117,18 +130,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
   const [suspendConfirmTarget, setSuspendConfirmTarget] = useState<{ userId: number; isSuspended: boolean; userName: string } | null>(null);
   const [selectedViewModule, setSelectedViewModule] = useState<Module | null>(null);
   const [loadingModuleDetail, setLoadingModuleDetail] = useState(false);
-  const [moduleFileUrl, setModuleFileUrl] = useState<string | null>(null);
-  const [loadingFile, setLoadingFile] = useState(false);
-
-  // Cleanup object URL when modal closes
-  useEffect(() => {
-    return () => {
-      if (moduleFileUrl) {
-        URL.revokeObjectURL(moduleFileUrl);
-        setModuleFileUrl(null);
-      }
-    };
-  }, [moduleFileUrl]);
 
   const [selectedChatGroup, setSelectedChatGroup] = useState<AdminGroup | null>(null);
   const [chatMessages, setChatMessages] = useState<GroupPost[]>([]);
@@ -214,6 +215,41 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
     fetchAdminData();
     setSearchQuery('');
   }, [currentTab, fetchAdminData]);
+
+  // Live uptime increment and silent background sync for admin overview stats
+  useEffect(() => {
+    if (currentTab !== 'admin-overview') return;
+
+    // 1. Tick up uptime seconds every second locally
+    const tickInterval = setInterval(() => {
+      setHealth(prev => prev ? {
+        ...prev,
+        uptime_seconds: prev.uptime_seconds + 1
+      } : null);
+    }, 1000);
+
+    // 2. Poll the health endpoint silently every 30 seconds to keep stats fresh
+    const syncInterval = setInterval(async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      try {
+        const healthRes = await fetch(`${API_BASE_URL}/api/admin/health`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (healthRes.ok) {
+          const healthJson = await healthRes.json();
+          setHealth(healthJson);
+        }
+      } catch (err) {
+        console.error('Silent health poll failed:', err);
+      }
+    }, 30000);
+
+    return () => {
+      clearInterval(tickInterval);
+      clearInterval(syncInterval);
+    };
+  }, [currentTab]);
 
   const handleUpdateRole = async (userId: number, targetRole: string) => {
     if (userId === currentUser.id && targetRole !== 'superadmin') {
@@ -363,28 +399,114 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
         difficulty: moduleData.difficulty
       };
       setSelectedViewModule(mappedModule);
-        // Fetch the source file for preview
-        setLoadingFile(true);
-        try {
-          const token = localStorage.getItem('token');
-          const fileRes = await fetch(`${API_BASE_URL}/api/admin/modules/${moduleId}/file`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          if (fileRes.ok) {
-            const blob = await fileRes.blob();
-            const url = URL.createObjectURL(blob);
-            setModuleFileUrl(url);
-          }
-        } catch (e) {
-          console.error('Failed to load module file', e);
-        } finally {
-          setLoadingFile(false);
-        }
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Error fetching module details.');
     } finally {
       setLoadingModuleDetail(false);
     }
+  };
+
+  const handleOpenAdminSourceInNewTab = (m: AdminModule) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    const newTab = window.open('', '_blank');
+    if (newTab) {
+      newTab.document.write(`
+        <html>
+          <head>
+            <title>${m.name} - Source File</title>
+            <style>
+              body {
+                background: #181818;
+                color: #e0e0e0;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                margin: 0;
+                padding: 24px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                min-height: 100vh;
+              }
+              .container {
+                width: 100%;
+                max-width: 900px;
+                background: #202020;
+                border: 1px solid #333;
+                border-radius: 12px;
+                padding: 40px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+                box-sizing: border-box;
+              }
+              h1 {
+                font-size: 24px;
+                margin-top: 0;
+                margin-bottom: 8px;
+                color: #fff;
+              }
+              .filename {
+                font-size: 14px;
+                color: #888;
+                margin-bottom: 24px;
+              }
+              pre {
+                white-space: pre-wrap;
+                word-wrap: break-word;
+                font-size: 14px;
+                line-height: 1.6;
+                margin: 0;
+              }
+              .loading {
+                font-size: 16px;
+                color: #888;
+                margin-top: 40vh;
+              }
+            </style>
+          </head>
+          <body>
+            <div id="loader" class="loading">Loading source file content...</div>
+            <div id="content" class="container" style="display: none;">
+              <h1 id="title">${m.name}</h1>
+              <div class="filename">${m.name}</div>
+              <pre id="pre"></pre>
+            </div>
+          </body>
+        </html>
+      `);
+      newTab.document.close();
+    }
+
+    fetch(`${API_BASE_URL}/api/admin/modules/${m.id}/file`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    .then(async res => {
+      if (!res.ok) throw new Error('No source file associated with this module or not found');
+      const contentType = res.headers.get('content-type') || '';
+      
+      if (contentType.includes('pdf') || contentType.includes('image') || contentType.includes('text/html')) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        if (newTab) {
+          newTab.location.href = url;
+        }
+      } else {
+        const text = await res.text();
+        if (newTab) {
+          const loader = newTab.document.getElementById('loader');
+          const content = newTab.document.getElementById('content');
+          const pre = newTab.document.getElementById('pre');
+          if (loader) loader.style.display = 'none';
+          if (content) content.style.display = 'block';
+          if (pre) pre.textContent = text;
+        }
+      }
+    })
+    .catch((err) => {
+      console.error('Error fetching admin module source file:', err);
+      if (newTab) {
+        newTab.document.body.innerHTML = `<div style="color: #ef4444; font-family: sans-serif; text-align: center; margin-top: 40vh; padding: 20px;">Failed to load file. ${err.message || ''}</div>`;
+      }
+    });
   };
 
   const handleDeleteExam = async (examId: number) => {
@@ -507,6 +629,73 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
     const mDisplay = m > 0 ? `${m}m ` : "";
     const sDisplay = `${s}s`;
     return `${dDisplay}${hDisplay}${mDisplay}${sDisplay}`;
+  };
+
+  const renderSkeleton = () => {
+    if (currentTab === 'admin-overview') {
+      return (
+        <div className="flex flex-col gap-6 animate-pulse-soft">
+          {/* Metric Row Skeleton */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="bg-card border border-line rounded-xl p-5 flex flex-col gap-4 h-[130px]">
+                <div className="h-4 bg-line rounded w-2/3" />
+                <div className="h-8 bg-line rounded w-1/2 mt-1" />
+                <div className="h-3 bg-line rounded w-3/4 mt-auto" />
+              </div>
+            ))}
+          </div>
+
+          {/* Records Dashboard Summary Skeleton */}
+          <div className="bg-card border border-line rounded-xl p-6 flex flex-col gap-6">
+            <div className="h-4 bg-line rounded w-32 border-b border-line pb-2" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="bg-input/40 border border-line rounded-lg p-5 flex items-center gap-4 h-[86px]">
+                  <div className="w-11 h-11 rounded-full bg-line shrink-0" />
+                  <div className="flex-1 flex flex-col gap-2">
+                    <div className="h-3 bg-line rounded w-3/4" />
+                    <div className="h-6 bg-line rounded w-1/3" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Table view skeleton (users, sales, modules, exams, groups)
+    return (
+      <div className="flex-1 flex flex-col bg-card border border-line rounded-xl overflow-hidden shadow-lg animate-pulse-soft">
+        <div className="p-4 border-b border-line bg-input/40 flex items-center h-[60px]">
+          <div className="h-8 bg-line rounded w-full max-w-[400px]" />
+        </div>
+        <div className="flex-1 overflow-auto p-4">
+          <div className="flex flex-col gap-4">
+            {/* Header row placeholder */}
+            <div className="flex justify-between border-b border-line pb-3">
+              <div className="h-4 bg-line rounded w-1/4" />
+              <div className="h-4 bg-line rounded w-1/6" />
+              <div className="h-4 bg-line rounded w-1/6" />
+              <div className="h-4 bg-line rounded w-1/6" />
+            </div>
+            {/* Table row placeholders */}
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className="flex justify-between items-center py-4 border-b border-line/40">
+                <div className="flex flex-col gap-2 w-1/4">
+                  <div className="h-4 bg-line rounded w-3/4" />
+                  <div className="h-3 bg-line rounded w-1/2" />
+                </div>
+                <div className="h-4 bg-line rounded w-1/6" />
+                <div className="h-4 bg-line rounded w-1/6" />
+                <div className="h-6 bg-line rounded w-[80px]" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -713,7 +902,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
               {/* Close icon button */}
               <button
                 type="button"
-                onClick={() => { setSelectedViewModule(null); setModuleFileUrl(null); }}
+                onClick={() => { setSelectedViewModule(null); }}
                 className="absolute top-4 right-4 bg-transparent border-0 text-ink-muted hover:text-ink p-1 rounded-lg transition-colors cursor-pointer"
                 aria-label="Close"
               >
@@ -742,17 +931,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
               </div>
 
               <div className="flex-1 overflow-y-auto flex flex-col gap-6 pr-1">
-                  {loadingFile && (
-                    <div className="flex items-center justify-center mb-4">
-                      <Loader2 className="animate-spin text-primary" size={24} />
-                      <span className="text-xs text-ink-muted ml-2">Loading file...</span>
-                    </div>
-                  )}
-                  {moduleFileUrl && (
-                    <div className="mb-4">
-                      <iframe src={moduleFileUrl} className="w-full h-[60vh] border border-line rounded-xl" />
-                    </div>
-                  )}
                   {selectedViewModule.questions?.map((q, idx) => (
                     <div key={q.id || idx} className="bg-input/20 border border-line rounded-xl p-4 flex flex-col gap-3">
                       <div className="flex gap-2">
@@ -948,6 +1126,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
                     <p className="text-xs text-ink-muted mt-1 leading-relaxed">
                       Select an administrative action for <span className="font-semibold text-ink">"{activeManageGroup.name}"</span>.
                     </p>
+                  </div>
+                  {/* Group Members List */}
+                  <div className="flex flex-col gap-2 max-h-[160px] overflow-y-auto border border-line rounded-xl p-3 bg-input/15 mb-2">
+                    <span className="text-xs font-bold text-ink-muted uppercase tracking-wider block mb-1">
+                      Group Members ({activeManageGroup.members?.length || 0})
+                    </span>
+                    {activeManageGroup.members && activeManageGroup.members.length > 0 ? (
+                      activeManageGroup.members.map((m) => (
+                        <div key={m.id} className="flex flex-col py-1.5 border-b border-line/40 last:border-0 text-xs gap-0.5">
+                          <div className="flex justify-between items-center">
+                            <span className="font-semibold text-ink">{m.name}</span>
+                            <span className="px-1 py-0.2 rounded text-[0.6rem] bg-input border border-line capitalize font-medium text-ink-muted">{m.role}</span>
+                          </div>
+                          <span className="text-[0.7rem] text-ink-muted">{m.email}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <span className="text-xs text-ink-muted italic">No active members in group.</span>
+                    )}
                   </div>
 
                   <div className="flex flex-col gap-3">
@@ -1282,13 +1479,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
         </div>
       )}
 
-      {/* Loading State Overlay */}
-      {loading && (
-        <div className="flex-1 flex flex-col items-center justify-center gap-3 py-16">
-          <Loader2 size={36} className="animate-spin text-primary" />
-          <span className="text-sm text-ink-muted">Loading administration metrics...</span>
-        </div>
-      )}
+      {/* Loading State Skeleton */}
+      {loading && !error && renderSkeleton()}
 
       {/* Content Renderers */}
       {!loading && !error && (
@@ -1297,7 +1489,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
           {currentTab === 'admin-overview' && health && (
             <div className="flex flex-col gap-6">
               {/* Metric Row */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div className="bg-card border border-line rounded-xl p-5 flex flex-col gap-4">
                   <div className="flex justify-between items-start">
                     <span className="text-xs text-ink-muted uppercase tracking-wider font-semibold">Database Response</span>
@@ -1338,6 +1530,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
                     <span className="text-3xl font-extrabold tracking-tight">Active</span>
                   </div>
                   <span className="text-xs text-ink-muted">Responding to live HTTP & WebSocket requests</span>
+                </div>
+
+                <div className="bg-card border border-line rounded-xl p-5 flex flex-col gap-4">
+                  <div className="flex justify-between items-start">
+                    <span className="text-xs text-ink-muted uppercase tracking-wider font-semibold">Gemini AI Engine</span>
+                    <Sparkles size={18} className={health.gemini?.status === 'healthy' ? 'text-primary' : 'text-danger'} />
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-extrabold tracking-tight">
+                      {health.gemini?.status === 'healthy' ? 'Healthy' : 'Unhealthy'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <div className={`w-2.5 h-2.5 rounded-full ${health.gemini?.status === 'healthy' ? 'bg-success' : 'bg-danger'}`} />
+                    <span className="font-semibold uppercase text-ink-muted tracking-wide text-[0.7rem] max-w-[200px] truncate" title={health.gemini?.error || ''}>
+                      {health.gemini?.status === 'healthy' ? 'Active & Ready' : health.gemini?.error || 'Service Down'}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -1696,14 +1906,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
                             </span>
                           </td>
                           <td className="p-4 pr-6 text-right" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              disabled={submittingId === item.id}
-                              onClick={() => setDeleteConfirmModule(item)}
-                              className="p-1.5 rounded-lg border border-danger-line text-danger hover:bg-danger-soft transition cursor-pointer disabled:opacity-40"
-                              title="Delete Module"
-                            >
-                              {submittingId === item.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                            </button>
+                            <div className="flex items-center justify-end gap-2">
+                              {item.has_source_file && (
+                                <button
+                                  onClick={() => handleOpenAdminSourceInNewTab(item)}
+                                  className="p-1.5 rounded-lg border border-primary-line text-primary hover:bg-primary-soft/20 transition cursor-pointer"
+                                  title="View Source File"
+                                >
+                                  <FileText size={14} />
+                                </button>
+                              )}
+                              <button
+                                disabled={submittingId === item.id}
+                                onClick={() => setDeleteConfirmModule(item)}
+                                className="p-1.5 rounded-lg border border-danger-line text-danger hover:bg-danger-soft transition cursor-pointer disabled:opacity-40"
+                                title="Delete Module"
+                              >
+                                {submittingId === item.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))

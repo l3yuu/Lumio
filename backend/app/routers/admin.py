@@ -9,8 +9,10 @@ from ..email import (
     send_pro_status_email,
     send_admin_status_email,
     send_account_suspension_email,
-    send_account_deletion_email
+    send_account_deletion_email,
+    send_gemini_unhealthy_email
 )
+from ..config import settings
 from sqlalchemy import text
 from typing import List, Optional
 from pydantic import BaseModel
@@ -21,6 +23,7 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 # Save startup time
 START_TIME = time.time()
+LAST_GEMINI_ALERT_TIME = 0.0
 
 # Security dependency for superadmins
 def get_current_superadmin(current_user: models.User = Depends(auth.get_current_user)) -> models.User:
@@ -43,9 +46,12 @@ class GroupBanUpdate(BaseModel):
 
 @router.get("/health")
 def get_admin_health(
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_admin: models.User = Depends(get_current_superadmin)
 ):
+    global LAST_GEMINI_ALERT_TIME
+
     # Test DB connection and measure latency
     try:
         start_time = time.time()
@@ -56,6 +62,31 @@ def get_admin_health(
         db_latency = -1
         db_status = f"error: {str(e)}"
 
+    # Test Gemini connection
+    gemini_status = "healthy"
+    gemini_error = None
+    try:
+        api_key = settings.GEMINI_API_KEY
+        if not api_key or api_key == "YOUR_GEMINI_API_KEY":
+            raise ValueError("GEMINI_API_KEY is not set or configured.")
+        
+        from google import genai
+        client = genai.Client(api_key=api_key)
+        # Check connection by listing models, avoiding quota exhaustion of free tier generate_content
+        next(iter(client.models.list()))
+    except Exception as e:
+        gemini_status = "unhealthy"
+        gemini_error = str(e)
+
+        # Email the admin if Gemini health check fails, throttled to at most once per hour
+        current_time = time.time()
+        if current_time - LAST_GEMINI_ALERT_TIME > 3600:
+            try:
+                send_gemini_unhealthy_email(background_tasks, current_admin.email, current_admin.name, gemini_error)
+                LAST_GEMINI_ALERT_TIME = current_time
+            except Exception as mail_err:
+                print(f"[ERROR] Failed to send Gemini unhealthy alert email: {mail_err}")
+
     # Get system statistics (uptime and item counts)
     uptime_seconds = int(time.time() - START_TIME)
     
@@ -64,12 +95,20 @@ def get_admin_health(
     total_groups = db.query(models.StudyGroup).count()
     total_exams = db.query(models.ExamDeadline).count()
 
+    overall_status = "healthy"
+    if db_status != "connected" or gemini_status != "healthy":
+        overall_status = "unhealthy"
+
     return {
-        "status": "healthy",
+        "status": overall_status,
         "uptime_seconds": uptime_seconds,
         "database": {
             "status": db_status,
             "latency_ms": db_latency
+        },
+        "gemini": {
+            "status": gemini_status,
+            "error": gemini_error
         },
         "counts": {
             "users": total_users,
@@ -217,7 +256,8 @@ def list_admin_modules(
             "owner_email": owner.email if owner else "Unknown",
             "owner_name": owner.name if owner else "Unknown",
             "questions_count": len(m.questions) if m.questions else 0,
-            "difficulty": m.difficulty or "medium"
+            "difficulty": m.difficulty or "medium",
+            "has_source_file": m.has_source_file
         })
     return result
 
@@ -262,7 +302,8 @@ def list_admin_groups(
                 "creator_name": creator.name,
                 "members_count": len(g.members) if g.members else 0,
                 "modules_count": len(g.modules) if g.modules else 0,
-                "is_banned": g.is_banned
+                "is_banned": g.is_banned,
+                "members": [{"id": m.id, "name": m.name, "email": m.email, "role": m.role} for m in g.members] if g.members else []
             })
     return result
 
