@@ -33,7 +33,7 @@ export const FlashcardsTool: React.FC<FlashcardsToolProps> = ({ setView: _setVie
     const quotaDate = st.flashcard_quota_date || '';
     const todayStr = new Date().toLocaleDateString('en-CA');
     if (quotaDate === todayStr) {
-      return st.flashcard_quota_used || 0;
+      return Number(st.flashcard_quota_used) || 0;
     }
     return 0;
   };
@@ -140,7 +140,7 @@ export const FlashcardsTool: React.FC<FlashcardsToolProps> = ({ setView: _setVie
         const st = user.studyTime ? { ...user.studyTime } : {};
         const todayStr = new Date().toLocaleDateString('en-CA');
         st.flashcard_quota_date = todayStr;
-        st.flashcard_quota_used = (st.flashcard_quota_used || 0) + 1;
+        st.flashcard_quota_used = (Number(st.flashcard_quota_used) || 0) + 1;
         setUser({ ...user, studyTime: st });
       }
     } catch (err: unknown) {

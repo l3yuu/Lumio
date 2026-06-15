@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, Zap, AlertTriangle } from 'lucide-react';
-import type { User, Module, StudyGroup, GroupInvitation, GroupQuizSession, GroupQuizRank, DashboardTab, View, StudyQuest, ExamDeadline, ExamDeadlineResponse, StudyGroupResponse, Notification, ChatMessage, ChatSession, ExamQuizLink, ExamQuizAttempt } from '../../types';
+import type { User, Module, StudyGroup, GroupInvitation, GroupQuizSession, GroupQuizRank, DashboardTab, View, StudyQuest, ExamDeadline, ExamDeadlineResponse, StudyGroupResponse, Notification, ChatMessage, ChatSession, ExamQuizLink, ExamQuizAttempt, StudyTime } from '../../types';
 import { API_BASE_URL } from '../../config';
 import { AiTutorSidebar } from './AiTutorSidebar';
 
@@ -71,7 +71,7 @@ const defaultStudyTime = {
   "General Study": 0
 };
 
-const asStudyHours = (value: number | string | undefined, fallback = 0) =>
+const asStudyHours = (value: number | string | number[] | undefined, fallback = 0) =>
   typeof value === 'number' ? value : fallback;
 
 const getLocalDateString = (d: Date) => {
@@ -272,7 +272,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       streak?: number;
       quizzes_count?: number;
       quiz_history?: number[];
-      study_time?: { [key: string]: number | string };
+      study_time?: StudyTime;
       heatmap_data?: { label: string; hours: number; level: number }[];
       focus_areas?: { concept: string; subject: string; score: number; desc: string }[];
       spaced_recall?: { id: number; name: string; subject: string; dueIn: string; progress: number }[];
@@ -365,7 +365,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   };
 
   const addStudyMinutes = (minutes: number, extraFields: Partial<User> = {}) => {
-    const currentStudyTime: { [key: string]: number | string } = { ...(user.studyTime || defaultStudyTime) };
+    const currentStudyTime: StudyTime = { ...(user.studyTime || defaultStudyTime) };
     const prevMinutes = typeof currentStudyTime["accumulated_minutes"] === 'number'
       ? currentStudyTime["accumulated_minutes"]
       : 0;
@@ -1046,7 +1046,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         setIsAiLoading(false);
         
         if (user) {
-          const st = user.studyTime ? { ...user.studyTime } : {};
+          const st: StudyTime = user.studyTime ? { ...user.studyTime } : {};
           const nowTs = Date.now() / 1000;
           const chatHistory = Array.isArray(st.tutor_chat_history) ? [...st.tutor_chat_history] : [];
           chatHistory.push(nowTs);
@@ -1121,7 +1121,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         setIsAiLoading(false);
         
         if (user) {
-          const st = user.studyTime ? { ...user.studyTime } : {};
+          const st: StudyTime = user.studyTime ? { ...user.studyTime } : {};
           const nowTs = Date.now() / 1000;
           const chatHistory = Array.isArray(st.tutor_chat_history) ? [...st.tutor_chat_history] : [];
           chatHistory.push(nowTs);

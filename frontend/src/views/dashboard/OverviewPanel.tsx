@@ -4,7 +4,7 @@ import { Sparkles, Clock, Calendar, Award, Zap, Target, Trophy, Users, Flame, La
 import type { User, StudyQuest, ExamDeadline, DashboardTab } from '../../types';
 import { getCompanionMessage, type CompanionMood, type RecentExamFinish } from '../../utils/companionMessage';
 
-const asStudyHours = (value: number | string | undefined, fallback: number) =>
+const asStudyHours = (value: number | string | number[] | undefined, fallback: number) =>
   typeof value === 'number' ? value : fallback;
 
 

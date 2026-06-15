@@ -29,6 +29,25 @@ export interface Notification {
   created_at: string;
 }
 
+export interface StudyTime {
+  // Numeric hour/minute fields (subjects + accumulated time)
+  accumulated_minutes?: number;
+  Biology?: number;
+  Economics?: number;
+  Mathematics?: number;
+  'General Study'?: number;
+  // Flashcard quota fields
+  flashcard_quota_used?: number;
+  flashcard_quota_date?: string;
+  // Exam quota fields
+  exam_quota_used?: number;
+  exam_quota_date?: string;
+  // Tutor chat history (array of timestamps)
+  tutor_chat_history?: number[];
+  // Allow arbitrary extra server fields
+  [key: string]: number | string | number[] | undefined;
+}
+
 export interface User {
   id?: number;
   role?: string;
@@ -49,7 +68,7 @@ export interface User {
   streak?: number;
   quizzesCount?: number;
   quizHistory?: number[];
-  studyTime?: { [key: string]: number | string };
+  studyTime?: StudyTime;
   heatmapData?: { label: string; hours: number; level: number; date?: string }[];
   focusAreas?: { concept: string; subject: string; score: number; desc: string }[];
   spacedRecall?: { id: number; name: string; subject: string; dueIn: string; progress: number }[];
