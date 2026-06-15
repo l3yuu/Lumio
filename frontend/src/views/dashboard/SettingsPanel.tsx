@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, AlertTriangle, Globe, BookOpen, Target, Clock, User as UserIcon, AtSign, Trash2, ShieldAlert, LogOut, ShieldCheck } from 'lucide-react';
-import type { User, Module } from '../../types';
+import { Check, AlertTriangle, Globe, BookOpen, Target, Clock, User as UserIcon, AtSign, Trash2, ShieldAlert, LogOut, ShieldCheck, CreditCard, Loader2, X, Camera } from 'lucide-react';
+import type { User, Module, View } from '../../types';
 import { API_BASE_URL } from '../../config';
 
 interface SettingsPanelProps {
@@ -18,6 +18,7 @@ interface SettingsPanelProps {
   setNotifQuizReminders: (v: boolean) => void;
   setNotifSounds: (v: boolean) => void;
   setNotifEmails: (v: boolean) => void;
+  setView: (view: View) => void;
 }
 
 const GRADE_LEVELS = ['High School', 'Undergraduate', 'Graduate', 'PhD / Doctorate', 'Self-Learner', 'Professional'];
@@ -47,6 +48,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   user, setUser, setModules, completeQuest, handleLogout,
   notifStudyGroup, notifQuizReminders, notifSounds, notifEmails,
   setNotifStudyGroup, setNotifQuizReminders, setNotifSounds, setNotifEmails,
+  setView,
 }) => {
   // Local draft for profile — saved explicitly via "Save Changes"
   const [draft, setDraft] = useState<User>(user);
@@ -58,6 +60,91 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordLoading, setPasswordLoading] = useState(false);
+  
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [avatarModalOpen, setAvatarModalOpen] = useState(false);
+  const [tempAvatar, setTempAvatar] = useState(draft.avatar);
+
+  const openAvatarModal = () => {
+    setTempAvatar(draft.avatar);
+    setAvatarModalOpen(true);
+  };
+
+  const handleManageSubscription = () => {
+    setBillingLoading(true);
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    fetch(`${API_BASE_URL}/api/payments/create-portal-session`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    .then(async res => {
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.detail || 'Failed to open billing portal');
+      return data;
+    })
+    .then(data => {
+      if (data.mock) {
+        alert('You clicked "Manage Subscription" in mock mode! To downgrade, use the "Simulate Downgrade" button below.');
+        setBillingLoading(false);
+      } else if (data.url) {
+        window.location.href = data.url;
+      }
+    })
+    .catch(err => {
+      showToast('error', err.message);
+      setBillingLoading(false);
+    });
+  };
+
+  const handleMockUpgrade = (gateway: 'stripe' | 'paymongo') => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    fetch(`${API_BASE_URL}/api/payments/mock-upgrade?gateway=${gateway}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    .then(async res => {
+      const data = await res.json();
+      if (!res.ok) throw new Error('Failed to mock upgrade');
+      return data;
+    })
+    .then(data => {
+      setUser(data.user);
+      setDraft(data.user); // Update draft profile state too
+      showToast('success', `Mock upgrade successful (${gateway === 'stripe' ? 'Stripe Card' : 'GCash/Maya'})!`);
+    })
+    .catch(err => showToast('error', err.message));
+  };
+
+  const handleMockDowngrade = () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    fetch(`${API_BASE_URL}/api/payments/mock-downgrade`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    .then(async res => {
+      const data = await res.json();
+      if (!res.ok) throw new Error('Failed to mock downgrade');
+      return data;
+    })
+    .then(data => {
+      setUser(data.user);
+      setDraft(data.user); // Update draft profile state too
+      showToast('success', 'Mock downgrade successful!');
+    })
+    .catch(err => showToast('error', err.message));
+  };
   const handleLocalAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -67,7 +154,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       reader.onload = (event) => {
         if (event.target?.result) {
           const avatarUrl = event.target.result as string;
-          setDraft(d => ({ ...d, avatar: avatarUrl }));
+          setTempAvatar(avatarUrl);
         }
       };
       reader.readAsDataURL(file);
@@ -203,6 +290,109 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         )}
       </AnimatePresence>
 
+      {/* ─── Avatar Select Modal ─────────────────────────── */}
+      <AnimatePresence>
+        {avatarModalOpen && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-3000 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+              className="bg-card border border-line rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative flex flex-col items-center"
+            >
+              {/* Close button */}
+              <button
+                type="button"
+                onClick={() => setAvatarModalOpen(false)}
+                className="absolute top-4 right-4 bg-transparent border-0 text-ink-muted hover:text-ink p-1.5 rounded-lg transition-colors cursor-pointer"
+                aria-label="Close modal"
+              >
+                <X size={20} />
+              </button>
+
+              {/* Header */}
+              <div className="text-center mb-6">
+                <h3 className="text-lg font-bold text-ink m-0">Update Profile Picture</h3>
+                <p className="text-xs text-ink-muted mt-1 leading-relaxed">
+                  Choose a custom photo or pick one of our default avatars.
+                </p>
+              </div>
+
+              {/* Profile preview */}
+              <div className="relative mb-6">
+                {tempAvatar ? (
+                  <img
+                    src={tempAvatar}
+                    alt="Preview"
+                    className="w-32 h-32 rounded-full object-cover border-4 border-primary shadow-[0_0_24px_rgba(62,207,142,0.3)]"
+                  />
+                ) : (
+                  <div className="w-32 h-32 rounded-full bg-primary text-ink-on-primary flex items-center justify-center text-5xl font-bold border-4 border-transparent shadow-[0_0_24px_rgba(62,207,142,0.15)]">
+                    {draft.name.charAt(0).toUpperCase()}
+                  </div>
+                )}
+              </div>
+
+              {/* Presets and Upload button */}
+              <div className="w-full flex flex-col gap-5">
+                {/* Choose a preset */}
+                <div className="flex flex-col gap-2">
+                  <span className="text-xs font-semibold text-ink-muted text-center">Presets</span>
+                  <div className="flex justify-center gap-3 flex-wrap">
+                    {PRESET_AVATARS.map((url, idx) => (
+                      <button
+                        key={url}
+                        type="button"
+                        onClick={() => {
+                          setTempAvatar(url);
+                        }}
+                        className={`p-0 rounded-full cursor-pointer w-11 h-11 overflow-hidden transition-all duration-200 border-2 ${
+                          tempAvatar === url ? 'border-primary scale-110' : 'border-transparent hover:border-primary/50'
+                        }`}
+                      >
+                        <img src={url} alt={`Preset ${idx + 1}`} className="w-full h-full object-cover" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Upload Your Own button */}
+                <div className="flex flex-col gap-3">
+                  <label className="btn btn-primary w-full py-3 text-sm font-semibold rounded-xl cursor-pointer flex items-center justify-center gap-2">
+                    <Camera size={16} />
+                    <span>Upload Photo</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        handleLocalAvatarUpload(e);
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* Action buttons */}
+              <div className="w-full mt-6 pt-4 border-t border-line flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUser({ ...user, avatar: tempAvatar });
+                    setDraft(d => ({ ...d, avatar: tempAvatar }));
+                    setAvatarModalOpen(false);
+                  }}
+                  className="btn btn-primary px-5 py-2 text-sm font-semibold rounded-lg"
+                >
+                  Done
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* ─── Profile Settings ───────────────────────────── */}
       <div className="bg-card border border-line rounded-xl p-6 flex flex-col gap-6">
         <div className="flex items-center gap-2">
@@ -214,33 +404,28 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         <div>
           <label className="text-[0.85rem] font-semibold text-ink mb-3 block">Profile Picture</label>
           <div className="flex items-center gap-6 flex-wrap">
-            <div className="relative shrink-0">
+            <button
+              type="button"
+              onClick={openAvatarModal}
+              className="group relative shrink-0 rounded-full cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-card transition-all duration-200"
+              aria-label="Change profile picture"
+            >
               {draft.avatar ? (
-                <img src={draft.avatar} alt={draft.name} referrerPolicy="no-referrer" className="w-20 h-20 rounded-full object-cover border-2 border-primary shadow-[0_0_14px_rgba(62,207,142,0.25)]" />
+                <img src={draft.avatar} alt={draft.name} referrerPolicy="no-referrer" className="w-20 h-20 rounded-full object-cover border-2 border-primary shadow-[0_0_14px_rgba(62,207,142,0.25)] group-hover:opacity-85 transition-opacity" />
               ) : (
-                <div className="w-20 h-20 rounded-full bg-primary text-ink-on-primary flex items-center justify-center text-3xl font-bold">
+                <div className="w-20 h-20 rounded-full bg-primary text-ink-on-primary flex items-center justify-center text-3xl font-bold border-2 border-transparent shadow-[0_0_14px_rgba(62,207,142,0.15)] group-hover:opacity-85 transition-opacity">
                   {draft.name.charAt(0).toUpperCase()}
                 </div>
               )}
-            </div>
-            <div className="flex flex-col gap-2">
-              <span className="text-[0.78rem] text-ink-muted">Choose a preset or upload your own:</span>
-              <div className="flex items-center gap-3 flex-wrap">
-                {PRESET_AVATARS.map((url, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => { setUser({ ...user, avatar: url }); setDraft(d => ({ ...d, avatar: url })); }}
-                    className={`p-0 rounded-full cursor-pointer w-10 h-10 overflow-hidden transition-all duration-200 border-2 ${draft.avatar === url ? 'border-primary scale-110' : 'border-transparent hover:border-primary/50'}`}
-                  >
-                    <img src={url} alt={`Avatar ${idx + 1}`} className="w-full h-full object-cover" />
-                  </button>
-                ))}
-                <label className="btn btn-outline px-3 py-2 text-[0.78rem] rounded-full cursor-pointer inline-flex items-center gap-1 h-10 box-border">
-                  <span>+ Upload</span>
-                  <input type="file" accept="image/*" className="hidden" onChange={handleLocalAvatarUpload} />
-                </label>
+              {/* Hover overlay */}
+              <div className="absolute inset-0 bg-black/60 rounded-full flex flex-col items-center justify-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                <Camera size={18} className="text-white" />
+                <span className="text-[0.62rem] font-bold text-white uppercase tracking-wider">Change</span>
               </div>
+            </button>
+            <div className="flex flex-col gap-1">
+              <span className="text-[0.88rem] font-semibold text-ink">Click your picture to edit</span>
+              <span className="text-[0.78rem] text-ink-muted">Supports JPG, PNG or presets. Max size 2MB.</span>
             </div>
           </div>
         </div>
@@ -463,6 +648,89 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             <LogOut size={14} /> Sign Out
           </button>
         </div>
+      </div>
+
+      {/* ─── Subscription & Billing ────────────────────── */}
+      <div className="bg-card border border-line rounded-xl p-6 flex flex-col gap-5 mt-6">
+        <div className="flex items-center gap-2">
+          <CreditCard size={17} className="text-primary" />
+          <h3 className="text-[1.1rem] font-bold m-0">Subscription & Billing</h3>
+        </div>
+
+        {user.is_premium ? (
+          <div className="flex flex-col gap-4">
+            <div className="p-4 rounded-xl bg-primary-soft/10 border border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="text-sm font-bold text-ink flex items-center gap-2">
+                  Lumio Pro Student
+                  <span className="text-[0.7rem] bg-primary/20 text-primary px-2.5 py-0.5 rounded-full font-bold">Active</span>
+                </div>
+                <div className="text-xs text-ink-muted mt-1 leading-relaxed">
+                  {user.premium_expires_at ? (
+                    `Fixed-term access (GCash/Maya Pass) • Expires on ${new Date(user.premium_expires_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`
+                  ) : (
+                    `Subscribed via Credit Card • Status: ${user.stripe_subscription_status || 'active'}`
+                  )}
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={billingLoading}
+                onClick={handleManageSubscription}
+                className="flex items-center justify-center gap-2 px-4 py-2 text-[0.82rem] font-semibold rounded-lg bg-primary hover:bg-primary-hover text-ink-on-primary hover:shadow-glow-primary-btn disabled:opacity-50 transition-all cursor-pointer w-full sm:w-auto"
+              >
+                {billingLoading ? <Loader2 size={14} className="animate-spin" /> : 'Manage Subscription'}
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between p-3 rounded-lg bg-[rgba(0,0,0,0.15)] border border-line text-xs">
+              <span className="text-ink-muted">🛠️ Running in Mock Mode: You can simulate cancellation instantly.</span>
+              <button
+                type="button"
+                onClick={handleMockDowngrade}
+                className="px-3 py-1.5 border border-red-500/40 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-md font-semibold text-[0.75rem] cursor-pointer"
+              >
+                Simulate Downgrade
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            <div className="p-4 rounded-xl bg-app border border-line flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="text-sm font-bold text-ink">Free Plan</div>
+                <div className="text-xs text-ink-muted mt-1">Upgrade to unlock unlimited document uploads, quiz generation, and AI Concept Tutors.</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setView('pricing')}
+                className="flex items-center justify-center gap-2 px-5 py-2.5 text-[0.82rem] font-bold rounded-lg bg-primary hover:bg-primary-hover text-ink-on-primary hover:shadow-glow-primary-btn transition-all cursor-pointer w-full sm:w-auto shrink-0"
+              >
+                Upgrade to Pro
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between p-3 rounded-lg bg-[rgba(0,0,0,0.15)] border border-line text-xs">
+              <span className="text-ink-muted">🛠️ Running in Mock Mode: You can simulate upgrade instantly.</span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleMockUpgrade('stripe')}
+                  className="px-2.5 py-1.5 border border-primary/40 bg-primary-soft/10 text-primary hover:bg-primary-soft/20 rounded-md font-semibold text-[0.75rem] cursor-pointer"
+                >
+                  Mock Card
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleMockUpgrade('paymongo')}
+                  className="px-2.5 py-1.5 border border-primary/40 bg-primary-soft/10 text-primary hover:bg-primary-soft/20 rounded-md font-semibold text-[0.75rem] cursor-pointer"
+                >
+                  Mock GCash
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ─── Security Settings ──────────────────────────── */}

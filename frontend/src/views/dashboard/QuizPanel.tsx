@@ -27,7 +27,7 @@ interface QuizPanelProps {
   startGroupQuiz: (module: Module, groupId: number) => void;
   selectedGroupId: number | null;
   exams?: ExamDeadline[];
-  handleCompleteExam?: (id: number, score?: string) => void;
+  handleRecordQuizAttempt?: (examId: number, score: string, quizName: string) => void;
 }
 
 export const QuizPanel: React.FC<QuizPanelProps> = ({
@@ -46,7 +46,7 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({
   startGroupQuiz,
   selectedGroupId,
   exams,
-  handleCompleteExam,
+  handleRecordQuizAttempt,
 }) => {
   const socketRef = useRef<WebSocket | null>(null);
   const [roster, setRoster] = useState<RosterMember[]>([]);
@@ -148,9 +148,9 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({
       }));
     }
 
-    // Link and Complete Exam
-    if (linkedExamId && handleCompleteExam) {
-      handleCompleteExam(linkedExamId, `${score}/${activeQuizModule.questions.length}`);
+    // Link quiz attempt to exam
+    if (linkedExamId && handleRecordQuizAttempt) {
+      handleRecordQuizAttempt(linkedExamId, `${score}/${activeQuizModule.questions.length}`, activeQuizModule.name);
     }
 
     handleSubmitQuiz();
@@ -306,7 +306,7 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({
                   ))}
                 </select>
                 <p className="text-[0.7rem] text-ink-muted leading-relaxed">
-                  * Successfully completing this quiz will automatically mark the linked exam as finished and log your quiz score to your Exam Calendar.
+                  * Completing this quiz will log your score as a practice attempt linked to the exam. You can review attempts from your Exam Calendar.
                 </p>
               </div>
             )}

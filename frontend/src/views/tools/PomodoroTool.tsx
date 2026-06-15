@@ -9,7 +9,7 @@ interface PomodoroToolProps {
 
 type TimerMode = 'focus' | 'shortBreak' | 'longBreak';
 
-export const PomodoroTool: React.FC<PomodoroToolProps> = ({ setView, onFocusSessionComplete }) => {
+export const PomodoroTool: React.FC<PomodoroToolProps> = ({ setView: _setView, onFocusSessionComplete }) => {
   // Modes & Settings State
   const [mode, setMode] = useState<TimerMode>('focus');
   const [durations, setDurations] = useState({
@@ -185,145 +185,154 @@ export const PomodoroTool: React.FC<PomodoroToolProps> = ({ setView, onFocusSess
     : 628;
 
   return (
-    <div className="max-w-180 mx-auto py-12 px-6 pb-24">
-      {/* Back button */}
-      <button
-        onClick={() => setView('tools')}
-        className="inline-flex items-center justify-center gap-2 text-sm px-4 py-2 rounded-md font-medium transition-all duration-150 border border-transparent no-underline cursor-pointer bg-transparent text-ink hover:bg-input hover:border-line-strong mb-8"
-      >
-        &larr; Back to Utilities
-      </button>
-
-      <header className="text-center mb-10">
-        <h1 className="text-[2.5rem] mb-3 tracking-[-0.02em] font-bold">Focus Timer</h1>
-        <p className="text-[1.05rem] text-ink-muted leading-relaxed">
-          Stay focused on your study modules using the Pomodoro technique.
+    <div className="max-w-180 mx-auto py-6 px-6 pb-10">
+      <header className="text-center mb-5">
+        <h1 className="text-[1.8rem] mb-1 tracking-[-0.02em] font-bold">Focus Timer</h1>
+        <p className="text-[0.85rem] text-ink-muted leading-relaxed">
+          Stay focused using the Pomodoro technique.
         </p>
       </header>
 
-      {/* Main card */}
-      <div className="bg-card border border-line rounded-xl p-8 mb-8 relative overflow-hidden shadow-lg flex flex-col items-center">
-        {/* Mode tab selectors */}
-        <div className="flex gap-2 bg-app p-1 rounded-full border border-line mb-8 w-full max-w-90">
-          {(['focus', 'shortBreak', 'longBreak'] as TimerMode[]).map((tab) => (
+      <div className="flex gap-5 items-start">
+        {/* Main card */}
+        <div className="bg-card border border-line rounded-xl p-5 flex-1 relative overflow-hidden shadow-lg flex flex-col items-center">
+          {/* Mode tab selectors */}
+          <div className="flex gap-2 bg-app p-1 rounded-full border border-line mb-5 w-full max-w-72">
+            {(['focus', 'shortBreak', 'longBreak'] as TimerMode[]).map((tab) => (
+              <button
+                key={tab}
+                 onClick={() => switchMode(tab)}
+                className={`flex-1 py-1.5 px-3 text-xs rounded-full border-0 font-medium transition-all duration-200 cursor-pointer text-center ${
+                  mode === tab
+                    ? 'bg-primary text-ink-on-primary font-semibold shadow-sm'
+                    : 'text-ink-muted hover:text-ink'
+                }`}
+              >
+                {tab === 'focus' ? 'Study' : tab === 'shortBreak' ? 'Short Break' : 'Long Break'}
+              </button>
+            ))}
+          </div>
+
+          {/* Circular Progress Ring */}
+          <div className="relative w-44 h-44 flex items-center justify-center mb-5">
+            <svg className="w-full h-full -rotate-90" viewBox="0 0 220 220">
+              <circle
+                cx="110"
+                cy="110"
+                r="100"
+                className="stroke-line fill-none"
+                strokeWidth="6"
+              />
+              <circle
+                cx="110"
+                cy="110"
+                r="100"
+                className={`fill-none transition-all duration-300 ${
+                  mode === 'focus' 
+                    ? 'stroke-primary' 
+                    : mode === 'shortBreak' 
+                      ? 'stroke-accent-cyan' 
+                      : 'stroke-warning'
+                }`}
+                strokeWidth="7"
+                strokeDasharray="628"
+                strokeDashoffset={strokeDashoffset}
+                strokeLinecap="round"
+              />
+            </svg>
+            
+            <div className="absolute text-center">
+              <div className="text-[2.2rem] font-bold tracking-tight select-none">
+                {formatTime(timeLeft)}
+              </div>
+              <div className="text-[0.6rem] text-ink-muted uppercase tracking-wider font-semibold mt-1">
+                {mode === 'focus' ? 'Study Session' : 'Time for a break'}
+              </div>
+            </div>
+          </div>
+
+          {/* Control Buttons */}
+          <div className="flex items-center gap-5 mb-1">
             <button
-              key={tab}
-               onClick={() => switchMode(tab)}
-              className={`flex-1 py-1.5 px-3 text-xs rounded-full border-0 font-medium transition-all duration-200 cursor-pointer text-center ${
-                mode === tab
-                  ? 'bg-primary text-ink-on-primary font-semibold shadow-sm'
-                  : 'text-ink-muted hover:text-ink'
+              onClick={() => setIsSoundEnabled(!isSoundEnabled)}
+              className="w-9 h-9 rounded-full border border-line bg-app flex items-center justify-center cursor-pointer transition-colors duration-150 text-ink-muted hover:text-ink hover:bg-glass"
+              title={isSoundEnabled ? 'Disable Alert Sound' : 'Enable Alert Sound'}
+            >
+              {isSoundEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
+            </button>
+
+            <button
+              onClick={handleToggleStart}
+              className={`w-12 h-12 rounded-full border-0 flex items-center justify-center cursor-pointer shadow-md transition-all duration-200 hover:scale-105 active:scale-95 ${
+                isRunning 
+                  ? 'bg-warning text-white' 
+                  : 'bg-primary text-ink-on-primary font-bold'
               }`}
             >
-              {tab === 'focus' ? 'Study' : tab === 'shortBreak' ? 'Short Break' : 'Long Break'}
+              {isRunning ? <Pause size={20} fill="currentColor" /> : <Play size={20} className="ml-0.5" fill="currentColor" />}
             </button>
-          ))}
+
+            <button
+              onClick={handleReset}
+              className="w-9 h-9 rounded-full border border-line bg-app flex items-center justify-center cursor-pointer transition-colors duration-150 text-ink-muted hover:text-ink hover:bg-glass"
+              title="Reset Timer"
+            >
+              <RotateCcw size={14} />
+            </button>
+          </div>
+
+          {isRunning && (
+            <button
+              onClick={handleSkip}
+              className="bg-transparent border-0 text-[0.75rem] text-ink-muted hover:text-primary mt-3 cursor-pointer transition-colors duration-150 font-medium"
+            >
+              Skip active interval &rarr;
+            </button>
+          )}
+
+          <button
+            onClick={() => {
+              setTempDurations({ ...durations });
+              setShowSettings(!showSettings);
+            }}
+            className="absolute top-4 right-4 bg-transparent border-0 text-ink-muted hover:text-ink cursor-pointer p-1.5 transition-colors duration-150"
+            title="Configure Durations"
+          >
+            <Settings size={16} />
+          </button>
         </div>
 
-        {/* Circular Progress Ring */}
-        <div className="relative w-57.5 h-57.5 flex items-center justify-center mb-8">
-          <svg className="w-full h-full -rotate-90" viewBox="0 0 220 220">
-            {/* Background circle */}
-            <circle
-              cx="110"
-              cy="110"
-              r="100"
-              className="stroke-line fill-none"
-              strokeWidth="6"
-            />
-            {/* Animated progress circle */}
-            <circle
-              cx="110"
-              cy="110"
-              r="100"
-              className={`fill-none transition-all duration-300 ${
-                mode === 'focus' 
-                  ? 'stroke-primary' 
-                  : mode === 'shortBreak' 
-                    ? 'stroke-accent-cyan' 
-                    : 'stroke-warning'
-              }`}
-              strokeWidth="7"
-              strokeDasharray="628"
-              strokeDashoffset={strokeDashoffset}
-              strokeLinecap="round"
-            />
-          </svg>
-          
-          {/* Inner content */}
-          <div className="absolute text-center">
-            <div className="text-[2.75rem] font-bold tracking-tight select-none">
-              {formatTime(timeLeft)}
+        {/* Stats sidebar */}
+        <div className="w-40 flex flex-col gap-3">
+          <div className="bg-card border border-line rounded-xl p-3 flex items-center gap-3 shadow-sm">
+            <div className="bg-primary-soft text-primary p-2 rounded-lg">
+              <CheckCircle size={18} />
             </div>
-            <div className="text-[0.65rem] text-ink-muted uppercase tracking-wider font-semibold mt-1">
-              {mode === 'focus' ? 'Study Session' : 'Time for a break'}
+            <div>
+              <div className="text-xl font-bold tracking-tight">{sessionsCompleted}</div>
+              <div className="text-[0.65rem] text-ink-muted font-medium uppercase tracking-wider">Sessions</div>
+            </div>
+          </div>
+
+          <div className="bg-card border border-line rounded-xl p-3 flex items-center gap-3 shadow-sm">
+            <div className="bg-primary-soft text-primary p-2 rounded-lg">
+              <Clock size={18} />
+            </div>
+            <div>
+              <div className="text-xl font-bold tracking-tight">{totalFocusMinutes}m</div>
+              <div className="text-[0.65rem] text-ink-muted font-medium uppercase tracking-wider">Focus Time</div>
             </div>
           </div>
         </div>
-
-        {/* Control Buttons */}
-        <div className="flex items-center gap-6 mb-2">
-          {/* Sound toggle */}
-          <button
-            onClick={() => setIsSoundEnabled(!isSoundEnabled)}
-            className="w-10 h-10 rounded-full border border-line bg-app flex items-center justify-center cursor-pointer transition-colors duration-150 text-ink-muted hover:text-ink hover:bg-glass"
-            title={isSoundEnabled ? 'Disable Alert Sound' : 'Enable Alert Sound'}
-          >
-            {isSoundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
-          </button>
-
-          {/* Start/Pause */}
-          <button
-            onClick={handleToggleStart}
-            className={`w-14 h-14 rounded-full border-0 flex items-center justify-center cursor-pointer shadow-md transition-all duration-200 hover:scale-105 active:scale-95 ${
-              isRunning 
-                ? 'bg-warning text-white' 
-                : 'bg-primary text-ink-on-primary font-bold'
-            }`}
-          >
-            {isRunning ? <Pause size={22} fill="currentColor" /> : <Play size={22} className="ml-1" fill="currentColor" />}
-          </button>
-
-          {/* Reset */}
-          <button
-            onClick={handleReset}
-            className="w-10 h-10 rounded-full border border-line bg-app flex items-center justify-center cursor-pointer transition-colors duration-150 text-ink-muted hover:text-ink hover:bg-glass"
-            title="Reset Timer"
-          >
-            <RotateCcw size={16} />
-          </button>
-        </div>
-
-        {/* Action helper bar (skip) */}
-        {isRunning && (
-          <button
-            onClick={handleSkip}
-            className="bg-transparent border-0 text-[0.8rem] text-ink-muted hover:text-primary mt-4 cursor-pointer transition-colors duration-150 font-medium"
-          >
-            Skip active interval &rarr;
-          </button>
-        )}
-
-        {/* Settings Button */}
-        <button
-          onClick={() => {
-            setTempDurations({ ...durations });
-            setShowSettings(!showSettings);
-          }}
-          className="absolute top-5 right-5 bg-transparent border-0 text-ink-muted hover:text-ink cursor-pointer p-1.5 transition-colors duration-150"
-          title="Configure Durations"
-        >
-          <Settings size={18} />
-        </button>
       </div>
 
       {/* Settings Panel Overlay Drawer */}
       {showSettings && (
-        <div className="bg-card border border-line rounded-xl p-6 mb-8 shadow-md transition-all duration-300">
-          <div className="flex justify-between items-center mb-5 pb-3 border-b border-line">
-            <h3 className="text-[1.05rem] font-bold m-0 flex items-center gap-2">
-              <Settings size={16} className="text-primary" />
-              Configure Timer Durations (minutes)
+        <div className="bg-card border border-line rounded-xl p-4 mb-5 shadow-md transition-all duration-300">
+          <div className="flex justify-between items-center mb-3 pb-2 border-b border-line">
+            <h3 className="text-[0.95rem] font-bold m-0 flex items-center gap-2">
+              <Settings size={14} className="text-primary" />
+              Configure Durations (minutes)
             </h3>
             <button
               onClick={() => setShowSettings(false)}
@@ -333,86 +342,63 @@ export const PomodoroTool: React.FC<PomodoroToolProps> = ({ setView, onFocusSess
             </button>
           </div>
 
-          <form onSubmit={handleSaveSettings} className="flex flex-col gap-4">
-            <div className="grid grid-cols-3 gap-4">
+          <form onSubmit={handleSaveSettings} className="flex flex-col gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs text-ink-muted font-semibold mb-2">Study Interval</label>
+                <label className="block text-xs text-ink-muted font-semibold mb-1">Study</label>
                 <input
                   type="number"
                   min="1"
                   max="180"
                   value={tempDurations.focus}
                   onChange={(e) => setTempDurations({ ...tempDurations, focus: parseInt(e.target.value) || 25 })}
-                  className="w-full bg-input border border-line rounded-lg px-3 py-2 text-ink text-sm outline-none focus:border-primary text-center font-bold"
+                  className="w-full bg-input border border-line rounded-lg px-2 py-1.5 text-ink text-sm outline-none focus:border-primary text-center font-bold"
                 />
               </div>
 
               <div>
-                <label className="block text-xs text-ink-muted font-semibold mb-2">Short Break</label>
+                <label className="block text-xs text-ink-muted font-semibold mb-1">Short Break</label>
                 <input
                   type="number"
                   min="1"
                   max="60"
                   value={tempDurations.shortBreak}
                   onChange={(e) => setTempDurations({ ...tempDurations, shortBreak: parseInt(e.target.value) || 5 })}
-                  className="w-full bg-input border border-line rounded-lg px-3 py-2 text-ink text-sm outline-none focus:border-primary text-center font-bold"
+                  className="w-full bg-input border border-line rounded-lg px-2 py-1.5 text-ink text-sm outline-none focus:border-primary text-center font-bold"
                 />
               </div>
 
               <div>
-                <label className="block text-xs text-ink-muted font-semibold mb-2">Long Break</label>
+                <label className="block text-xs text-ink-muted font-semibold mb-1">Long Break</label>
                 <input
                   type="number"
                   min="1"
                   max="120"
                   value={tempDurations.longBreak}
                   onChange={(e) => setTempDurations({ ...tempDurations, longBreak: parseInt(e.target.value) || 15 })}
-                  className="w-full bg-input border border-line rounded-lg px-3 py-2 text-ink text-sm outline-none focus:border-primary text-center font-bold"
+                  className="w-full bg-input border border-line rounded-lg px-2 py-1.5 text-ink text-sm outline-none focus:border-primary text-center font-bold"
                 />
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 mt-2">
+            <div className="flex justify-end gap-2 mt-1">
               <button
                 type="button"
                 onClick={() => setShowSettings(false)}
-                className="btn btn-outline py-2 px-4 text-xs font-semibold"
+                className="btn btn-outline py-1.5 px-3 text-xs font-semibold"
               >
                 Discard
               </button>
               <button
                 type="submit"
-                className="btn btn-primary py-2 px-5 text-xs font-bold"
+                className="btn btn-primary py-1.5 px-4 text-xs font-bold"
               >
-                Save Durations
+                Save
               </button>
             </div>
           </form>
         </div>
       )}
-
-      {/* Statistics widgets */}
-      <div className="grid grid-cols-2 gap-6">
-        <div className="bg-card border border-line rounded-xl p-5 flex items-center gap-4 shadow-sm">
-          <div className="bg-primary-soft text-primary p-3 rounded-lg">
-            <CheckCircle size={22} />
-          </div>
-          <div>
-            <div className="text-2xl font-bold tracking-tight">{sessionsCompleted}</div>
-            <div className="text-[0.7rem] text-ink-muted font-medium uppercase tracking-wider">Completed Sessions</div>
-          </div>
-        </div>
-
-        <div className="bg-card border border-line rounded-xl p-5 flex items-center gap-4 shadow-sm">
-          <div className="bg-primary-soft text-primary p-3 rounded-lg">
-            <Clock size={22} />
-          </div>
-          <div>
-            <div className="text-2xl font-bold tracking-tight">{totalFocusMinutes}m</div>
-            <div className="text-[0.7rem] text-ink-muted font-medium uppercase tracking-wider">Total Focus Time</div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };

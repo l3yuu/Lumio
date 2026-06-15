@@ -16,7 +16,7 @@ export type View =
 
 export type AuthTab = 'login' | 'signup';
 
-export type DashboardTab = 'overview' | 'modules' | 'groups' | 'tools' | 'settings' | 'calendar' | 'notifications' | 'admin' | 'admin-overview' | 'admin-users' | 'admin-sales' | 'admin-modules' | 'admin-groups';
+export type DashboardTab = 'overview' | 'modules' | 'groups' | 'tools' | 'settings' | 'calendar' | 'notifications' | 'admin' | 'admin-overview' | 'admin-users' | 'admin-sales' | 'admin-modules' | 'admin-exams' | 'admin-groups' | 'tool-flashcards' | 'tool-essay' | 'tool-condenser' | 'tool-pomodoro';
 
 export interface Notification {
   id: number;
@@ -49,7 +49,7 @@ export interface User {
   streak?: number;
   quizzesCount?: number;
   quizHistory?: number[];
-  studyTime?: { [key: string]: number | string };
+  studyTime?: { [key: string]: any };
   heatmapData?: { label: string; hours: number; level: number; date?: string }[];
   focusAreas?: { concept: string; subject: string; score: number; desc: string }[];
   spacedRecall?: { id: number; name: string; subject: string; dueIn: string; progress: number }[];
@@ -57,6 +57,10 @@ export interface User {
   questsDate?: string;
   lastCheckIn?: string;
   folders?: string[];
+  is_premium?: boolean;
+  is_suspended?: boolean;
+  stripe_subscription_status?: string;
+  premium_expires_at?: string;
 }
 
 export interface QuizQuestion {
@@ -86,6 +90,7 @@ export interface GroupMember {
   email: string;
   avatar?: string;
   online: boolean;
+  is_premium?: boolean;
 }
 
 export interface GroupQuizRank {
@@ -217,11 +222,25 @@ export interface UserResponse {
   quests_date?: string;
   last_check_in?: string;
   folders?: string[];
+  is_premium?: boolean;
+  is_suspended?: boolean;
+  stripe_subscription_status?: string;
+  premium_expires_at?: string;
 }
 
 export interface ExamTopic {
   text: string;
   completed: boolean;
+}
+
+export interface ExamQuizAttempt {
+  score: string;
+  date: string;
+  quizName: string;
+}
+
+export interface ExamQuizLink {
+  attempts: ExamQuizAttempt[];
 }
 
 export interface ExamDeadline {

@@ -319,3 +319,178 @@ def send_spaced_recall_email_sync(user_email: str, user_name: str, module_name: 
         return
 
     _send_email(user_email, subject, html_content, "Spaced recall email")
+
+
+def send_pro_status_email_sync(user_email: str, user_name: str, is_pro: bool):
+    action = "upgraded to Pro" if is_pro else "downgraded to Standard"
+    subject = f"Lumio Account Status: You've been {action}!"
+    details_p = (
+        "We're writing to let you know that your Lumio account has been upgraded to Premium Pro by the system administrator. "
+        "You now have unlimited access to study modules, practice exams, and collaborative tools!"
+        if is_pro else
+        "We're writing to let you know that your Lumio account role has been set to Standard by the system administrator."
+    )
+    
+    html_content = f"""
+    <html>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f9f9f9; padding: 20px;">
+        <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 30px; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+          <div style="text-align: center; margin-bottom: 25px;">
+            <h1 style="color: #3ECF8E; font-size: 2.2rem; margin: 0; font-weight: 800; letter-spacing: -1px;">Lumio</h1>
+            <span style="font-size: 0.95rem; color: #64748b; font-weight: 500;">Your AI Collaborative Study Room</span>
+          </div>
+          <h2 style="color: #1e293b; font-size: 1.5rem; margin-top: 0; margin-bottom: 15px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px;">Role Status Update</h2>
+          <p style="color: #334155; font-size: 1rem; margin-bottom: 20px;">Hi {user_name},</p>
+          <p style="color: #334155; font-size: 1rem; margin-bottom: 20px;">{details_p}</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="http://localhost:5173" style="background-color: #3ECF8E; color: #ffffff; padding: 12px 30px; border-radius: 8px; font-weight: bold; text-decoration: none; font-size: 1rem; box-shadow: 0 4px 12px rgba(62,207,142,0.25);">Access Lumio</a>
+          </div>
+          <p style="color: #64748b; font-size: 0.85rem; border-top: 1px solid #f1f5f9; padding-top: 15px; margin-top: 25px; margin-bottom: 0;">Happy Learning,<br>The Lumio Team</p>
+        </div>
+      </body>
+    </html>
+    """
+
+    if settings.USE_CONSOLE_EMAIL or not _has_email_provider():
+        print("\n" + "="*80)
+        print(f"[CONSOLE MAIL SENDER] Pro status email triggered for: {user_email}")
+        print(f"Recipient Name: {user_name}")
+        print(f"Status: {action}")
+        print(f"Subject: {subject}")
+        print("="*80 + "\n")
+        return
+
+    _send_email(user_email, subject, html_content, "Pro status email")
+
+
+def send_admin_status_email_sync(user_email: str, user_name: str, is_admin: bool):
+    action = "promoted to Superadmin" if is_admin else "demoted to Standard User"
+    subject = f"Lumio Account Status: You've been {action}!"
+    details_p = (
+        "We're writing to let you know that your Lumio account has been promoted to Superadmin by the system administrator. "
+        "You now have access to the administrative dashboard, user management tools, and statistics!"
+        if is_admin else
+        "We're writing to let you know that your Lumio administrative privileges have been revoked by the system administrator."
+    )
+    
+    html_content = f"""
+    <html>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f9f9f9; padding: 20px;">
+        <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 30px; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+          <div style="text-align: center; margin-bottom: 25px;">
+            <h1 style="color: #3ECF8E; font-size: 2.2rem; margin: 0; font-weight: 800; letter-spacing: -1px;">Lumio</h1>
+            <span style="font-size: 0.95rem; color: #64748b; font-weight: 500;">Your AI Collaborative Study Room</span>
+          </div>
+          <h2 style="color: #1e293b; font-size: 1.5rem; margin-top: 0; margin-bottom: 15px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px;">Privileges Update</h2>
+          <p style="color: #334155; font-size: 1rem; margin-bottom: 20px;">Hi {user_name},</p>
+          <p style="color: #334155; font-size: 1rem; margin-bottom: 20px;">{details_p}</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="http://localhost:5173" style="background-color: #3ECF8E; color: #ffffff; padding: 12px 30px; border-radius: 8px; font-weight: bold; text-decoration: none; font-size: 1rem; box-shadow: 0 4px 12px rgba(62,207,142,0.25);">Access Lumio</a>
+          </div>
+          <p style="color: #64748b; font-size: 0.85rem; border-top: 1px solid #f1f5f9; padding-top: 15px; margin-top: 25px; margin-bottom: 0;">Happy Learning,<br>The Lumio Team</p>
+        </div>
+      </body>
+    </html>
+    """
+
+    if settings.USE_CONSOLE_EMAIL or not _has_email_provider():
+        print("\n" + "="*80)
+        print(f"[CONSOLE MAIL SENDER] Admin status email triggered for: {user_email}")
+        print(f"Recipient Name: {user_name}")
+        print(f"Status: {action}")
+        print(f"Subject: {subject}")
+        print("="*80 + "\n")
+        return
+
+    _send_email(user_email, subject, html_content, "Admin status email")
+
+
+def send_account_suspension_email_sync(user_email: str, user_name: str, is_suspended: bool):
+    action = "suspended" if is_suspended else "re-activated"
+    subject = f"Important Alert: Your Lumio account has been {action}!"
+    details_p = (
+        "We regret to inform you that your Lumio account has been suspended by the administrator due to platform policy violations. "
+        "Consequently, you will be unable to log in, share study materials, or access your groups. "
+        "If you believe this is a mistake, please contact support."
+        if is_suspended else
+        "We're pleased to inform you that your Lumio account has been re-activated by the administrator. "
+        "You now have full access to your account and study rooms again."
+    )
+    
+    html_content = f"""
+    <html>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f9f9f9; padding: 20px;">
+        <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 30px; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+          <div style="text-align: center; margin-bottom: 25px;">
+            <h1 style="color: #3ECF8E; font-size: 2.2rem; margin: 0; font-weight: 800; letter-spacing: -1px;">Lumio</h1>
+            <span style="font-size: 0.95rem; color: #64748b; font-weight: 500;">Your AI Collaborative Study Room</span>
+          </div>
+          <h2 style="color: #1e293b; font-size: 1.5rem; margin-top: 0; margin-bottom: 15px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px;">Account Suspension Update</h2>
+          <p style="color: #334155; font-size: 1rem; margin-bottom: 20px;">Hi {user_name},</p>
+          <p style="color: #334155; font-size: 1rem; margin-bottom: 20px;">{details_p}</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="http://localhost:5173" style="background-color: #3ECF8E; color: #ffffff; padding: 12px 30px; border-radius: 8px; font-weight: bold; text-decoration: none; font-size: 1rem; box-shadow: 0 4px 12px rgba(62,207,142,0.25);">Access Lumio</a>
+          </div>
+          <p style="color: #64748b; font-size: 0.85rem; border-top: 1px solid #f1f5f9; padding-top: 15px; margin-top: 25px; margin-bottom: 0;">Happy Learning,<br>The Lumio Team</p>
+        </div>
+      </body>
+    </html>
+    """
+
+    if settings.USE_CONSOLE_EMAIL or not _has_email_provider():
+        print("\n" + "="*80)
+        print(f"[CONSOLE MAIL SENDER] Account suspension email triggered for: {user_email}")
+        print(f"Recipient Name: {user_name}")
+        print(f"Status: {action}")
+        print(f"Subject: {subject}")
+        print("="*80 + "\n")
+        return
+
+    _send_email(user_email, subject, html_content, "Account suspension email")
+
+
+def send_account_deletion_email_sync(user_email: str, user_name: str):
+    subject = "Your Lumio account has been deleted"
+    html_content = f"""
+    <html>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f9f9f9; padding: 20px;">
+        <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 30px; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+          <div style="text-align: center; margin-bottom: 25px;">
+            <h1 style="color: #3ECF8E; font-size: 2.2rem; margin: 0; font-weight: 800; letter-spacing: -1px;">Lumio</h1>
+            <span style="font-size: 0.95rem; color: #64748b; font-weight: 500;">Your AI Collaborative Study Room</span>
+          </div>
+          <h2 style="color: #1e293b; font-size: 1.5rem; margin-top: 0; margin-bottom: 15px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px;">Account Deleted</h2>
+          <p style="color: #334155; font-size: 1rem; margin-bottom: 20px;">Hi {user_name},</p>
+          <p style="color: #334155; font-size: 1rem; margin-bottom: 20px;">We are writing to confirm that your Lumio user account has been deleted by the system administrator. All your personal data, uploaded study modules, calendars, and study group memberships have been permanently purged.</p>
+          <p style="color: #334155; font-size: 1rem; margin-bottom: 20px;">Thank you for studying with us, and we wish you all the best in your academic journey.</p>
+          <p style="color: #64748b; font-size: 0.85rem; border-top: 1px solid #f1f5f9; padding-top: 15px; margin-top: 25px; margin-bottom: 0;">Sincerely,<br>The Lumio Team</p>
+        </div>
+      </body>
+    </html>
+    """
+
+    if settings.USE_CONSOLE_EMAIL or not _has_email_provider():
+        print("\n" + "="*80)
+        print(f"[CONSOLE MAIL SENDER] Account deletion email triggered for: {user_email}")
+        print(f"Recipient Name: {user_name}")
+        print(f"Subject: {subject}")
+        print("="*80 + "\n")
+        return
+
+    _send_email(user_email, subject, html_content, "Account deletion email")
+
+
+def send_pro_status_email(background_tasks: BackgroundTasks, user_email: str, user_name: str, is_pro: bool):
+    background_tasks.add_task(send_pro_status_email_sync, user_email, user_name, is_pro)
+
+
+def send_admin_status_email(background_tasks: BackgroundTasks, user_email: str, user_name: str, is_admin: bool):
+    background_tasks.add_task(send_admin_status_email_sync, user_email, user_name, is_admin)
+
+
+def send_account_suspension_email(background_tasks: BackgroundTasks, user_email: str, user_name: str, is_suspended: bool):
+    background_tasks.add_task(send_account_suspension_email_sync, user_email, user_name, is_suspended)
+
+
+def send_account_deletion_email(background_tasks: BackgroundTasks, user_email: str, user_name: str):
+    background_tasks.add_task(send_account_deletion_email_sync, user_email, user_name)

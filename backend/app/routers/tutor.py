@@ -9,8 +9,8 @@ from ..time_utils import today_ph_str
 
 router = APIRouter(prefix="/api/tutor", tags=["tutor"])
 
-# Disabled for local testing — re-enable before production
-TUTOR_DAILY_QUOTA_ENABLED = False
+# Re-enabled for production, bypassed for premium users
+TUTOR_DAILY_QUOTA_ENABLED = True
 TUTOR_DAILY_QUOTA_LIMIT = 5
 
 def generate_mock_tutor_response(query: str) -> str:
@@ -32,25 +32,44 @@ def ask_tutor(
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db)
 ):
-    # Enforce Daily Quota Limit of 5 tutor queries
-    today_str = today_ph_str()
+    import time
+    
+    # Enforce AI Chatbot Quotas: 5 chats per day (rolling 24h) for Free, 25 chats per 12h for Pro
+    now_ts = time.time()
     st = current_user.study_time or {}
     if not isinstance(st, dict):
         st = {}
         
-    tutor_date = st.get("tutor_quota_date", "")
-    tutor_used = st.get("tutor_quota_used", 0)
-    
-    if tutor_date != today_str:
-        # Reset count for the new day
-        st["tutor_quota_date"] = today_str
-        st["tutor_quota_used"] = 0
-        tutor_used = 0
+    chat_history = st.get("tutor_chat_history", [])
+    if not isinstance(chat_history, list):
+        chat_history = []
         
-    if TUTOR_DAILY_QUOTA_ENABLED and tutor_used >= TUTOR_DAILY_QUOTA_LIMIT:
+    if current_user.is_premium:
+        # Pro limit: 25 chats in the last 12 hours
+        window = 12 * 3600
+        limit = 25
+        limit_desc = "25 chats per 12 hours"
+    else:
+        # Free limit: 5 chats in the last 24 hours
+        window = 24 * 3600
+        limit = 5
+        limit_desc = "5 chats per day"
+        
+    cutoff = now_ts - window
+    recent_chats = [ts for ts in chat_history if isinstance(ts, (int, float)) and ts > cutoff]
+    
+    if len(recent_chats) >= limit:
+        oldest_chat = min(recent_chats)
+        seconds_left = int((oldest_chat + window) - now_ts)
+        hours_left = seconds_left // 3600
+        minutes_left = (seconds_left % 3600) // 60
+        time_msg = f"{hours_left}h {minutes_left}m" if hours_left > 0 else f"{minutes_left}m"
+        if seconds_left <= 60:
+            time_msg = "less than a minute"
+            
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Daily limit reached. Free accounts are limited to 5 AI Concept Tutor queries per day."
+            detail=f"Chat limit reached. {'Pro' if current_user.is_premium else 'Free'} accounts are limited to {limit_desc}. Try again in {time_msg}."
         )
 
     # Retrieve textbook content from all user modules to construct study context
@@ -144,12 +163,12 @@ Student Query:
             else:
                 answer = generate_mock_tutor_response(body.query)
 
-    if TUTOR_DAILY_QUOTA_ENABLED:
-        st["tutor_quota_used"] = tutor_used + 1
-        current_user.study_time = {**st}
-        from sqlalchemy.orm.attributes import flag_modified
-        flag_modified(current_user, "study_time")
-        db.commit()
+    recent_chats.append(time.time())
+    st["tutor_chat_history"] = recent_chats
+    current_user.study_time = {**st}
+    from sqlalchemy.orm.attributes import flag_modified
+    flag_modified(current_user, "study_time")
+    db.commit()
     
     return schemas.TutorResponse(query=body.query, answer=answer)
 

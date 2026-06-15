@@ -48,6 +48,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ setView }) => {
         initial="hidden"
         animate="visible"
       >
+        {/* Flashcard Generator */}
         <motion.div
           className="bg-card border border-line rounded-xl p-7 flex gap-8 items-center flex-wrap"
           variants={itemVariants}
@@ -61,12 +62,16 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ setView }) => {
             <p className="text-ink-muted leading-relaxed text-[0.95rem] mb-5">
               Convert complex text blocks into simple question-and-answer index cards. Utilizing spaced repetition principles, the flashcard decks prioritize cards you get wrong, building memory retention.
             </p>
-            <button onClick={() => setView('flashcards')} className="inline-flex items-center justify-center gap-2 text-[0.85rem] font-medium transition-all duration-150 no-underline cursor-pointer bg-primary text-ink-on-primary border border-primary rounded-md px-5 py-2 hover:bg-primary-hover hover:border-primary-hover">
+            <button
+              onClick={() => setView('auth')}
+              className="inline-flex items-center justify-center gap-2 text-[0.85rem] font-medium transition-all duration-150 no-underline cursor-pointer bg-primary text-ink-on-primary border border-primary rounded-md px-5 py-2 hover:bg-primary-hover hover:border-primary-hover"
+            >
               Open Flashcard Generator &rarr;
             </button>
           </div>
         </motion.div>
 
+        {/* AI Essay Grader */}
         <motion.div
           className="bg-card border border-line rounded-xl p-7 flex gap-8 items-center flex-wrap"
           variants={itemVariants}
@@ -80,12 +85,16 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ setView }) => {
             <p className="text-ink-muted leading-relaxed text-[0.95rem] mb-5">
               Submit practice essays for class assignments. Lumio's grading engine critiques thesis statements, grammatical flows, citation structure, and offers concrete recommendations to improve writing grades.
             </p>
-            <button onClick={() => setView('essay-grader')} className="inline-flex items-center justify-center gap-2 text-[0.85rem] font-medium transition-all duration-150 no-underline cursor-pointer bg-primary text-ink-on-primary border border-primary rounded-md px-5 py-2 hover:bg-primary-hover hover:border-primary-hover">
+            <button
+              onClick={() => setView('auth')}
+              className="inline-flex items-center justify-center gap-2 text-[0.85rem] font-medium transition-all duration-150 no-underline cursor-pointer bg-primary text-ink-on-primary border border-primary rounded-md px-5 py-2 hover:bg-primary-hover hover:border-primary-hover"
+            >
               Open AI Essay Grader &rarr;
             </button>
           </div>
         </motion.div>
 
+        {/* Document Condenser */}
         <motion.div
           className="bg-card border border-line rounded-xl p-7 flex gap-8 items-center flex-wrap"
           variants={itemVariants}
@@ -99,7 +108,10 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ setView }) => {
             <p className="text-ink-muted leading-relaxed text-[0.95rem] mb-5">
               Upload full 80-page textbook PDF chapters. The condenser extracts summaries, highlights core formulas, creates definitions bullet points, and discards fluff paragraphs, saving study time.
             </p>
-            <button onClick={() => setView('condenser')} className="inline-flex items-center justify-center gap-2 text-[0.85rem] font-medium transition-all duration-150 no-underline cursor-pointer bg-primary text-ink-on-primary border border-primary rounded-md px-5 py-2 hover:bg-primary-hover hover:border-primary-hover">
+            <button
+              onClick={() => setView('auth')}
+              className="inline-flex items-center justify-center gap-2 text-[0.85rem] font-medium transition-all duration-150 no-underline cursor-pointer bg-primary text-ink-on-primary border border-primary rounded-md px-5 py-2 hover:bg-primary-hover hover:border-primary-hover"
+            >
               Open Document Condenser &rarr;
             </button>
           </div>

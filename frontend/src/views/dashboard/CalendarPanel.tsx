@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Plus, Trash2, Calendar as CalendarIcon, CheckCircle2, Trophy, X } from 'lucide-react';
-import type { ExamDeadline } from '../../types';
+import { motion } from 'framer-motion';
+import { ChevronLeft, ChevronRight, Plus, Trash2, Calendar as CalendarIcon, CheckCircle2, Trophy, X, Zap } from 'lucide-react';
+import type { ExamDeadline, ExamQuizLink } from '../../types';
 
 interface CalendarPanelProps {
   exams: ExamDeadline[];
@@ -20,6 +20,7 @@ interface CalendarPanelProps {
   handleAddExam: (e: React.FormEvent) => void;
   handleDeleteExam: (id: number) => void;
   handleCompleteExam: (id: number, score?: string) => void;
+  examQuizLinks?: Record<number, ExamQuizLink>;
 }
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -28,12 +29,14 @@ const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export const CalendarPanel: React.FC<CalendarPanelProps> = ({
   exams, completedExams, isAddingExam, newExamTitle, newExamSubject, newExamDate, newExamPriority, subjects,
   setIsAddingExam, setNewExamTitle, setNewExamSubject, setNewExamDate, setNewExamPriority,
-  handleAddExam, handleDeleteExam, handleCompleteExam,
+  handleAddExam, handleDeleteExam, handleCompleteExam, examQuizLinks,
 }) => {
   const [viewDate, setViewDate] = useState(new Date());
   const [finishingExamId, setFinishingExamId] = useState<number | null>(null);
   const [finishScore, setFinishScore] = useState('');
   const [selectedDate, setSelectedDate] = useState<{ day: number; month: number; year: number } | null>(null);
+  const [selectedExamDetail, setSelectedExamDetail] = useState<ExamDeadline | null>(null);
+  const [deleteConfirmExam, setDeleteConfirmExam] = useState<{ exam: ExamDeadline; fromDetail: boolean } | null>(null);
 
   const startFinishing = (examId: number) => {
     setFinishingExamId(examId);
@@ -107,52 +110,71 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
           <h3 className="text-[1.15rem] flex items-center gap-2 m-0">
             <CalendarIcon size={18} className="text-primary" /> Exam Calendar
           </h3>
-          <button onClick={() => setIsAddingExam(!isAddingExam)} className="btn btn-primary px-3 py-1.5 text-[0.8rem] flex items-center gap-1">
+          <button onClick={() => setIsAddingExam(true)} className="btn btn-primary px-3 py-1.5 text-[0.8rem] flex items-center gap-1">
             <Plus size={14} /> Log Exam
           </button>
         </div>
 
-        <AnimatePresence>
-          {isAddingExam && (
+        {/* Log New Exam Modal */}
+        {isAddingExam && (
+          <div className="fixed inset-0 bg-[rgba(5,5,5,0.7)] backdrop-blur-sm z-3000 flex items-center justify-center p-4">
             <motion.form
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              onSubmit={handleAddExam}
-              className="bg-app border border-line rounded-lg p-4 mb-6 flex flex-col gap-3 overflow-hidden"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              onSubmit={(e) => { handleAddExam(e); setIsAddingExam(false); }}
+              className="bg-card border border-line rounded-2xl p-6 max-w-md w-full shadow-lg flex flex-col gap-4"
+              onClick={(e) => e.stopPropagation()}
             >
-              <div className="text-[0.9rem] font-bold border-b border-line pb-1">Log New Exam</div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="sm:col-span-3">
+              <div className="flex items-center justify-between pb-3 border-b border-line">
+                <h3 className="text-lg font-bold text-ink flex items-center gap-2 m-0">
+                  <Plus size={18} className="text-primary" /> Log New Exam
+                </h3>
+                <button type="button" onClick={() => setIsAddingExam(false)} className="bg-transparent border-0 text-ink-muted hover:text-ink cursor-pointer p-1">
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="flex flex-col gap-3">
+                <div>
                   <label className="text-[0.75rem] font-semibold text-ink mb-1">Exam Title</label>
-                  <input type="text" placeholder="e.g. Biology Final" className="w-full bg-input border border-line rounded-md text-ink text-sm px-3 py-2 outline-none focus:border-primary" value={newExamTitle} onChange={(e) => setNewExamTitle(e.target.value)} required />
+                  <input type="text" placeholder="e.g. Biology Final" className="w-full bg-input border border-line rounded-lg text-ink text-sm px-3 py-2.5 outline-none focus:border-primary" value={newExamTitle} onChange={(e) => setNewExamTitle(e.target.value)} required />
                 </div>
-                <div>
-                  <label className="text-[0.75rem] font-semibold text-ink mb-1">Subject</label>
-                  <select className="w-full bg-input border border-line rounded-md text-ink text-sm px-3 py-2 outline-none focus:border-primary" value={newExamSubject} onChange={(e) => setNewExamSubject(e.target.value)}>
-                    {subjects.map(s => <option key={s} value={s === 'All' ? 'General' : s}>{s === 'All' ? 'General' : s}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[0.75rem] font-semibold text-ink mb-1">Priority</label>
-                  <select className="w-full bg-input border border-line rounded-md text-ink text-sm px-3 py-2 outline-none focus:border-primary" value={newExamPriority} onChange={(e) => setNewExamPriority(e.target.value as 'high' | 'medium' | 'low')}>
-                    <option value="high">High</option>
-                    <option value="medium">Medium</option>
-                    <option value="low">Low</option>
-                  </select>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[0.75rem] font-semibold text-ink mb-1">Subject</label>
+                    <select className="w-full bg-input border border-line rounded-lg text-ink text-sm px-3 py-2.5 outline-none focus:border-primary" value={newExamSubject} onChange={(e) => setNewExamSubject(e.target.value)}>
+                      {(() => {
+                        const seen = new Set<string>();
+                        return subjects.filter(s => {
+                          const key = s.toLowerCase().trim();
+                          if (seen.has(key)) return false;
+                          seen.add(key);
+                          return true;
+                        }).map(s => <option key={s} value={s === 'All' ? 'General' : s}>{s === 'All' ? 'General' : s}</option>);
+                      })()}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[0.75rem] font-semibold text-ink mb-1">Priority</label>
+                    <select className="w-full bg-input border border-line rounded-lg text-ink text-sm px-3 py-2.5 outline-none focus:border-primary" value={newExamPriority} onChange={(e) => setNewExamPriority(e.target.value as 'high' | 'medium' | 'low')}>
+                      <option value="high">High</option>
+                      <option value="medium">Medium</option>
+                      <option value="low">Low</option>
+                    </select>
+                  </div>
                 </div>
                 <div>
                   <label className="text-[0.75rem] font-semibold text-ink mb-1">Exam Date</label>
-                  <input type="date" className="w-full bg-input border border-line rounded-md text-ink text-sm px-3 py-2 outline-none focus:border-primary" value={newExamDate} onChange={(e) => setNewExamDate(e.target.value)} required />
+                  <input type="date" className="w-full bg-input border border-line rounded-lg text-ink text-sm px-3 py-2.5 outline-none focus:border-primary" value={newExamDate} onChange={(e) => setNewExamDate(e.target.value)} required />
                 </div>
               </div>
-              <div className="flex gap-2 justify-end mt-1">
-                <button type="button" className="btn btn-outline px-3 py-1 text-[0.75rem]" onClick={() => setIsAddingExam(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary px-3 py-1 text-[0.75rem]">Save Exam</button>
+              <div className="flex gap-3 justify-end pt-3 border-t border-line">
+                <button type="button" onClick={() => setIsAddingExam(false)} className="px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 cursor-pointer bg-transparent border border-line text-ink hover:bg-input">Cancel</button>
+                <button type="submit" className="px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 cursor-pointer bg-primary text-ink-on-primary border border-primary hover:bg-primary-hover">Save Exam</button>
               </div>
             </motion.form>
-          )}
-        </AnimatePresence>
+          </div>
+        )}
 
         <div className="flex items-center justify-between mb-4">
           <button onClick={prevMonth} className="btn btn-outline p-1.5 border-none bg-transparent hover:bg-glass text-ink-muted hover:text-ink"><ChevronLeft size={18} /></button>
@@ -231,7 +253,21 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${priorityColor(exam.priority)}`} />
                       <div className="flex flex-col min-w-0 flex-1">
-                        <span className="text-[0.85rem] font-semibold text-ink truncate">{exam.title}</span>
+                        <button
+                          onClick={() => setSelectedExamDetail(exam)}
+                          className="text-[0.85rem] font-semibold text-ink truncate flex items-center gap-1.5 text-left bg-transparent border-0 p-0 cursor-pointer hover:text-primary transition-colors"
+                        >
+                          {exam.title}
+                          {(examQuizLinks?.[exam.id]?.attempts?.length ?? 0) > 0 ? (
+                            <span className="text-[10px] font-bold text-accent-cyan bg-cyan-soft-2 border border-cyan-line px-1.5 py-0.5 rounded flex items-center gap-1 shrink-0">
+                              <Zap size={10} /> {examQuizLinks![exam.id].attempts.length} Attempt{examQuizLinks![exam.id].attempts.length > 1 ? 's' : ''}
+                            </span>
+                          ) : examQuizLinks?.[exam.id] ? (
+                            <span className="text-[10px] font-bold text-accent-cyan bg-cyan-soft-2 border border-cyan-line px-1.5 py-0.5 rounded flex items-center gap-1 shrink-0">
+                              <Zap size={10} /> Quiz Ready
+                            </span>
+                          ) : null}
+                        </button>
                         <span className="text-[0.7rem] text-ink-muted flex flex-wrap items-center gap-x-2 gap-y-0.5">
                           <span>{exam.date}</span>
                           <span className="opacity-50">•</span>
@@ -370,7 +406,21 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
                         <div className="flex items-start gap-2.5 min-w-0">
                           <div className={`w-3 h-3 rounded-full shrink-0 mt-1 ${priorityColor(exam.priority)}`} />
                           <div className="flex flex-col min-w-0">
-                            <span className="text-sm font-bold text-ink leading-snug">{exam.title}</span>
+                            <button
+                              onClick={() => setSelectedExamDetail(exam)}
+                              className="text-sm font-bold text-ink leading-snug flex items-center gap-1.5 text-left bg-transparent border-0 p-0 cursor-pointer hover:text-primary transition-colors"
+                            >
+                              {exam.title}
+                              {(examQuizLinks?.[exam.id]?.attempts?.length ?? 0) > 0 ? (
+                                <span className="text-[10px] font-bold text-accent-cyan bg-cyan-soft-2 border border-cyan-line px-1.5 py-0.5 rounded flex items-center gap-1 shrink-0">
+                                  <Zap size={10} /> {examQuizLinks![exam.id].attempts.length} Attempt{examQuizLinks![exam.id].attempts.length > 1 ? 's' : ''}
+                                </span>
+                              ) : examQuizLinks?.[exam.id] ? (
+                                <span className="text-[10px] font-bold text-accent-cyan bg-cyan-soft-2 border border-cyan-line px-1.5 py-0.5 rounded flex items-center gap-1 shrink-0">
+                                  <Zap size={10} /> Quiz Ready
+                                </span>
+                              ) : null}
+                            </button>
                             <span className="text-xs text-ink-muted mt-0.5">
                               {exam.subject} • {priorityLabel(exam.priority)} Priority
                             </span>
@@ -431,11 +481,7 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
                             </button>
                             <button
                               type="button"
-                              onClick={() => {
-                                if (window.confirm(`Are you sure you want to delete this exam: ${exam.title}?`)) {
-                                  handleDeleteExam(exam.id);
-                                }
-                              }}
+                              onClick={() => setDeleteConfirmExam({ exam, fromDetail: false })}
                               className="inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold text-xs transition-all duration-200 cursor-pointer bg-transparent border border-danger-line text-danger hover:bg-danger-soft w-full sm:w-auto"
                             >
                               <Trash2 size={12} /> Delete
@@ -456,6 +502,165 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
                 className="inline-flex items-center justify-center gap-2 py-2 px-4 rounded-md font-semibold text-xs transition-all duration-200 cursor-pointer bg-transparent border border-line text-ink hover:bg-input hover:border-line-strong"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Exam Detail Dashboard */}
+      {selectedExamDetail && (
+        <div className="fixed inset-0 bg-[rgba(5,5,5,0.7)] backdrop-blur-sm z-3000 flex items-center justify-center p-4">
+          <div className="bg-card border border-line rounded-2xl p-4 sm:p-6 max-w-lg w-full shadow-lg flex flex-col gap-4">
+            <div className="flex justify-between items-center pb-3 border-b border-line">
+              <div className="flex items-center gap-2.5">
+                <div className={`w-3 h-3 rounded-full shrink-0 ${priorityColor(selectedExamDetail.priority)}`} />
+                <div>
+                  <h3 className="text-lg font-bold text-ink m-0">{selectedExamDetail.title}</h3>
+                  <p className="text-xs text-ink-muted mt-0.5">
+                    {selectedExamDetail.subject} • {priorityLabel(selectedExamDetail.priority)}
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setSelectedExamDetail(null)} className="bg-transparent border-0 text-ink-muted hover:text-ink cursor-pointer p-1">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-2 text-xs">
+              <span className="bg-input border border-line px-2.5 py-1 rounded-lg text-ink-muted">
+                Due: {selectedExamDetail.date}
+              </span>
+              <span className={`font-bold px-2.5 py-1 rounded-lg border ${
+                selectedExamDetail.daysRemaining === 0 ? 'bg-danger-soft text-danger border-danger-line' :
+                selectedExamDetail.daysRemaining <= 3 ? 'bg-warning-soft text-warning border-warning-line' :
+                'bg-cyan-soft-2 text-accent-cyan border-cyan-line'
+              }`}>
+                {selectedExamDetail.daysRemaining === 0 ? 'Today' : `${selectedExamDetail.daysRemaining} days left`}
+              </span>
+            </div>
+
+            {/* Linked Quiz Attempts */}
+            {examQuizLinks?.[selectedExamDetail.id] ? (
+              <div className="flex flex-col gap-3">
+                <h4 className="text-sm font-bold text-ink flex items-center gap-1.5 m-0">
+                  <Zap size={14} className="text-accent-cyan" /> Practice Attempts
+                </h4>
+                {examQuizLinks[selectedExamDetail.id].attempts.length === 0 ? (
+                  <p className="text-xs text-ink-muted">Quiz generated and linked. Take the quiz to record attempts.</p>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {[...examQuizLinks[selectedExamDetail.id].attempts].reverse().map((attempt, i) => (
+                      <div key={i} className="flex items-center justify-between bg-app border border-line rounded-lg p-3">
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-sm font-semibold text-ink">{attempt.quizName}</span>
+                          <span className="text-[0.7rem] text-ink-muted">{attempt.date}</span>
+                        </div>
+                        <span className="text-sm font-bold text-primary bg-primary-tint-5 border border-primary/20 px-2.5 py-0.5 rounded">
+                          {attempt.score}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-ink-muted text-xs">
+                No practice quizzes linked to this exam yet.
+              </div>
+            )}
+
+            <div className="flex flex-col gap-3 pt-3 border-t border-line mt-1">
+              {finishingExamId === selectedExamDetail.id ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="text-[0.75rem] font-semibold text-ink shrink-0">Score</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 85% or 42/50"
+                    value={finishScore}
+                    onChange={(e) => setFinishScore(e.target.value)}
+                    className="flex-1 min-w-[100px] bg-input border border-line rounded-md text-ink text-xs px-2.5 py-1.5 outline-none focus:border-primary"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleCompleteExam(selectedExamDetail.id, finishScore);
+                      setFinishingExamId(null);
+                      setFinishScore('');
+                      setSelectedExamDetail(null);
+                    }}
+                    disabled={!finishScore.trim()}
+                    className="btn btn-primary text-xs py-1.5 px-3 rounded-lg"
+                  >
+                    Finish
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFinishingExamId(null)}
+                    className="btn btn-outline text-xs py-1.5 px-3 rounded-lg"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setFinishingExamId(selectedExamDetail.id)}
+                    className="btn btn-primary text-xs py-2 px-3 rounded-lg flex items-center gap-1.5"
+                  >
+                    <CheckCircle2 size={14} /> Mark as Finished
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeleteConfirmExam({ exam: selectedExamDetail, fromDetail: true })}
+                    className="btn btn-outline border-danger-line text-danger hover:bg-danger-soft text-xs py-2 px-3 rounded-lg flex items-center gap-1.5"
+                  >
+                    <Trash2 size={14} /> Delete
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedExamDetail(null)}
+                    className="btn btn-outline border-line text-ink-muted hover:text-ink text-xs py-2 px-3 rounded-lg ml-auto"
+                  >
+                    Close
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmExam && (
+        <div className="fixed inset-0 bg-[rgba(5,5,5,0.7)] backdrop-blur-sm z-3000 flex items-center justify-center p-4">
+          <div className="bg-card border border-line rounded-2xl p-6 max-w-sm w-full shadow-lg flex flex-col gap-5">
+            <div className="text-center">
+              <div className="w-12 h-12 rounded-full bg-danger-soft flex items-center justify-center mx-auto mb-3">
+                <Trash2 size={22} className="text-danger" />
+              </div>
+              <h3 className="text-lg font-bold text-ink m-0">Delete Exam</h3>
+              <p className="text-sm text-ink-muted mt-2">
+                Are you sure you want to delete <strong className="text-ink">{deleteConfirmExam.exam.title}</strong>?
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteConfirmExam(null)}
+                className="flex-1 py-2.5 px-4 rounded-lg font-semibold text-sm transition-all duration-200 cursor-pointer bg-transparent border border-line text-ink hover:bg-input"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  handleDeleteExam(deleteConfirmExam.exam.id);
+                  if (deleteConfirmExam.fromDetail) setSelectedExamDetail(null);
+                  setDeleteConfirmExam(null);
+                }}
+                className="flex-1 py-2.5 px-4 rounded-lg font-semibold text-sm transition-all duration-200 cursor-pointer bg-danger text-white border border-danger hover:bg-danger-hover"
+              >
+                Delete
               </button>
             </div>
           </div>

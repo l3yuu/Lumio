@@ -602,19 +602,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
             />
           </div>
 
-          <div className="flex flex-col gap-1 mb-3">
-            <div className="flex justify-between items-center mb-1">
-              <label className="block text-[0.8rem] font-medium text-ink-muted">Password</label>
-              {screen === 'login' && (
-                <button
-                  type="button"
-                  onClick={() => go('forgot', 1)}
-                  className="text-[0.75rem] text-ink-muted hover:text-primary transition-colors bg-transparent border-0 cursor-pointer p-0"
-                >
-                  Forgot password?
-                </button>
-              )}
-            </div>
+          <div className="flex flex-col gap-1 mb-1">
+            <label className="block text-[0.8rem] font-medium text-ink-muted">Password</label>
             <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
@@ -632,6 +621,17 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
+            {screen === 'login' && (
+              <div className="flex justify-end mt-1 mb-2">
+                <button
+                  type="button"
+                  onClick={() => go('forgot', 1)}
+                  className="text-[0.75rem] text-ink-muted hover:text-primary transition-colors bg-transparent border-0 cursor-pointer p-0"
+                >
+                  Forgot password?
+                </button>
+              </div>
+            )}
           </div>
 
           <button

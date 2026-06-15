@@ -70,7 +70,8 @@ def create_module(
         )
     modules_limiter.record(limiter_key)
 
-    # Enforce Daily Quota Limit of 5 quiz generations
+    # Enforce Daily Quota Limit: 5 for free users, 25 (5x) for pro users
+    limit = 25 if current_user.is_premium else 5
     today_str = today_ph_str()
     st = current_user.study_time or {}
     if not isinstance(st, dict):
@@ -85,10 +86,18 @@ def create_module(
         st["quota_used"] = 0
         quota_used = 0
         
-    if quota_used >= 5:
+    if quota_used >= limit:
+        account_type = "Pro" if current_user.is_premium else "Free"
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Daily limit reached. Free accounts are limited to 5 quiz generations per day."
+            detail=f"Daily limit reached. {account_type} accounts are limited to {limit} quiz generations per day."
+        )
+
+    # Enforce difficulty level limits: Free can only generate easy quizzes
+    if not current_user.is_premium and difficulty.lower() != "easy":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Difficulty Level Restricted: Free accounts can only generate Easy difficulty quizzes. Upgrade to Pro Student to unlock Medium and Hard."
         )
         
     # Read file bytes if provided
@@ -103,11 +112,12 @@ def create_module(
         except Exception:
             file_size = 0
 
-        MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
-        if file_size > MAX_FILE_SIZE:
+        max_file_size = 10 * 1024 * 1024 if current_user.is_premium else 2 * 1024 * 1024
+        limit_str = "10MB" if current_user.is_premium else "2MB"
+        if file_size > max_file_size:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Security Alert: File size exceeds the maximum limit of 10MB."
+                detail=f"Security Alert: File size exceeds the maximum limit of {limit_str}."
             )
 
         # 2. Validate file extension
@@ -338,7 +348,10 @@ def update_module(
     if not module:
         raise HTTPException(status_code=404, detail="Module not found")
 
-    module.subject = body.subject
+    if body.subject is not None:
+        module.subject = body.subject
+    if body.name is not None:
+        module.name = body.name
     db.commit()
     db.refresh(module)
     return module
@@ -417,3 +430,83 @@ def delete_all_modules(current_user: models.User = Depends(auth.get_current_user
     db.query(models.Module).filter(models.Module.user_id == current_user.id).delete()
     db.commit()
     return {"message": "All modules deleted"}
+
+
+@router.post("/generate-consolidated-exam", response_model=schemas.ModuleOut)
+def generate_consolidated_exam(
+    body: schemas.ConsolidatedExamRequest,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    if len(body.module_ids) < 2:
+        raise HTTPException(status_code=400, detail="Please select at least 2 modules to generate an exam.")
+
+    # Fetch selected modules
+    modules = db.query(models.Module).filter(
+        models.Module.id.in_(body.module_ids),
+        models.Module.user_id == current_user.id
+    ).all()
+
+    if len(modules) != len(body.module_ids):
+        raise HTTPException(status_code=404, detail="One or more selected modules could not be found.")
+
+    # Enforce difficulty restrictions
+    difficulty = body.difficulty or "medium"
+    if not current_user.is_premium and difficulty.lower() != "easy":
+        raise HTTPException(
+            status_code=400,
+            detail="Difficulty Level Restricted: Free accounts can only generate Easy difficulty exams. Upgrade to Pro Student to unlock Medium and Hard."
+        )
+
+    # 1. Concatenate the text contents
+    combined_content_parts = []
+    module_names = []
+    for m in modules:
+        module_names.append(m.name)
+        if m.source_content:
+            combined_content_parts.append(m.source_content)
+
+    combined_text = "\n\n".join(combined_content_parts)
+    if not combined_text:
+        raise HTTPException(status_code=400, detail="The selected modules do not contain enough study content to generate an exam.")
+
+    exam_name = body.name or f"Exam: " + " & ".join(module_names[:3]) + ("..." if len(module_names) > 3 else "")
+
+    # Generate 50 questions
+    questions_data, extracted_text = generate_quiz_questions(
+        module_name=exam_name,
+        text_content=combined_text,
+        file_bytes=None,
+        file_filename=None,
+        difficulty=difficulty,
+        num_questions=50
+    )
+
+    # Format date and save
+    date_str = now_ph().strftime("%b %d, %Y")
+    db_module = models.Module(
+        name=exam_name,
+        date=date_str,
+        size="0.0 MB",
+        subject="Consolidated Exam",
+        user_id=current_user.id,
+        source_content=combined_text,
+        difficulty=difficulty
+    )
+    db.add(db_module)
+    db.flush()
+
+    # Add questions
+    for q in questions_data:
+        db_question = models.QuizQuestion(
+            question=q["question"],
+            options=q["options"],
+            correct_answer_index=q["correct_answer_index"],
+            module_id=db_module.id
+        )
+        db.add(db_question)
+
+    db.commit()
+    db.refresh(db_module)
+    return db_module
+

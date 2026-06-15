@@ -63,6 +63,10 @@ class UserOut(UserBase):
     last_check_in: Optional[str] = None
     folders: Optional[List[str]] = None
     role: Optional[str] = "user"
+    is_premium: bool = False
+    is_suspended: bool = False
+    stripe_subscription_status: Optional[str] = None
+    premium_expires_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -133,7 +137,8 @@ class ModuleScoreUpdate(BaseModel):
 
 
 class ModuleUpdate(BaseModel):
-    subject: str
+    subject: Optional[str] = None
+    name: Optional[str] = None
 
 
 class FolderRename(BaseModel):
@@ -180,6 +185,7 @@ class GroupMemberOut(BaseModel):
     email: str
     avatar: Optional[str] = None
     online: bool
+    is_premium: bool = False
 
     class Config:
         from_attributes = True
@@ -212,6 +218,9 @@ class QuizSessionOut(BaseModel):
 class StudyGroupCreate(BaseModel):
     name: str
     members: List[str] = []  # List of emails to add
+
+class StudyGroupUpdate(BaseModel):
+    name: str
 
 class StudyGroupOut(BaseModel):
     id: int
@@ -357,4 +366,97 @@ class GroupPostOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ConsolidatedExamRequest(BaseModel):
+    module_ids: List[int]
+    name: Optional[str] = None
+    difficulty: Optional[str] = "medium"
+
+
+class FlashcardItem(BaseModel):
+    front: str
+    back: str
+
+
+class FlashcardGenerateRequest(BaseModel):
+    text: str
+    count: Optional[int] = 10
+    title: Optional[str] = None
+
+
+class FlashcardGenerateResponse(BaseModel):
+    cards: List[FlashcardItem]
+
+
+class FlashcardDeckOut(BaseModel):
+    id: int
+    user_id: int
+    title: str
+    cards: List[FlashcardItem]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class CondenserRequest(BaseModel):
+    text: str
+
+
+class CondenserVocabularyItem(BaseModel):
+    term: str
+    definition: str
+
+
+class CondenserResponse(BaseModel):
+    summary: str
+    takeaways: List[str]
+    vocabulary: List[CondenserVocabularyItem]
+
+
+class CondenserHistoryOut(BaseModel):
+    id: int
+    user_id: int
+    title: str
+    summary: str
+    takeaways: List[str]
+    vocabulary: List[CondenserVocabularyItem]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class EssayGradeRequest(BaseModel):
+    prompt: Optional[str] = ""
+    text: str
+
+
+class EssayGradeResponse(BaseModel):
+    grade: str
+    thesis_score: int
+    grammar_score: int
+    structure_score: int
+    critique: str
+    recommendations: List[str]
+
+
+class EssayGraderHistoryOut(BaseModel):
+    id: int
+    user_id: int
+    title: str
+    prompt: Optional[str] = ""
+    essay_text: str
+    grade: str
+    thesis_score: int
+    grammar_score: int
+    structure_score: int
+    critique: str
+    recommendations: List[str]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
 

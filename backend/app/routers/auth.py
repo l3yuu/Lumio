@@ -131,6 +131,11 @@ def login(login_data: schemas.LoginRequest, request: Request, db: Session = Depe
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    if user.is_suspended:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your account has been suspended by the administrator."
+        )
     login_limiter.reset(login_key)
     access_token = auth.create_access_token(data={"user_id": user.id, "email": user.email})
     return {"access_token": access_token, "token_type": "bearer", "user": user}
@@ -190,6 +195,12 @@ def google_login(login_data: schemas.GoogleLoginRequest, db: Session = Depends(g
             user.name = name
         db.commit()
         db.refresh(user)
+        
+    if user.is_suspended:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your account has been suspended by the administrator."
+        )
         
     access_token = auth.create_access_token(data={"user_id": user.id, "email": user.email})
     return {"access_token": access_token, "token_type": "bearer", "user": user}

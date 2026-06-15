@@ -72,7 +72,8 @@ def run_tests():
         "name": "General Chemistry",
         "subject": "Chemistry",
         "size": "2.4 MB",
-        "text_content": "This is sample chemistry text content."
+        "text_content": "This is sample chemistry text content.",
+        "difficulty": "easy"
     }
     headers_multipart = {
         "Authorization": f"Bearer {token}"
@@ -293,7 +294,8 @@ def run_tests():
             "name": "Linear Algebra 101",
             "subject": new_folder_name,
             "size": "1.2 MB",
-            "text_content": "This is sample linear algebra text content."
+            "text_content": "This is sample linear algebra text content.",
+            "difficulty": "easy"
         }
         r = requests.post(f"{BASE_URL}/api/modules", data=math_module_payload, headers=headers_multipart)
         if r.status_code == 200:

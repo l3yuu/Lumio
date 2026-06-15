@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Sparkles, HelpCircle, Layers, UploadCloud, Timer, FileText, X, Loader2
+  Sparkles, HelpCircle, Layers, UploadCloud, Timer, FileText, X, Loader2, Check, AlertTriangle
 } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 
 import { Navbar } from './components/layout/Navbar'
 import { Footer } from './components/layout/Footer'
@@ -54,6 +55,9 @@ const mapUser = (data: UserResponse): User => ({
   lastCheckIn: data.last_check_in,
   folders: data.folders,
   role: data.role || 'user',
+  is_premium: data.is_premium,
+  stripe_subscription_status: data.stripe_subscription_status,
+  premium_expires_at: data.premium_expires_at,
 });
 
 const mapModule = (m: ModuleResponse): Module => ({
@@ -85,6 +89,7 @@ const mapGroup = (g: StudyGroupResponse): StudyGroup => ({
     email: m.email,
     avatar: m.avatar,
     online: m.online,
+    is_premium: m.is_premium,
   })),
   modules: g.modules ? g.modules.map(mapModule) : [],
   quizSessions: g.quiz_sessions ? g.quiz_sessions.map((s: GroupQuizSessionResponse) => ({
@@ -116,15 +121,19 @@ const getPhilippineDateKey = () => {
   return `${values.year}-${values.month}-${values.day}`;
 };
 
-const getDailyGenerationQuota = (studyTime?: { [key: string]: number | string }) => {
+const getDailyGenerationQuota = (user?: User) => {
+  const isPremium = user?.is_premium ?? false;
+  const limit = isPremium ? 25 : 5;
+  const studyTime = user?.studyTime;
   const quotaDate = typeof studyTime?.quota_date === 'string' ? studyTime.quota_date : '';
   const quotaUsed = quotaDate === getPhilippineDateKey() && typeof studyTime?.quota_used === 'number'
     ? studyTime.quota_used
     : 0;
-  const remaining = Math.max(0, 5 - quotaUsed);
+  const remaining = Math.max(0, limit - quotaUsed);
   return {
     remaining,
     isExceeded: remaining <= 0,
+    isPremium
   };
 };
 
@@ -139,6 +148,14 @@ function App() {
   const [view, setView] = useState<View>('landing');
   const [authTab, setAuthTab] = useState<AuthTab>('login');
   const [user, setUser] = useState<User | null>(null);
+
+  // Global Toast State
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  
+  const showToast = (type: 'success' | 'error', message: string) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 4000);
+  };
 
   // Dashboard Lifted State
   const [dashboardTab, setDashboardTab] = useState<DashboardTab>('overview');
@@ -421,6 +438,14 @@ function App() {
     });
   };
 
+  // Reset difficulty based on user role when upload modal is opened
+  useEffect(() => {
+    if (isUploadOpen) {
+      const isPremium = user?.role === 'premium' || user?.role === 'superadmin';
+      setNewModuleDifficulty(isPremium ? 'medium' : 'easy');
+    }
+  }, [isUploadOpen, user]);
+
   // Hydrate user and data from backend if token exists
   useEffect(() => {
     // Check for pending group invitation in URL
@@ -432,8 +457,58 @@ function App() {
       window.history.replaceState({}, document.title, window.location.pathname);
     }
 
-
+    // Check for payment redirects
+    const stripeSuccess = params.get('stripe_success') === 'true';
+    const paymongoSuccess = params.get('paymongo_success') === 'true';
+    const mockSuccess = params.get('mock_success');
+    
     const token = localStorage.getItem('token');
+
+    if ((stripeSuccess || paymongoSuccess || mockSuccess) && token) {
+      if (mockSuccess) {
+        fetch(`${API_BASE_URL}/api/payments/mock-upgrade?gateway=${mockSuccess}`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        .then(res => {
+          if (!res.ok) throw new Error('Mock upgrade failed');
+          return res.json();
+        })
+        .then(data => {
+          if (data.user) {
+            setUser(mapUser(data.user));
+          }
+          showToast('success', `Successfully upgraded to Pro Student via Mock Payment (${mockSuccess === 'stripe' ? 'Stripe Card' : 'GCash/Maya'})!`);
+        })
+        .catch(err => console.error('Mock upgrade error:', err));
+      } else {
+        setTimeout(() => {
+          fetch(`${API_BASE_URL}/api/auth/me`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          })
+          .then(res => res.ok ? res.json() : null)
+          .then(userData => {
+            if (userData) {
+              setUser(mapUser(userData));
+            }
+          });
+        }, 2000);
+        showToast('success', 'Payment successful! Your account is upgrading to Pro Student.');
+      }
+      
+      // Clean URL parameters
+      const newParams = new URLSearchParams(window.location.search);
+      newParams.delete('stripe_success');
+      newParams.delete('paymongo_success');
+      newParams.delete('mock_success');
+      newParams.delete('session_id');
+      newParams.delete('tab');
+      const newSearch = newParams.toString();
+      const newPath = window.location.pathname + (newSearch ? `?${newSearch}` : '');
+      window.history.replaceState({}, document.title, newPath);
+      return;
+    }
+
     if (token) {
       fetch(`${API_BASE_URL}/api/auth/me`, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -704,14 +779,16 @@ function App() {
     const hasValidMime = allowedMimeTypes.includes(file.type);
 
     if (!hasValidExtension || !hasValidMime) {
-      alert('Security Alert: Only PDF, TXT, and DOCX files are allowed.');
+      showToast('error', 'Security Alert: Only PDF, TXT, and DOCX files are allowed.');
       return;
     }
 
-    // 3. Validate file size (10MB limit)
-    const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
-    if (file.size > MAX_FILE_SIZE_BYTES) {
-      alert('Security Alert: File size exceeds the maximum limit of 10MB.');
+    // 3. Validate file size (2MB limit for free, 10MB limit for pro)
+    const isPremium = user?.is_premium ?? false;
+    const maxFileSize = isPremium ? 10 * 1024 * 1024 : 2 * 1024 * 1024;
+    const maxFileSizeStr = isPremium ? '10MB' : '2MB';
+    if (file.size > maxFileSize) {
+      showToast('error', `Security Alert: File size exceeds the maximum limit of ${maxFileSizeStr}.`);
       return;
     }
 
@@ -785,10 +862,12 @@ function App() {
       setNewModuleName('');
       setNewModuleContent('');
       setSelectedFile(null);
-      setNewModuleDifficulty('medium');
+      const isPremium = user?.role === 'premium' || user?.role === 'superadmin';
+      setNewModuleDifficulty(isPremium ? 'medium' : 'easy');
       setNewModuleSubject('General');
       setNewModuleNumQuestions(10);
       setIsUploadOpen(false);
+      showToast('success', `Successfully generated module "${newModule.name}"!`);
 
       // Refetch user profile to update quota state
       const token = localStorage.getItem('token');
@@ -820,6 +899,15 @@ function App() {
     const token = localStorage.getItem('token');
     if (!token) return;
 
+    const isPremium = user?.is_premium ?? false;
+    if (!isPremium) {
+      const createdGroupsCount = groups.filter(g => g.creator_id === user?.id).length;
+      if (createdGroupsCount >= 2) {
+        showToast('error', 'Limit Reached: Free accounts can only create up to 2 collaborative circles. Upgrade to Pro for unlimited circles.');
+        return;
+      }
+    }
+
     const payload = {
       name: newGroupName,
       members: newGroupMember ? [newGroupMember] : []
@@ -833,19 +921,21 @@ function App() {
       },
       body: JSON.stringify(payload)
     })
-    .then(res => {
-      if (!res.ok) throw new Error('Failed to create group');
-      return res.json();
+    .then(async res => {
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.detail || 'Failed to create group');
+      return data;
     })
     .then(newGroup => {
       setGroups([mapGroup(newGroup), ...groups]);
       setNewGroupName('');
       setNewGroupMember('');
       setIsGroupModalOpen(false);
+      showToast('success', `Successfully created group "${newGroup.name}"!`);
     })
     .catch(err => {
       console.error(err);
-      alert('Error creating group');
+      showToast('error', err.message || 'Error creating group');
     });
   };
 
@@ -943,6 +1033,7 @@ function App() {
             <PricingView
               setView={setView}
               setAuthTab={setAuthTab}
+              user={user || undefined}
             />
           )}
 
@@ -980,6 +1071,7 @@ function App() {
               setModules={setModules}
               setGroups={setGroups}
               setIsUploadOpen={setIsUploadOpen}
+              showToast={showToast}
               setIsGroupModalOpen={setIsGroupModalOpen}
               studyTools={studyTools}
               dashboardTab={dashboardTab}
@@ -1007,7 +1099,7 @@ function App() {
 
         {/* Add Module Modal */}
         {isUploadOpen && (() => {
-          const { remaining: remainingQuotas, isExceeded: isQuotaExceeded } = getDailyGenerationQuota(user?.studyTime);
+          const { remaining: remainingQuotas, isExceeded: isQuotaExceeded, isPremium } = getDailyGenerationQuota(user || undefined);
           return (
             <div className="fixed inset-0 bg-[rgba(5,5,5,0.7)] backdrop-blur-sm z-3000 flex items-center justify-center p-4">
               <div className="bg-card border border-line rounded-2xl p-8 max-w-140 w-full shadow-lg max-h-[90vh] flex flex-col">
@@ -1019,13 +1111,13 @@ function App() {
                     <div className="p-3.5 bg-app border border-line rounded-xl flex justify-between items-center text-xs">
                       <span className="text-ink-muted font-medium">Daily AI Generation Quota</span>
                       <span className={`font-bold ${isQuotaExceeded ? 'text-danger' : 'text-primary'}`}>
-                        {remainingQuotas} / 5 remaining today
+                        {remainingQuotas} / {isPremium ? 25 : 5} remaining today
                       </span>
                     </div>
 
                     {isQuotaExceeded && (
                       <div className="p-3.5 bg-danger-soft border border-danger-line rounded-xl text-xs text-danger font-semibold leading-relaxed">
-                        ⚠️ You have reached your daily limit of 5 quiz generations. Please wait until tomorrow or upgrade to Pro to unlock unlimited study modules.
+                        ⚠️ You have reached your daily limit of {isPremium ? 25 : 5} quiz generations. Please wait until tomorrow{isPremium ? '.' : ' or upgrade to Pro to unlock 5x more quiz generations.'}
                       </div>
                     )}
 
@@ -1045,21 +1137,30 @@ function App() {
                     <div className="flex flex-col gap-2">
                       <label className="text-[0.9rem] font-semibold text-ink">Quiz Difficulty Level</label>
                       <div className="flex gap-2">
-                        {(['easy', 'medium', 'hard'] as const).map((level) => (
-                          <button
-                            key={level}
-                            type="button"
-                            onClick={() => setNewModuleDifficulty(level)}
-                            disabled={isGeneratingQuiz || isQuotaExceeded}
-                            className={`flex-1 py-2 rounded-md font-bold text-xs capitalize border transition-all duration-150 ${
-                              newModuleDifficulty === level
-                                ? 'bg-primary text-ink-on-primary border-primary shadow-glow-primary-soft'
-                                : 'bg-input border-line text-ink-muted hover:text-ink hover:border-line-strong'
-                            }`}
-                          >
-                            {level}
-                          </button>
-                        ))}
+                        {(['easy', 'medium', 'hard'] as const).map((level) => {
+                          const isLocked = !isPremium && level !== 'easy';
+                          return (
+                            <button
+                              key={level}
+                              type="button"
+                              onClick={() => {
+                                if (isLocked) {
+                                  showToast('error', 'Difficulty Level Locked: Upgrade to Pro Student to unlock Medium and Hard difficulty levels!');
+                                  return;
+                                }
+                                setNewModuleDifficulty(level);
+                              }}
+                              disabled={isGeneratingQuiz || isQuotaExceeded}
+                              className={`flex-1 py-2 rounded-md font-bold text-xs capitalize border transition-all duration-150 relative ${
+                                newModuleDifficulty === level
+                                  ? 'bg-primary text-ink-on-primary border-primary shadow-glow-primary-soft'
+                                  : 'bg-input border-line text-ink-muted hover:text-ink hover:border-line-strong'
+                              } ${isLocked ? 'opacity-65 cursor-not-allowed' : ''}`}
+                            >
+                              {level} {isLocked && '🔒'}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
 
@@ -1173,7 +1274,7 @@ function App() {
                         <>
                           <UploadCloud size={32} color="var(--primary)" />
                           <span className="font-semibold text-[0.95rem]">Choose a file or drag it here</span>
-                          <span className="text-[0.8rem] text-ink-muted">PDF, TXT, DOCX up to 10MB</span>
+                          <span className="text-[0.8rem] text-ink-muted">PDF, TXT, DOCX up to {user?.is_premium ? '10MB' : '2MB'}</span>
                         </>
                       )}
                     </div>
@@ -1315,6 +1416,31 @@ function App() {
             setView={setView}
           />
         )}
+
+        {/* Global Toast Render */}
+        <AnimatePresence>
+          {toast && (
+            <motion.div
+              key="global-toast"
+              initial={{ opacity: 0, y: 32, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 16, scale: 0.95 }}
+              transition={{ duration: 0.22, ease: 'easeOut' }}
+              className={`fixed bottom-6 right-6 z-9999 flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-xl border backdrop-blur-xl text-sm font-semibold ${
+                toast.type === 'success'
+                  ? 'bg-[rgba(18,18,18,0.9)] border-primary/40 text-primary'
+                  : 'bg-[rgba(18,18,18,0.9)] border-red-500/40 text-red-400'
+              }`}
+            >
+              {toast.type === 'success' ? (
+                <Check size={16} className="shrink-0" />
+              ) : (
+                <AlertTriangle size={16} className="shrink-0" />
+              )}
+              {toast.message}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
   )
 }

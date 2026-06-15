@@ -1,8 +1,65 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Sparkles, HelpCircle, Layers, Users, Trophy, Clock } from 'lucide-react';
 import { MockQuizWidget } from '../../components/marketing/MockQuizWidget';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { User, View, AuthTab } from '../../types';
+import { API_BASE_URL } from '../../config';
+
+interface StatCounterProps {
+  value: number;
+  suffix: string;
+  divisor: number;
+  decimals: number;
+  label: string;
+  bg?: string;
+  last?: boolean;
+}
+
+const StatCounter: React.FC<StatCounterProps> = ({ value, suffix, divisor, decimals, label, bg = '', last = false }) => {
+  const [count, setCount] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+  const started = useRef(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !started.current) {
+          started.current = true;
+          const duration = 2000;
+          const steps = 60;
+          const target = value / divisor;
+          const increment = target / steps;
+          let current = 0;
+          const timer = setInterval(() => {
+            current += increment;
+            if (current >= target) {
+              current = target;
+              clearInterval(timer);
+            }
+            setCount(parseFloat(current.toFixed(decimals)));
+          }, duration / steps);
+        }
+      },
+      { threshold: 0.3 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [value, divisor, decimals]);
+
+  return (
+    <div
+      ref={ref}
+      className={`flex flex-col justify-center items-center py-8 px-4 text-center ${!last ? 'border-r border-line max-md:border-r-0 max-md:border-b' : ''} ${bg}`}
+    >
+      <div className="text-[2rem] font-extrabold text-ink mb-1">
+        {count.toFixed(decimals)}{suffix}
+      </div>
+      <div className="text-sm text-ink-muted font-medium">{label}</div>
+    </div>
+  );
+};
 
 interface LandingViewProps {
   user: User | null;
@@ -20,6 +77,20 @@ export const LandingView: React.FC<LandingViewProps> = ({
   onPwaInstall = () => {},
 }) => {
   const [landingFaqOpen, setLandingFaqOpen] = useState<number | null>(null);
+  const [liveStats, setLiveStats] = useState<{
+    quizzes_generated: number;
+    modules_uploaded: number;
+    score_improvement: number;
+    flashcards_solved: number;
+    active_students: number;
+  } | null>(null);
+
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/stats`)
+      .then(r => r.json())
+      .then(data => setLiveStats(data))
+      .catch(() => {/* silently fall back to defaults */});
+  }, []);
 
   const studyTools = [
     { title: 'Flashcard Generator', desc: 'Auto-generate revision cards from notes.', icon: <Sparkles size={20} /> },
@@ -164,27 +235,18 @@ export const LandingView: React.FC<LandingViewProps> = ({
         whileInView="visible"
         viewport={{ once: true, margin: "-100px" }}
       >
-        <motion.div className="flex flex-col justify-center items-center py-8 px-4 text-center border-r border-line max-md:border-r-0 max-md:border-b max-md:last:border-b-0" variants={itemVariants}>
-          <div className="text-[2rem] font-extrabold text-ink mb-1">1.5M+</div>
-          <div className="text-sm text-ink-muted font-medium">Quizzes Generated</div>
-        </motion.div>
-        <motion.div className="flex flex-col justify-center items-center py-8 px-4 text-center border-r border-line max-md:border-r-0 max-md:border-b max-md:last:border-b-0 bg-glass" variants={itemVariants}>
-          <div className="text-[2rem] font-extrabold text-ink mb-1">320K+</div>
-          <div className="text-sm text-ink-muted font-medium">Modules Uploaded</div>
-        </motion.div>
-        <motion.div className="flex flex-col justify-center items-center py-8 px-4 text-center border-r border-line max-md:border-r-0 max-md:border-b max-md:last:border-b-0" variants={itemVariants}>
-          <div className="text-[2rem] font-extrabold text-ink mb-1">98.4%</div>
-          <div className="text-sm text-ink-muted font-medium">Score Improvement</div>
-        </motion.div>
-        <motion.div className="flex flex-col justify-center items-center py-8 px-4 text-center border-r border-line max-md:border-r-0 max-md:border-b max-md:last:border-b-0 bg-glass" variants={itemVariants}>
-          <div className="text-[2rem] font-extrabold text-ink mb-1">24M+</div>
-          <div className="text-sm text-ink-muted font-medium">Flashcards Solved</div>
-        </motion.div>
-        <motion.div className="flex flex-col justify-center items-center py-8 px-4 text-center border-r border-line max-md:border-r-0 max-md:border-b max-md:last:border-b-0" variants={itemVariants}>
-          <div className="text-[2rem] font-extrabold text-ink mb-1">500K+</div>
-          <div className="text-sm text-ink-muted font-medium">Active Students</div>
-        </motion.div>
+        {[
+          { value: liveStats?.quizzes_generated   ?? 100, suffix: '+',  divisor: 1, decimals: 0, label: 'Quizzes Generated',  bg: '' },
+          { value: liveStats?.modules_uploaded     ?? 50,  suffix: '+',  divisor: 1, decimals: 0, label: 'Modules Uploaded',   bg: 'bg-glass' },
+          { value: liveStats?.score_improvement    ?? 84,  suffix: '%',  divisor: 1, decimals: 1, label: 'Score Improvement',  bg: '' },
+          { value: liveStats?.flashcards_solved    ?? 100, suffix: '+',  divisor: 1, decimals: 0, label: 'Flashcards Solved',  bg: 'bg-glass' },
+          { value: liveStats?.active_students      ?? 40,  suffix: '+',  divisor: 1, decimals: 0, label: 'Active Students',    bg: '' },
+        ].map((stat, i) => (
+          <StatCounter key={i} {...stat} last={i === 4} />
+        ))}
       </motion.section>
+
+
 
       <section id="how-it-works" className="mb-24">
         <motion.div
@@ -452,7 +514,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
             },
             {
               q: "Is there a limit on how many flashcards I can generate?",
-              a: "Free plans support up to 5 module generations. Upgrading to the Pro Student plan ($8/mo) removes all limits, allowing infinite concept extractions and card sets."
+              a: "Free plans support up to 5 module generations. Upgrading to the Pro Student plan (₱100/mo) removes all limits, allowing infinite concept extractions and card sets."
             },
             {
               q: "Can I cancel my Pro subscription at any time?",

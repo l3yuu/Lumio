@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, Zap, AlertTriangle } from 'lucide-react';
-import type { User, Module, StudyGroup, GroupInvitation, GroupQuizSession, GroupQuizRank, DashboardTab, View, StudyQuest, ExamDeadline, ExamDeadlineResponse, StudyGroupResponse, Notification, ChatMessage, ChatSession } from '../../types';
+import type { User, Module, StudyGroup, GroupInvitation, GroupQuizSession, GroupQuizRank, DashboardTab, View, StudyQuest, ExamDeadline, ExamDeadlineResponse, StudyGroupResponse, Notification, ChatMessage, ChatSession, ExamQuizLink, ExamQuizAttempt } from '../../types';
 import { API_BASE_URL } from '../../config';
 import { AiTutorSidebar } from './AiTutorSidebar';
 
@@ -9,16 +9,15 @@ import { DashboardSidebar } from './DashboardSidebar';
 import { OverviewPanel } from './OverviewPanel';
 import { ModulesPanel } from './ModulesPanel';
 import { GroupsPanel } from './GroupsPanel';
-import { ToolsPanel } from './ToolsPanel';
 import { SettingsPanel } from './SettingsPanel';
 import { QuizPanel } from './QuizPanel';
 import { CalendarPanel } from './CalendarPanel';
 import { NotificationsPanel } from './NotificationsPanel';
 import { AdminPanel } from './AdminPanel';
 import { FlashcardsTool } from '../tools/FlashcardsTool';
-import { EssayGraderTool } from '../tools/EssayGraderTool';
-import { CondenserTool } from '../tools/CondenserTool';
-import { PomodoroTool } from '../tools/PomodoroTool';
+import { EssayGraderPanel } from './EssayGraderPanel';
+import { CondenserPanel } from './CondenserPanel';
+import { PomodoroPanel } from './PomodoroPanel';
 import { getRecentExamFinish, storeRecentExamFinish } from '../../utils/companionMessage';
 
 type ActiveTool = 'flashcards' | 'essay-grader' | 'condenser' | 'pomodoro';
@@ -52,6 +51,7 @@ interface DashboardViewProps {
   onFileDropped?: (file: File) => void;
   isAiSidebarOpen: boolean;
   setIsAiSidebarOpen: (open: boolean) => void;
+  showToast: (type: 'success' | 'error', message: string) => void;
 }
 
 const defaultHeatmap = [
@@ -170,11 +170,11 @@ const getDeterministicDailyQuests = (userEmail: string, dateStr: string, pool: O
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   user, setUser, modules, groups, setModules, setGroups, setIsUploadOpen, setIsGroupModalOpen,
-  studyTools, dashboardTab, setDashboardTab, selectedGroupId, setSelectedGroupId,
+  studyTools: _studyTools, dashboardTab, setDashboardTab, selectedGroupId, setSelectedGroupId,
   activeQuizModule, setActiveQuizModule, isSidebarCollapsed: isCollapsed, setView, handleLogout,
   invitations, onAcceptInvitation, onDeclineInvitation,
   notifications, onMarkNotificationRead, onMarkAllNotificationsRead, onRefreshNotifications,
-  onFileDropped, isAiSidebarOpen, setIsAiSidebarOpen,
+  onFileDropped, isAiSidebarOpen, setIsAiSidebarOpen, showToast,
 }) => {
   const [activeTool, setActiveTool] = useState<ActiveTool | null>(null);
   const [moduleToDelete, setModuleToDelete] = useState<Module | null>(null);
@@ -191,16 +191,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     return scores;
   }, [modules]);
 
-  // Wrap setDashboardTab so switching away from 'tools' clears the active inline tool
+  // Wrap setDashboardTab so switching away from tools clears the active inline tool
   const handleSetDashboardTab = (tab: DashboardTab) => {
-    if (tab !== 'tools') setActiveTool(null);
+    if (!tab.startsWith('tool-') && tab !== 'tools') setActiveTool(null);
     setDashboardTab(tab);
   };
 
+  // Map tool-specific tabs to activeTool
+  useEffect(() => {
+    if (dashboardTab === 'tool-flashcards') setActiveTool('flashcards');
+    else if (dashboardTab === 'tool-essay') setActiveTool('essay-grader');
+    else if (dashboardTab === 'tool-condenser') setActiveTool('condenser');
+    else if (dashboardTab === 'tool-pomodoro') setActiveTool('pomodoro');
+  }, [dashboardTab]);
+
   // Local setView for inline tool components: 'tools' goes back to tool list, else navigates away
   const inlineToolSetView = (v: View) => {
-    if (v === 'tools') setActiveTool(null);
-    else setView(v);
+    if (v === 'tools') {
+      setActiveTool(null);
+      setDashboardTab('tools');
+    } else setView(v);
   };
   const [level, setLevel] = useState<number>(user.level || 1);
   const [xp, setXp] = useState<number>(user.xp || 0);
@@ -531,6 +541,35 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [newExamPriority, setNewExamPriority] = useState<'high' | 'medium' | 'low'>('medium');
   const [completedExams, setCompletedExams] = useState<ExamDeadline[]>([]);
   const [recentExamFinish, setRecentExamFinish] = useState(() => getRecentExamFinish());
+  const [examQuizLinks, setExamQuizLinks] = useState<Record<number, ExamQuizLink>>(() => {
+    const saved = localStorage.getItem('lumio_exam_links');
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  useEffect(() => {
+    localStorage.setItem('lumio_exam_links', JSON.stringify(examQuizLinks));
+  }, [examQuizLinks]);
+
+  const handleLinkExamToQuiz = (examId: number, _quizName: string) => {
+    setExamQuizLinks(prev => ({
+      ...prev,
+      [examId]: { attempts: prev[examId]?.attempts || [] }
+    }));
+  };
+
+  const handleRecordQuizAttempt = (examId: number, score: string, quizName: string) => {
+    const attempt: ExamQuizAttempt = {
+      score,
+      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      quizName
+    };
+    setExamQuizLinks(prev => ({
+      ...prev,
+      [examId]: {
+        attempts: [...(prev[examId]?.attempts || []), attempt]
+      }
+    }));
+  };
 
   const mapExamResponse = (e: ExamDeadlineResponse): ExamDeadline => ({
     id: e.id,
@@ -609,10 +648,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         }]);
         setNewExamTitle(''); setNewExamDate(''); setNewExamPriority('medium'); setIsAddingExam(false);
         completeQuest('custom', 'add_exam');
+        showToast('success', 'Exam logged!');
       })
       .catch(err => {
         console.error('Error saving exam:', err);
-        alert('Failed to save exam to backend');
+        showToast('error', 'Failed to save exam');
       });
     } else {
       setExams([...exams, {
@@ -623,6 +663,58 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       }]);
       setNewExamTitle(''); setNewExamDate(''); setNewExamPriority('medium'); setIsAddingExam(false);
       completeQuest('custom', 'add_exam');
+      showToast('success', 'Exam logged!');
+    }
+  };
+
+  const handleAddExamToCalendar = (title: string, subject: string, date: string, priority: string) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      const payload = {
+        title,
+        subject,
+        date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+        raw_date: date,
+        priority
+      };
+      fetch(`${API_BASE_URL}/api/exams`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(payload)
+      })
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to create exam');
+        return res.json();
+      })
+      .then(newExam => {
+        setExams(prev => [...prev, {
+          id: newExam.id,
+          title: newExam.title,
+          subject: newExam.subject,
+          date: newExam.date,
+          rawDate: newExam.raw_date,
+          daysRemaining: newExam.days_remaining,
+          priority: newExam.priority as 'high' | 'medium' | 'low'
+        }]);
+        completeQuest('custom', 'add_exam');
+        showToast('success', 'Exam logged!');
+      })
+      .catch(err => {
+        console.error('Error saving exam:', err);
+        showToast('error', 'Failed to save exam');
+      });
+    } else {
+      setExams(prev => [...prev, {
+        id: Date.now(),
+        title,
+        subject,
+        date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+        rawDate: date,
+        daysRemaining: Math.ceil((new Date(date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
+        priority: priority as 'high' | 'medium' | 'low'
+      }]);
+      completeQuest('custom', 'add_exam');
+      showToast('success', 'Exam logged!');
     }
   };
 
@@ -636,13 +728,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       .then(res => {
         if (!res.ok) throw new Error('Failed to delete exam');
         setExams(exams.filter(e => e.id !== id));
+        showToast('success', 'Exam deleted!');
       })
       .catch(err => {
         console.error('Error deleting exam:', err);
-        alert('Failed to delete exam from backend');
+        showToast('error', 'Failed to delete exam');
       });
     } else {
       setExams(exams.filter(e => e.id !== id));
+      showToast('success', 'Exam deleted!');
     }
   };
 
@@ -674,6 +768,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       }
       const scoreMsg = savedScore ? ` Score: ${savedScore}.` : '';
       showQuestToast(`Exam finished!${scoreMsg} +50 XP`, 50);
+      showToast('success', 'Score logged!');
     };
 
     const token = localStorage.getItem('token');
@@ -695,7 +790,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       })
       .catch(err => {
         console.error('Error completing exam:', err);
-        alert('Failed to complete exam on backend');
+        showToast('error', 'Failed to save score');
       });
     } else {
       finishLocally(trimmedScore);
@@ -945,15 +1040,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         
         if (user) {
           const st = user.studyTime ? { ...user.studyTime } : {};
-          const todayStr = getLocalDateString(new Date());
-          const tutorDate = st.tutor_quota_date || '';
-          
-          if (tutorDate !== todayStr) {
-            st.tutor_quota_date = todayStr;
-            st.tutor_quota_used = 1;
-          } else {
-            st.tutor_quota_used = typeof st.tutor_quota_used === 'number' ? st.tutor_quota_used + 1 : 1;
-          }
+          const nowTs = Date.now() / 1000;
+          const chatHistory = Array.isArray(st.tutor_chat_history) ? [...st.tutor_chat_history] : [];
+          chatHistory.push(nowTs);
+          st.tutor_chat_history = chatHistory;
           setUser({
             ...user,
             studyTime: st
@@ -1025,15 +1115,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         
         if (user) {
           const st = user.studyTime ? { ...user.studyTime } : {};
-          const todayStr = getLocalDateString(new Date());
-          const tutorDate = st.tutor_quota_date || '';
-          
-          if (tutorDate !== todayStr) {
-            st.tutor_quota_date = todayStr;
-            st.tutor_quota_used = 1;
-          } else {
-            st.tutor_quota_used = typeof st.tutor_quota_used === 'number' ? st.tutor_quota_used + 1 : 1;
-          }
+          const nowTs = Date.now() / 1000;
+          const chatHistory = Array.isArray(st.tutor_chat_history) ? [...st.tutor_chat_history] : [];
+          chatHistory.push(nowTs);
+          st.tutor_chat_history = chatHistory;
           setUser({
             ...user,
             studyTime: st
@@ -1401,16 +1486,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
 
   const activeGroup = groups.find(g => g.id === selectedGroupId);
-  const subjects = ['All', ...Array.from(new Set(modules.map(m => m.subject).filter(Boolean))) as string[]];
+  const subjects = ['All', ...Array.from(new Set(modules.map(m => (m.subject || '').trim()).filter(Boolean))) as string[]];
   const filteredModules = selectedSubject === 'All' ? modules : modules.filter(m => m.subject === selectedSubject);
 
   return (
     <div className={`grid max-lg:grid-cols-1 max-lg:grid-rows-[auto_1fr] h-[calc(100vh-58px)] overflow-hidden transition-[grid-template-columns] duration-280 ease-in-out ${
-      isAiSidebarOpen 
-        ? (isCollapsed ? 'lg:grid-cols-[68px_1fr_360px]' : 'lg:grid-cols-[240px_1fr_360px]')
-        : (isCollapsed ? 'lg:grid-cols-[68px_1fr]' : 'lg:grid-cols-[240px_1fr]')
+      isCollapsed ? 'lg:grid-cols-[68px_1fr]' : 'lg:grid-cols-[240px_1fr]'
     }`}>
-      <div className="hidden lg:contents">
+      <div className="hidden lg:flex h-full">
         <DashboardSidebar
           isCollapsed={isCollapsed}
           dashboardTab={dashboardTab}
@@ -1424,9 +1507,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         />
       </div>
 
-      <div className="overflow-y-auto h-full w-full">
+      <div className={`overflow-y-auto overflow-x-hidden h-full w-full transition-[margin-right] duration-280 ease-in-out ${isAiSidebarOpen ? 'mr-[360px] max-lg:mr-0' : ''}`}>
         {/* Render active inline tool filling the full scroll area (sidebar stays visible) */}
-        {dashboardTab === 'tools' && activeTool && (
+        {activeTool && (
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTool}
@@ -1435,11 +1518,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.2, ease: 'easeOut' }}
             >
-              {activeTool === 'flashcards' && <FlashcardsTool setView={inlineToolSetView} />}
-              {activeTool === 'essay-grader' && <EssayGraderTool setView={inlineToolSetView} />}
-              {activeTool === 'condenser' && <CondenserTool setView={inlineToolSetView} />}
+              {activeTool === 'flashcards' && <FlashcardsTool setView={inlineToolSetView} user={user} setUser={setUser} />}
+              {activeTool === 'essay-grader' && <EssayGraderPanel setView={inlineToolSetView} />}
+              {activeTool === 'condenser' && <CondenserPanel setView={inlineToolSetView} />}
               {activeTool === 'pomodoro' && (
-                <PomodoroTool 
+                <PomodoroPanel 
                   setView={inlineToolSetView} 
                   onFocusSessionComplete={(minutes) => addStudyMinutes(minutes)}
                 />
@@ -1449,7 +1532,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         )}
 
         {/* Normal dashboard main content (hidden when an inline tool is active) */}
-        {!(dashboardTab === 'tools' && activeTool) && (
+        {!activeTool && (
         <main className="flex flex-col gap-6 py-7 px-8 pb-20 max-w-275 w-full mx-auto max-lg:py-4 max-lg:px-4 max-lg:pb-16">
           {activeQuizModule ? (
             <QuizPanel
@@ -1469,7 +1552,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               startGroupQuiz={startGroupQuiz}
               selectedGroupId={selectedGroupId}
               exams={exams}
-              handleCompleteExam={handleCompleteExam}
+              handleRecordQuizAttempt={handleRecordQuizAttempt}
             />
           ) : (
             <AnimatePresence mode="wait">
@@ -1520,6 +1603,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 {dashboardTab === 'modules' && selectedGroupId === null && (
                   <ModulesPanel
                     modules={modules}
+                    user={user}
+                    setModules={setModules}
+                    showToast={showToast}
                     selectedSubject={selectedSubject}
                     subjects={['All', ...(user.folders || ['General'])]}
                     filteredModules={filteredModules}
@@ -1533,6 +1619,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     onMoveModule={handleMoveModule}
                     onRenameFolder={handleRenameFolder}
                     onDeleteFolder={handleDeleteFolder}
+                    exams={exams}
+                    handleLinkExamToQuiz={handleLinkExamToQuiz}
+                    onAddExamToCalendar={handleAddExamToCalendar}
                   />
                 )}
 
@@ -1570,10 +1659,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   />
                 )}
 
-                {dashboardTab === 'tools' && selectedGroupId === null && (
-                  <ToolsPanel studyTools={studyTools} setActiveTool={setActiveTool} />
-                )}
-
                 {dashboardTab === 'calendar' && selectedGroupId === null && (
                   <CalendarPanel
                     exams={exams}
@@ -1592,6 +1677,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     handleAddExam={handleAddExam}
                     handleDeleteExam={handleDeleteExam}
                     handleCompleteExam={handleCompleteExam}
+                    examQuizLinks={examQuizLinks}
                   />
                 )}
 
@@ -1622,6 +1708,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     setNotifQuizReminders={setNotifQuizReminders}
                     setNotifSounds={setNotifSounds}
                     setNotifEmails={setNotifEmails}
+                    setView={setView}
                   />
                 )}
 

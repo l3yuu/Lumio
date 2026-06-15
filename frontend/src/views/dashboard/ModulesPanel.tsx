@@ -1,10 +1,30 @@
 import React, { useState } from 'react';
-import { Plus, Play, Trash2, Zap, RotateCcw, FileText, X, ZoomIn, ZoomOut, Download, MessageSquare, AudioLines, Search, Edit2, Check, MoreVertical } from 'lucide-react';
-import type { Module } from '../../types';
+import { Plus, Play, Trash2, Zap, RotateCcw, FileText, X, ZoomIn, ZoomOut, Download, MessageSquare, AudioLines, Search, Edit2, Check, MoreVertical, Calendar } from 'lucide-react';
+import type { Module, User, ModuleResponse, QuizQuestionResponse, ExamDeadline } from '../../types';
 import { API_BASE_URL } from '../../config';
+
+const mapModule = (m: ModuleResponse): Module => ({
+  id: m.id,
+  name: m.name,
+  date: m.date,
+  size: m.size,
+  subject: m.subject || 'General',
+  questionsCount: m.questionsCount !== undefined ? m.questionsCount : (m.questions ? m.questions.length : 0),
+  questions: m.questions ? m.questions.map((q: QuizQuestionResponse) => ({
+    id: q.id,
+    question: q.question,
+    options: q.options,
+    correctAnswerIndex: q.correct_answer_index
+  })) : [],
+  lastScore: m.last_score,
+  difficulty: m.difficulty
+});
 
 interface ModulesPanelProps {
   modules: Module[];
+  user: User;
+  setModules: React.Dispatch<React.SetStateAction<Module[]>>;
+  showToast: (type: 'success' | 'error', message: string) => void;
   selectedSubject: string;
   subjects: string[];
   filteredModules: Module[];
@@ -18,13 +38,16 @@ interface ModulesPanelProps {
   onMoveModule?: (moduleId: number, folderName: string) => void;
   onRenameFolder?: (oldName: string, newName: string) => void;
   onDeleteFolder?: (folderName: string) => void;
+  onAddExamToCalendar?: (title: string, subject: string, date: string, priority: string) => void;
+  exams?: ExamDeadline[];
+  handleLinkExamToQuiz?: (examId: number, quizName: string) => void;
 }
 
 export const ModulesPanel: React.FC<ModulesPanelProps> = ({
-  modules, selectedSubject, subjects, filteredModules,
+  modules, user, setModules, showToast, selectedSubject, subjects, filteredModules,
   setSelectedSubject, startQuiz, handleDeleteModule, setIsUploadOpen,
   moduleScores, onFileDropped, onCreateFolder, onMoveModule,
-  onRenameFolder, onDeleteFolder,
+  onRenameFolder, onDeleteFolder, onAddExamToCalendar, exams, handleLinkExamToQuiz,
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -34,15 +57,165 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
   const [editingFolderName, setEditingFolderName] = useState('');
   const [openMenuModuleId, setOpenMenuModuleId] = useState<number | null>(null);
 
+  const [selectedModuleIds, setSelectedModuleIds] = useState<number[]>([]);
+  const [examName, setExamName] = useState('');
+  const [examDifficulty, setExamDifficulty] = useState<'easy' | 'medium' | 'hard'>('easy');
+  const [isGeneratingExam, setIsGeneratingExam] = useState(false);
+  const [linkToCalendar, setLinkToCalendar] = useState(false);
+  const [calendarExamDate, setCalendarExamDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return d.toISOString().split('T')[0];
+  });
+  const [calendarExamPriority, setCalendarExamPriority] = useState<'high' | 'medium' | 'low'>('medium');
+  const [linkMode, setLinkMode] = useState<'create' | 'existing'>('create');
+  const [linkedExamId, setLinkedExamId] = useState<number | null>(null);
+  const [editingModuleId, setEditingModuleId] = useState<number | null>(null);
+  const [editModuleName, setEditModuleName] = useState('');
+  const [viewMode, setViewMode] = useState<'quizzes' | 'exams'>('quizzes');
+
+  // Daily exam generation limit tracking
+  const dailyExamLimit = user.is_premium ? 5 : 1;
+  const getDailyExamKey = () => {
+    const today = new Date().toISOString().split('T')[0];
+    return `lumio_exam_gen_${today}`;
+  };
+  const getDailyExamCount = (): number => {
+    const key = getDailyExamKey();
+    const stored = localStorage.getItem(key);
+    return stored ? parseInt(stored, 10) || 0 : 0;
+  };
+  const dailyExamCount = getDailyExamCount();
+  const dailyExamRemaining = Math.max(0, dailyExamLimit - dailyExamCount);
+
+  React.useEffect(() => {
+    setExamDifficulty(user.is_premium ? 'medium' : 'easy');
+  }, [user.is_premium]);
+
+  const toggleModuleSelection = (id: number) => {
+    const mod = modules.find(m => m.id === id);
+    if (mod && (mod.subject === 'Consolidated Exam' || (mod.questionsCount >= 50 && !mod.hasSourceFile))) return;
+    setSelectedModuleIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const handleGenerateExam = async () => {
+    if (selectedModuleIds.length < 2) {
+      showToast('error', 'Please select at least 2 modules to generate an exam.');
+      return;
+    }
+
+    // Check daily generation limit
+    if (dailyExamRemaining <= 0) {
+      showToast('error', `Daily exam generation limit reached. ${user.is_premium ? 'Pro' : 'Free'} users can generate ${dailyExamLimit} exam(s) per day.`);
+      return;
+    }
+
+    setIsGeneratingExam(true);
+    const token = localStorage.getItem('token');
+    if (!token) {
+      showToast('error', 'You must be logged in to generate an exam.');
+      setIsGeneratingExam(false);
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/modules/generate-consolidated-exam`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          module_ids: selectedModuleIds,
+          name: examName.trim() || undefined,
+          difficulty: examDifficulty
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to generate consolidated exam');
+      }
+
+      const newModuleData = await response.json();
+      const mapped = mapModule(newModuleData);
+
+      setModules(prev => [...prev, mapped]);
+
+      if (linkToCalendar) {
+        if (linkMode === 'existing' && linkedExamId && handleLinkExamToQuiz) {
+          const quizName = examName.trim() || mapped.name;
+          handleLinkExamToQuiz(linkedExamId, quizName);
+          showToast('success', 'Linked to exam on calendar!');
+        } else if (linkMode === 'create' && onAddExamToCalendar) {
+          const examTitle = (examName.trim() || mapped.name) + ' (Generated Exam)';
+          onAddExamToCalendar(examTitle, 'Consolidated Exam', calendarExamDate, calendarExamPriority);
+        }
+        setLinkToCalendar(false);
+        setLinkedExamId(null);
+      }
+
+      setSelectedModuleIds([]);
+      setExamName('');
+
+      // Update daily generation count
+      const key = getDailyExamKey();
+      const newCount = dailyExamCount + 1;
+      localStorage.setItem(key, newCount.toString());
+
+      showToast('success', '50-question consolidated exam generated successfully!');
+    } catch (err: any) {
+      console.error('Error generating consolidated exam:', err);
+      showToast('error', err.message || 'Failed to generate consolidated exam');
+    } finally {
+      setIsGeneratingExam(false);
+    }
+  };
+
+  const handleRenameModule = (moduleId: number, newName: string) => {
+    if (!newName.trim() || newName.trim() === modules.find(m => m.id === moduleId)?.name) {
+      setEditingModuleId(null);
+      return;
+    }
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setModules(prev => prev.map(m => m.id === moduleId ? { ...m, name: newName.trim() } : m));
+      setEditingModuleId(null);
+      return;
+    }
+    fetch(`${API_BASE_URL}/api/modules/${moduleId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ name: newName.trim() })
+    })
+    .then(async res => {
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.detail || 'Failed to rename module');
+      setModules(prev => prev.map(m => m.id === moduleId ? { ...m, name: newName.trim() } : m));
+      setEditingModuleId(null);
+      showToast('success', 'Module renamed!');
+    })
+    .catch(err => {
+      console.error('Error renaming module:', err);
+      showToast('error', 'Failed to rename module');
+      setEditingModuleId(null);
+    });
+  };
+
   React.useEffect(() => {
     const handleCloseMenu = () => setOpenMenuModuleId(null);
     window.addEventListener('click', handleCloseMenu);
     return () => window.removeEventListener('click', handleCloseMenu);
   }, []);
 
-  const displayedModules = filteredModules.filter(m =>
-    m.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const isExam = (m: Module) =>
+    m.subject === 'Consolidated Exam' || (m.questionsCount >= 50 && !m.hasSourceFile);
+
+  const displayedModules = filteredModules
+    .filter(m => viewMode === 'quizzes' ? !isExam(m) : isExam(m))
+    .filter(m => m.name.toLowerCase().includes(searchQuery.toLowerCase()));
   const [viewSourceModule, setViewSourceModule] = useState<Module | null>(null);
   const [sourceContent, setSourceContent] = useState('');
   const [isLoadingSource, setIsLoadingSource] = useState(false);
@@ -114,6 +287,29 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
         </div>
         <button onClick={() => setIsUploadOpen(true)} className="btn btn-primary shrink-0 max-md:w-full max-md:justify-center">
           <Plus size={18} /> Add Module
+        </button>
+      </div>
+
+      <div className="flex gap-2 mb-4">
+        <button
+          onClick={() => setViewMode('quizzes')}
+          className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+            viewMode === 'quizzes'
+              ? 'bg-primary text-ink-on-primary shadow-sm'
+              : 'bg-app border border-line text-ink-muted hover:text-ink hover:border-primary/50'
+          }`}
+        >
+          <Zap size={13} /> Quizzes
+        </button>
+        <button
+          onClick={() => setViewMode('exams')}
+          className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+            viewMode === 'exams'
+              ? 'bg-primary text-ink-on-primary shadow-sm'
+              : 'bg-app border border-line text-ink-muted hover:text-ink hover:border-primary/50'
+          }`}
+        >
+          <Calendar size={13} /> Exams
         </button>
       </div>
 
@@ -323,6 +519,7 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
         ) : (
           displayedModules.map((m) => {
             const moduleScore = moduleScores[m.id];
+            const isSelected = selectedModuleIds.includes(m.id);
             return (
               <div
                 draggable
@@ -332,37 +529,75 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
                   e.dataTransfer.setData('text', m.id.toString());
                   e.dataTransfer.effectAllowed = 'copy';
                 }}
-                onClick={() => handleViewSource(m)}
-                className={`flex max-md:flex-col max-md:items-stretch max-md:gap-3 md:justify-between md:items-center bg-app border border-line rounded-lg p-4 max-md:p-3.5 md:px-5 hover:border-primary/50 cursor-pointer md:hover:scale-[1.005] transition-all duration-200 select-none relative ${
+                onClick={() => isExam(m) ? startQuiz(m) : handleViewSource(m)}
+                className={`flex max-md:flex-col max-md:items-stretch max-md:gap-3 md:justify-between md:items-center bg-app border rounded-lg p-4 max-md:p-3.5 md:px-5 cursor-pointer md:hover:scale-[1.005] transition-all duration-200 select-none relative ${
                   openMenuModuleId === m.id ? 'z-30 shadow-lg' : 'z-0'
-                }`}
+                } ${isSelected ? 'border-primary bg-primary-soft/10' : 'border-line hover:border-primary/50'}`}
                 key={m.id}
               >
-                <div className="flex flex-col gap-1.5 pointer-events-none min-w-0 flex-1">
-                  <span className="font-bold text-base max-md:text-[0.95rem] text-left wrap-break-word leading-snug">{m.name}</span>
-                  <div className="text-[0.8rem] max-md:text-[0.75rem] text-ink-muted flex items-center gap-x-4 gap-y-1.5 flex-wrap">
-                    <span>Date: {m.date}</span>
-                    <span>Size: {m.size}</span>
-                    <span>Questions: {m.questionsCount}</span>
-                    {selectedSubject === 'All' && m.subject && (
-                      <span className="flex items-center gap-1 bg-glass border border-line text-ink-muted text-[0.7rem] font-bold px-2 py-0.5 rounded">
-                        Folder: {m.subject}
-                      </span>
-                    )}
-                    {m.difficulty && (
-                      <span className={`flex items-center gap-1 text-[0.7rem] font-bold px-2 py-0.5 rounded border capitalize ${
-                        m.difficulty === 'easy' ? 'bg-primary-soft text-primary border-primary-line' :
-                        m.difficulty === 'hard' ? 'bg-danger-soft text-danger border-danger-line' :
-                        'bg-warning-soft text-warning border-warning-line'
+                <div className="flex items-center min-w-0 flex-1 gap-3">
+                  {!isExam(m) && (
+                    <div
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleModuleSelection(m.id);
+                      }}
+                      className="flex items-center justify-center p-1 rounded hover:bg-glass shrink-0"
+                      title={isSelected ? "Deselect module" : "Select module"}
+                    >
+                      <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-all ${
+                        isSelected
+                          ? 'bg-primary border-primary text-ink-on-primary'
+                          : 'border-line text-transparent hover:border-primary'
                       }`}>
-                        {m.difficulty}
-                      </span>
+                        <Check size={12} strokeWidth={3} />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex flex-col gap-1.5 pointer-events-none min-w-0 flex-1">
+                    {editingModuleId === m.id ? (
+                      <input
+                        type="text"
+                        value={editModuleName}
+                        onChange={(e) => setEditModuleName(e.target.value)}
+                        onKeyDown={(e) => {
+                          e.stopPropagation();
+                          if (e.key === 'Enter') handleRenameModule(m.id, editModuleName);
+                          if (e.key === 'Escape') setEditingModuleId(null);
+                        }}
+                        onBlur={() => handleRenameModule(m.id, editModuleName)}
+                        autoFocus
+                        onClick={(e) => e.stopPropagation()}
+                        className="font-bold text-base max-md:text-[0.95rem] text-left w-full bg-input border border-primary rounded-md px-2 py-1 text-ink outline-none pointer-events-auto"
+                      />
+                    ) : (
+                      <span className="font-bold text-base max-md:text-[0.95rem] text-left wrap-break-word leading-snug">{m.name}</span>
                     )}
-                    {moduleScore && (
-                      <span className="flex items-center gap-1 bg-primary-soft text-primary text-[0.75rem] font-bold px-2 py-0.5 rounded border border-primary-line">
-                        Last Score: {moduleScore}
-                      </span>
-                    )}
+                    <div className="text-[0.8rem] max-md:text-[0.75rem] text-ink-muted flex items-center gap-x-4 gap-y-1.5 flex-wrap">
+                      <span>Date: {m.date}</span>
+                      <span>Size: {m.size}</span>
+                      <span>Questions: {m.questionsCount}</span>
+                      {selectedSubject === 'All' && m.subject && (
+                        <span className="flex items-center gap-1 bg-glass border border-line text-ink-muted text-[0.7rem] font-bold px-2 py-0.5 rounded">
+                          Folder: {m.subject}
+                        </span>
+                      )}
+                      {m.difficulty && (
+                        <span className={`flex items-center gap-1 text-[0.7rem] font-bold px-2 py-0.5 rounded border capitalize ${
+                          m.difficulty === 'easy' ? 'bg-primary-soft text-primary border-primary-line' :
+                          m.difficulty === 'hard' ? 'bg-danger-soft text-danger border-danger-line' :
+                          'bg-warning-soft text-warning border-warning-line'
+                        }`}>
+                          {m.difficulty}
+                        </span>
+                      )}
+                      {moduleScore && (
+                        <span className="flex items-center gap-1 bg-primary-soft text-primary text-[0.75rem] font-bold px-2 py-0.5 rounded border border-primary-line">
+                          Last Score: {moduleScore}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div className="flex gap-2.5 items-center shrink-0 max-md:w-full max-md:pt-0.5">
@@ -373,7 +608,11 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
                     }}
                     className="btn btn-primary max-md:flex-1 max-md:justify-center max-md:py-2.5"
                   >
-                    {moduleScore ? (
+                    {isExam(m) ? (
+                      <>
+                        <Zap size={14} fill="currentColor" /> Start Exam
+                      </>
+                    ) : moduleScore ? (
                       <>
                         <RotateCcw size={14} /> Retake Quiz
                       </>
@@ -401,7 +640,7 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
                         className="absolute right-0 top-full mt-2 w-48 bg-card border border-line rounded-lg shadow-lg py-1.5 z-20 transition-all duration-150 ease-out"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        {onMoveModule && (
+                        {onMoveModule && !isExam(m) && (
                           <div className="px-3 py-2 border-b border-line">
                             <label className="block text-[10px] text-ink-muted uppercase font-extrabold mb-1">Move to Folder</label>
                             <select
@@ -418,6 +657,17 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
                             </select>
                           </div>
                         )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingModuleId(m.id);
+                            setEditModuleName(m.name);
+                            setOpenMenuModuleId(null);
+                          }}
+                          className="w-full text-left px-3.5 py-2.5 text-xs text-ink hover:bg-glass transition-colors font-bold flex items-center gap-2 cursor-pointer"
+                        >
+                          <Edit2 size={12} /> Rename
+                        </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -543,6 +793,168 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Exam Configuration Bar */}
+      {selectedModuleIds.length >= 2 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-3xl bg-card/95 backdrop-blur-md border border-line rounded-2xl shadow-2xl p-4 animate-in slide-in-from-bottom-5 duration-300">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            {/* Selection Info & Input */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="bg-primary/20 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full">
+                  {selectedModuleIds.length} Selected
+                </span>
+                <span className="text-[11px] text-ink-muted">Consolidated 50-Question Exam</span>
+              </div>
+              <input
+                type="text"
+                placeholder="Enter exam name (optional)..."
+                value={examName}
+                onChange={(e) => setExamName(e.target.value)}
+                className="w-full bg-input border border-line rounded-lg px-3 py-2 text-xs text-ink outline-none focus:border-primary transition-colors"
+              />
+            </div>
+            
+            {/* Config & Actions */}
+            <div className="flex items-center gap-3 max-md:justify-between shrink-0">
+              {/* Difficulty Selector */}
+              <div className="flex items-center gap-1 bg-input border border-line rounded-lg p-0.5">
+                {(['easy', 'medium', 'hard'] as const).map((diff) => {
+                  const isLocked = !user.is_premium && diff !== 'easy';
+                  const isSelected = examDifficulty === diff;
+                  return (
+                    <button
+                      key={diff}
+                      type="button"
+                      onClick={() => {
+                        if (isLocked) {
+                          showToast('error', 'Medium and Hard difficulty are restricted to Pro Student accounts.');
+                          return;
+                        }
+                        setExamDifficulty(diff);
+                      }}
+                      className={`px-3 py-1 rounded-md text-[10px] font-bold capitalize transition-all flex items-center gap-1 cursor-pointer ${
+                        isSelected
+                          ? 'bg-primary text-ink-on-primary shadow-sm'
+                          : 'text-ink-muted hover:text-ink'
+                      } ${isLocked ? 'opacity-50' : ''}`}
+                    >
+                      {diff}
+                      {isLocked && <Zap size={10} className="text-warning fill-warning" />}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Buttons */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setSelectedModuleIds([])}
+                  className="btn btn-outline border-line text-ink-muted hover:text-ink hover:bg-glass p-2 rounded-lg"
+                  title="Cancel selection"
+                >
+                  <X size={14} />
+                </button>
+                
+                <button
+                  onClick={handleGenerateExam}
+                  disabled={isGeneratingExam || dailyExamRemaining <= 0}
+                  className="btn btn-primary font-bold text-xs py-2 px-3.5 rounded-lg flex items-center gap-1.5"
+                >
+                  {isGeneratingExam ? (
+                    <>
+                      <div className="w-3 h-3 border-2 border-ink-on-primary/30 border-t-ink-on-primary rounded-full animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Zap size={12} fill="currentColor" />
+                      Generate 50-Q Exam
+                    </>
+                  )}
+                </button>
+                <span className="text-[10px] text-ink-muted ml-1">
+                  {dailyExamRemaining} / {dailyExamLimit} left today
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Link to Exam Calendar */}
+          <div className="pt-2 border-t border-line mt-2">
+            <label className="flex items-center gap-2 cursor-pointer mb-2">
+              <input
+                type="checkbox"
+                checked={linkToCalendar}
+                onChange={(e) => setLinkToCalendar(e.target.checked)}
+                className="w-3.5 h-3.5 accent-primary"
+              />
+              <Calendar size={13} className="text-ink-muted" />
+              <span className="text-[11px] font-semibold text-ink">Add to Exam Calendar</span>
+            </label>
+            {linkToCalendar && (
+              <div className="flex flex-wrap items-center gap-2 ml-5">
+                <button
+                  type="button"
+                  onClick={() => setLinkMode('existing')}
+                  className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all ${
+                    linkMode === 'existing'
+                      ? 'bg-primary text-ink-on-primary'
+                      : 'bg-input text-ink-muted hover:text-ink border border-line'
+                  }`}
+                >
+                  Link Existing
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLinkMode('create')}
+                  className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all ${
+                    linkMode === 'create'
+                      ? 'bg-primary text-ink-on-primary'
+                      : 'bg-input text-ink-muted hover:text-ink border border-line'
+                  }`}
+                >
+                  Create New
+                </button>
+                {linkMode === 'create' ? (
+                  <>
+                    <input
+                      type="date"
+                      value={calendarExamDate}
+                      onChange={(e) => setCalendarExamDate(e.target.value)}
+                      className="bg-input border border-line rounded-lg px-2.5 py-1.5 text-[11px] text-ink outline-none focus:border-primary transition-colors"
+                    />
+                    <select
+                      value={calendarExamPriority}
+                      onChange={(e) => setCalendarExamPriority(e.target.value as 'high' | 'medium' | 'low')}
+                      className="bg-input border border-line rounded-lg px-2.5 py-1.5 text-[11px] text-ink outline-none focus:border-primary transition-colors"
+                    >
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                    </select>
+                  </>
+                ) : exams && exams.length > 0 ? (
+                  <select
+                    value={linkedExamId ?? ''}
+                    onChange={(e) => setLinkedExamId(Number(e.target.value) || null)}
+                    className="bg-input border border-line rounded-lg px-2.5 py-1.5 text-[11px] text-ink outline-none focus:border-primary transition-colors"
+                  >
+                    <option value="">Select an exam...</option>
+                    {exams.map(exam => (
+                      <option key={exam.id} value={exam.id}>
+                        {exam.title} — {exam.subject}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="text-[10px] text-ink-muted">No upcoming exams available</span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

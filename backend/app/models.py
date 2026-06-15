@@ -39,6 +39,7 @@ class User(Base):
     level = Column(Integer, default=1)
     xp = Column(Integer, default=0)
     is_verified = Column(Boolean, default=False)
+    is_suspended = Column(Boolean, default=False, nullable=False)
     role = Column(String(50), default="user", nullable=False)
     verification_code = Column(String(6), nullable=True)
     reset_code = Column(String(6), nullable=True)
@@ -74,6 +75,22 @@ class User(Base):
     last_check_in = Column(String(50), default="")
     last_seen = Column(DateTime, nullable=True)
     folders = Column(JSON, default=lambda: ["General"])
+    stripe_customer_id = Column(String(255), nullable=True)
+    stripe_subscription_id = Column(String(255), nullable=True)
+    stripe_subscription_status = Column(String(50), nullable=True)
+    stripe_price_id = Column(String(255), nullable=True)
+    premium_expires_at = Column(DateTime, nullable=True)
+
+    @property
+    def is_premium(self) -> bool:
+        if self.role in ("superadmin", "premium"):
+            return True
+        if self.stripe_subscription_status in ("active", "trialing"):
+            return True
+        if self.premium_expires_at:
+            from datetime import datetime
+            return self.premium_expires_at > datetime.utcnow()
+        return False
 
     @property
     def online(self) -> bool:
@@ -146,6 +163,7 @@ class StudyGroup(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
     creator_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    is_banned = Column(Boolean, default=False)
 
     members = relationship("User", secondary=group_members, back_populates="joined_groups")
     modules = relationship("Module", secondary=group_modules, back_populates="groups")
@@ -246,4 +264,49 @@ class GroupPost(Base):
 
     group = relationship("StudyGroup", back_populates="posts")
     user = relationship("User", back_populates="posts")
+
+
+class FlashcardDeck(Base):
+    __tablename__ = "flashcard_decks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    title = Column(String(255), nullable=False)
+    cards = Column(JSON, default=lambda: [])
+    created_at = Column(DateTime, default=now_ph_naive)
+
+    user = relationship("User")
+
+
+class CondenserHistory(Base):
+    __tablename__ = "condenser_histories"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    title = Column(String(255), nullable=False)
+    summary = Column(Text, nullable=False)
+    takeaways = Column(JSON, default=lambda: [])
+    vocabulary = Column(JSON, default=lambda: [])
+    created_at = Column(DateTime, default=now_ph_naive)
+
+    user = relationship("User")
+
+
+class EssayGraderHistory(Base):
+    __tablename__ = "essay_grader_histories"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    title = Column(String(255), nullable=False)
+    prompt = Column(Text, nullable=True)
+    essay_text = Column(Text, nullable=False)
+    grade = Column(String(10), nullable=False)
+    thesis_score = Column(Integer, nullable=False)
+    grammar_score = Column(Integer, nullable=False)
+    structure_score = Column(Integer, nullable=False)
+    critique = Column(Text, nullable=False)
+    recommendations = Column(JSON, default=lambda: [])
+    created_at = Column(DateTime, default=now_ph_naive)
+
+    user = relationship("User")
 

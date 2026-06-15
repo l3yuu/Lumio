@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api/groups", tags=["groups"])
 @router.get("", response_model=List[schemas.StudyGroupOut])
 def get_groups(current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     # Returns groups that the current user is a member of
-    return current_user.joined_groups
+    return [g for g in current_user.joined_groups if not g.is_banned]
 
 @router.post("", response_model=schemas.StudyGroupOut)
 def create_group(
@@ -25,6 +25,14 @@ def create_group(
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db)
 ):
+    if not current_user.is_premium:
+        created_groups_count = db.query(models.StudyGroup).filter(models.StudyGroup.creator_id == current_user.id).count()
+        if created_groups_count >= 2:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Free accounts are limited to creating 2 collaborative circles. Upgrade to Pro for unlimited circles."
+            )
+
     db_group = models.StudyGroup(name=group_in.name, creator_id=current_user.id)
     db_group.members.append(current_user)
     db.add(db_group)
@@ -238,11 +246,36 @@ async def transfer_group_ownership(
     return group
 
 
+@router.patch("/{group_id}", response_model=schemas.StudyGroupOut)
+async def update_group(
+    group_id: int,
+    group_in: schemas.StudyGroupUpdate,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    group = db.query(models.StudyGroup).filter(models.StudyGroup.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Study group not found")
+
+    if group.creator_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the group owner can edit the group name")
+
+    group.name = group_in.name
+    db.commit()
+    db.refresh(group)
+
+    await discussion_manager.broadcast_group_renamed(group_id, group.name)
+
+    return group
+
+
 @router.get("/{group_id}", response_model=schemas.StudyGroupOut)
 def get_group(group_id: int, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     group = db.query(models.StudyGroup).filter(models.StudyGroup.id == group_id).first()
     if not group:
         raise HTTPException(status_code=404, detail="Study group not found")
+    if group.is_banned:
+        raise HTTPException(status_code=403, detail="This study group has been banned by the administrator")
     # Verify membership
     if current_user not in group.members:
         raise HTTPException(status_code=403, detail="Not a member of this study group")
@@ -615,6 +648,18 @@ class DiscussionManager:
                 except Exception:
                     self.disconnect(group_id, connection)
 
+    async def broadcast_group_renamed(self, group_id: int, new_name: str):
+        if group_id in self.active_connections:
+            message = {
+                "type": "group_renamed",
+                "name": new_name
+            }
+            for connection in list(self.active_connections[group_id]):
+                try:
+                    await connection.send_text(json.dumps(message))
+                except Exception:
+                    self.disconnect(group_id, connection)
+
 discussion_manager = DiscussionManager()
 
 @router.websocket("/ws/{group_id}/quiz/{module_id}")
@@ -755,7 +800,7 @@ async def websocket_discussion_endpoint(
 
     user = db.query(models.User).filter(models.User.id == user_id).first()
     group = db.query(models.StudyGroup).filter(models.StudyGroup.id == group_id).first()
-    if not user or not group or user not in group.members:
+    if not user or not group or user not in group.members or group.is_banned:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
@@ -778,6 +823,8 @@ def get_group_discussion(
     group = db.query(models.StudyGroup).filter(models.StudyGroup.id == group_id).first()
     if not group:
         raise HTTPException(status_code=404, detail="Study group not found")
+    if group.is_banned:
+        raise HTTPException(status_code=403, detail="This study group has been banned by the administrator")
     if current_user not in group.members:
         raise HTTPException(status_code=403, detail="Not a member of this study group")
     
@@ -794,6 +841,8 @@ async def post_to_group_discussion(
     group = db.query(models.StudyGroup).filter(models.StudyGroup.id == group_id).first()
     if not group:
         raise HTTPException(status_code=404, detail="Study group not found")
+    if group.is_banned:
+        raise HTTPException(status_code=403, detail="This study group has been banned by the administrator")
     if current_user not in group.members:
         raise HTTPException(status_code=403, detail="Not a member of this study group")
 

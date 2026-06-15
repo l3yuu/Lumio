@@ -163,47 +163,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                 How it Works
               </button>
             </li>
-            <li className="relative inline-block group">
+            <li>
               <button
                 onClick={() => { setView('tools'); setActiveQuizModule(null); }}
-                className={`flex items-center gap-1 bg-transparent border-0 cursor-pointer py-2 px-3 font-medium text-[0.95rem] text-ink transition-colors duration-200 hover:text-primary! group-hover:text-primary! ${['tools', 'flashcards', 'essay-grader', 'condenser'].includes(view) ? 'text-primary!' : ''}`}
+                className={`text-ink no-underline font-medium text-sm transition-colors duration-150 bg-transparent border-0 cursor-pointer py-2 px-3 flex items-center hover:text-primary! ${view === 'tools' ? 'text-primary!' : ''}`}
               >
                 Study Tools
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="transition-transform duration-200 group-hover:rotate-180"><polyline points="6 9 12 15 18 9"></polyline></svg>
               </button>
-              <div className="absolute top-full left-1/2 -translate-x-1/2 translate-y-2.5 w-70 bg-app/95 backdrop-blur-2xl border border-line rounded-xl p-3 shadow-lg opacity-0 invisible pointer-events-none transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] z-1010 flex flex-col gap-1 group-hover:opacity-100 group-hover:visible group-hover:pointer-events-auto group-hover:translate-x-[-50%] group-hover:translate-y-1">
-                <button
-                  onClick={() => { setView('flashcards'); setActiveQuizModule(null); }}
-                  className="flex items-start gap-3 p-3 rounded-lg bg-transparent border-0 text-ink text-left cursor-pointer transition-all duration-200 w-full hover:bg-ink-tint-3"
-                >
-                  <Sparkles size={16} className="text-primary shrink-0 mt-0.5" />
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-sm font-semibold text-ink">Flashcard Generator</span>
-                    <span className="text-xs text-ink-muted leading-snug">Automatic spaced repetition cards</span>
-                  </div>
-                </button>
-                <button
-                  onClick={() => { setView('essay-grader'); setActiveQuizModule(null); }}
-                  className="flex items-start gap-3 p-3 rounded-lg bg-transparent border-0 text-ink text-left cursor-pointer transition-all duration-200 w-full hover:bg-ink-tint-3"
-                >
-                  <HelpCircle size={16} className="text-primary shrink-0 mt-0.5" />
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-sm font-semibold text-ink">AI Essay Grader</span>
-                    <span className="text-xs text-ink-muted leading-snug">Feedback synced to grading rubrics</span>
-                  </div>
-                </button>
-                <button
-                  onClick={() => { setView('condenser'); setActiveQuizModule(null); }}
-                  className="flex items-start gap-3 p-3 rounded-lg bg-transparent border-0 text-ink text-left cursor-pointer transition-all duration-200 w-full hover:bg-ink-tint-3"
-                >
-                  <Layers size={16} className="text-primary shrink-0 mt-0.5" />
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-sm font-semibold text-ink">Document Condenser</span>
-                    <span className="text-xs text-ink-muted leading-snug">Summarize large books & drafts</span>
-                  </div>
-                </button>
-              </div>
             </li>
+
             <li>
               <button
                 onClick={() => { setView('docs'); setActiveQuizModule(null); }}
@@ -365,7 +333,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                     : 'opacity-0 invisible pointer-events-none'
                 }`}>
                   <div className="p-2 px-3 border-b border-line mb-2">
-                    <div className="font-semibold text-sm text-ink">{user.name}</div>
+                    <div className="flex items-center gap-2">
+                      <div className="font-semibold text-sm text-ink">{user.name}</div>
+                      {user.is_premium && (
+                        <span className="text-[0.65rem] font-extrabold bg-primary/20 text-primary border border-primary/30 px-2 py-0.5 rounded-full uppercase tracking-wider leading-none">
+                          Pro
+                        </span>
+                      )}
+                    </div>
                     <div className="text-xs text-ink-muted overflow-hidden text-ellipsis whitespace-nowrap">{user.email}</div>
                   </div>
 

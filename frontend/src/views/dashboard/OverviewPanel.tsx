@@ -138,7 +138,7 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
         </div>
       </motion.div>
 
-      <div className="grid grid-cols-[1.2fr_1fr] gap-6 mb-0 max-md:grid-cols-1">
+      <div className="grid grid-cols-[1.2fr_1fr] gap-6 mb-0 max-md:grid-cols-1 min-w-0">
         <div className="flex flex-col gap-6">
           <div className="grid grid-cols-3 gap-2 sm:gap-3">
             <div 
@@ -414,7 +414,7 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
           </div>
         </div>
 
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-6 min-w-0">
           <div className="bg-card border border-line rounded-xl p-5 relative overflow-hidden">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-[0.95rem] font-semibold flex items-center gap-2 m-0">
@@ -451,7 +451,7 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
           </div>
 
 
-          <div className="bg-card border border-line rounded-xl p-5">
+          <div className="bg-card border border-line rounded-xl p-5 overflow-hidden">
             <h3 className="text-[0.95rem] font-semibold mb-4 flex items-center gap-2 m-0">
               <Clock size={16} className="text-primary" /> Spaced Recall Calendar
             </h3>
@@ -462,8 +462,8 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
                  </div>
                ) : (
                  spacedRepetitionList.map((item) => (
-                   <div key={item.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-app border border-line rounded-lg">
-                     <div className="flex flex-col gap-0.5 min-w-0">
+                   <div key={item.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-app border border-line rounded-lg overflow-hidden min-w-0">
+                     <div className="flex flex-col gap-0.5 min-w-0 overflow-hidden">
                        <span className="text-[0.85rem] font-semibold text-ink truncate" title={item.name}>{item.name}</span>
                        <span className="text-[0.7rem] text-ink-muted">Recall Strength: {item.progress}%</span>
                      </div>

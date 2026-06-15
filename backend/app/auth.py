@@ -53,6 +53,12 @@ def get_current_user(token: Optional[str] = Depends(oauth2_scheme), db: Session 
     if user is None:
         raise credentials_exception
         
+    if user.is_suspended:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: This account has been suspended by the administrator."
+        )
+        
     # Dynamically format spaced recall dueIn values
     if user.spaced_recall:
         from .time_utils import now_ph, PH_TIMEZONE

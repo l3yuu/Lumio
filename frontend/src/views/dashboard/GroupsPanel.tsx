@@ -42,6 +42,10 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
   const [isLeaving, setIsLeaving] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameError, setRenameError] = useState('');
+  const [renameSuccess, setRenameSuccess] = useState(false);
   const [groupNotifsEnabled, setGroupNotifsEnabled] = useState(true);
   const [isTogglingNotifs, setIsTogglingNotifs] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -68,6 +72,91 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
       setSelectedPostIdForTime(null);
     }, 0);
   }, [selectedGroupId]);
+
+  useEffect(() => {
+    if (selectedGroupId !== null) {
+      const activeGroup = groups.find(g => g.id === selectedGroupId);
+      if (activeGroup) {
+        setNewGroupName(activeGroup.name);
+        setRenameError('');
+        setRenameSuccess(false);
+      }
+    }
+  }, [selectedGroupId, groups]);
+
+  const handleRenameGroup = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newGroupName.trim() || selectedGroupId === null) return;
+
+    setIsRenaming(true);
+    setRenameError('');
+    setRenameSuccess(false);
+    const token = localStorage.getItem('token');
+
+    fetch(`${API_BASE_URL}/api/groups/${selectedGroupId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ name: newGroupName.trim() })
+    })
+    .then(async res => {
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.detail || 'Failed to rename group');
+      return data as StudyGroupResponse;
+    })
+    .then((updatedGroup: StudyGroupResponse) => {
+      const mapped: StudyGroup = {
+        id: updatedGroup.id,
+        name: updatedGroup.name,
+        creator_id: updatedGroup.creator_id,
+        members: (updatedGroup.members || []).map(m => ({
+          id: m.id,
+          name: m.name,
+          email: m.email,
+          avatar: m.avatar,
+          online: m.online,
+          is_premium: m.is_premium,
+        })),
+        modules: updatedGroup.modules ? updatedGroup.modules.map((m: ModuleResponse) => ({
+          id: m.id,
+          name: m.name,
+          date: m.date,
+          size: m.size,
+          subject: m.subject || 'General',
+          questionsCount: m.questionsCount !== undefined ? m.questionsCount : (m.questions ? m.questions.length : 0),
+          questions: m.questions ? m.questions.map((q: QuizQuestionResponse) => ({
+            id: q.id,
+            question: q.question,
+            options: q.options,
+            correctAnswerIndex: q.correct_answer_index
+          })) : []
+        })) : [],
+        quizSessions: updatedGroup.quiz_sessions ? updatedGroup.quiz_sessions.map((s: GroupQuizSessionResponse) => ({
+          id: s.id,
+          moduleName: s.module_name,
+          date: s.date,
+          avgScore: s.avg_score,
+          rankings: s.rankings ? s.rankings.map((r: GroupQuizRankResponse) => ({
+            name: r.name,
+            score: r.score,
+            percentage: r.percentage,
+            time: r.time,
+            isUser: r.is_user
+          })) : []
+        })) : []
+      };
+      setGroups(prev => prev.map(g => g.id === mapped.id ? mapped : g));
+      setRenameSuccess(true);
+    })
+    .catch(err => {
+      setRenameError(err.message);
+    })
+    .finally(() => {
+      setIsRenaming(false);
+    });
+  };
 
   useEffect(() => {
     if (openMenuMemberId === null) return;
@@ -176,6 +265,14 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
             return {
               ...g,
               creator_id: message.creator_id
+            };
+          }));
+        } else if (message.type === 'group_renamed') {
+          setGroups(prev => prev.map(g => {
+            if (g.id !== selectedGroupId) return g;
+            return {
+              ...g,
+              name: message.name
             };
           }));
         }
@@ -400,6 +497,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
           email: m.email,
           avatar: m.avatar,
           online: m.online,
+          is_premium: m.is_premium,
         })),
         modules: updatedGroup.modules ? updatedGroup.modules.map((m: ModuleResponse) => ({
           id: m.id,
@@ -464,6 +562,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
           email: m.email,
           avatar: m.avatar,
           online: m.online,
+          is_premium: m.is_premium,
         })),
         modules: updatedGroup.modules ? updatedGroup.modules.map((m: ModuleResponse) => ({
           id: m.id,
@@ -700,6 +799,32 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
               <Settings size={18} /> Group Settings
             </h3>
             <div className="flex flex-col gap-4">
+              {/* Edit Group Name (Owner only) */}
+              {isCurrentUserOwner && (
+                <div className="p-4 bg-app border border-line rounded-lg">
+                  <p className="text-sm font-semibold text-ink mb-2">Edit Group Name</p>
+                  <form onSubmit={handleRenameGroup} className="flex gap-2 max-md:flex-col">
+                    <input
+                      type="text"
+                      value={newGroupName}
+                      onChange={(e) => setNewGroupName(e.target.value)}
+                      placeholder="Enter new group name"
+                      className="flex-1 bg-input border border-line rounded-md p-2.5 text-ink text-[0.85rem] outline-none focus:border-primary transition-colors"
+                      required
+                    />
+                    <button
+                      type="submit"
+                      disabled={isRenaming}
+                      className="px-4 py-2 bg-primary hover:bg-primary-hover text-ink-on-primary font-bold text-xs rounded-md cursor-pointer transition-colors disabled:opacity-60 shrink-0"
+                    >
+                      {isRenaming ? 'Saving...' : 'Save'}
+                    </button>
+                  </form>
+                  {renameError && <p className="text-red-400 text-[0.72rem] mt-1.5">{renameError}</p>}
+                  {renameSuccess && <p className="text-primary font-semibold text-[0.72rem] mt-1.5">Group name updated successfully!</p>}
+                </div>
+              )}
+
               {/* Notification Toggle */}
               <div className="flex items-center justify-between p-4 bg-app border border-line rounded-lg max-md:flex-col max-md:items-stretch max-md:gap-3">
                 <div className="flex items-center gap-3 min-w-0">
@@ -742,10 +867,16 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
                       <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-app" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-ink truncate">
-                        {user.name} <span className="text-xs text-ink-muted font-normal">(You)</span>
+                      <p className="text-sm font-medium text-ink truncate flex items-center gap-1.5">
+                        <span className="truncate">{user.name}</span>
+                        <span className="text-xs text-ink-muted font-normal shrink-0">(You)</span>
+                        {user.is_premium && (
+                          <span className="text-[0.6rem] font-extrabold bg-primary/20 text-primary border border-primary/30 px-1.5 py-0.5 rounded-full uppercase tracking-wider leading-none shrink-0">
+                            Pro
+                          </span>
+                        )}
                         {isCurrentUserOwner && (
-                          <span className="ml-1.5 text-[0.6rem] font-bold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded uppercase tracking-wider">Owner</span>
+                          <span className="text-[0.6rem] font-bold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded uppercase tracking-wider leading-none shrink-0">Owner</span>
                         )}
                       </p>
                       <p className="text-xs text-ink-muted truncate">{user.email}</p>
@@ -768,10 +899,15 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
                         }`} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-ink truncate">
-                          {m.name}
+                        <p className="text-sm font-medium text-ink truncate flex items-center gap-1.5">
+                          <span className="truncate">{m.name}</span>
+                          {m.is_premium && (
+                            <span className="text-[0.6rem] font-extrabold bg-primary/20 text-primary border border-primary/30 px-1.5 py-0.5 rounded-full uppercase tracking-wider leading-none shrink-0">
+                              Pro
+                            </span>
+                          )}
                           {activeGroup.creator_id === m.id && (
-                            <span className="ml-1.5 text-[0.6rem] font-bold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded uppercase tracking-wider">Owner</span>
+                            <span className="text-[0.6rem] font-bold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded uppercase tracking-wider leading-none shrink-0">Owner</span>
                           )}
                         </p>
                         <p className="text-xs text-ink-muted truncate">{m.email}</p>

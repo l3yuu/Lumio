@@ -59,6 +59,29 @@ def ensure_runtime_schema():
             statements.append("ALTER TABLE users ADD COLUMN folders JSON")
         if "role" not in user_columns:
             statements.append("ALTER TABLE users ADD COLUMN role VARCHAR(50) DEFAULT 'user'")
+        if "stripe_customer_id" not in user_columns:
+            statements.append("ALTER TABLE users ADD COLUMN stripe_customer_id VARCHAR(255)")
+        if "stripe_subscription_id" not in user_columns:
+            statements.append("ALTER TABLE users ADD COLUMN stripe_subscription_id VARCHAR(255)")
+        if "stripe_subscription_status" not in user_columns:
+            statements.append("ALTER TABLE users ADD COLUMN stripe_subscription_status VARCHAR(50)")
+        if "stripe_price_id" not in user_columns:
+            statements.append("ALTER TABLE users ADD COLUMN stripe_price_id VARCHAR(255)")
+        if "premium_expires_at" not in user_columns:
+            statements.append("ALTER TABLE users ADD COLUMN premium_expires_at TIMESTAMP")
+        if "is_suspended" not in user_columns:
+            if engine.dialect.name == "postgresql":
+                statements.append("ALTER TABLE users ADD COLUMN is_suspended BOOLEAN DEFAULT FALSE")
+            else:
+                statements.append("ALTER TABLE users ADD COLUMN is_suspended INTEGER DEFAULT 0")
+
+    if "study_groups" in table_names:
+        group_columns = {column["name"] for column in inspector.get_columns("study_groups")}
+        if "is_banned" not in group_columns:
+            if engine.dialect.name == "postgresql":
+                statements.append("ALTER TABLE study_groups ADD COLUMN is_banned BOOLEAN DEFAULT FALSE")
+            else:
+                statements.append("ALTER TABLE study_groups ADD COLUMN is_banned INTEGER DEFAULT 0")
 
     if not statements:
         return

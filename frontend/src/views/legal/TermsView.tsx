@@ -42,7 +42,7 @@ export const TermsView: React.FC = () => {
         <section>
           <h2 className="text-ink text-[1.5rem] mb-3">4. Subscriptions and Payments</h2>
           <p>
-            Pro Student subscriptions cost $8/mo. You authorize recurring billing and agree to pay all charges incurred. Subscriptions can be canceled at any time from the dashboard settings tab, with cancellation taking effect at the end of the current billing cycle.
+            Pro Student subscriptions cost ₱100/mo. You authorize recurring billing and agree to pay all charges incurred. Subscriptions can be canceled at any time from the dashboard settings tab, with cancellation taking effect at the end of the current billing cycle.
           </p>
         </section>
 
