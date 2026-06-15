@@ -100,51 +100,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     });
   };
 
-  const handleMockUpgrade = (gateway: 'stripe' | 'paymongo') => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
 
-    fetch(`${API_BASE_URL}/api/payments/mock-upgrade?gateway=${gateway}`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    })
-    .then(async res => {
-      const data = await res.json();
-      if (!res.ok) throw new Error('Failed to mock upgrade');
-      return data;
-    })
-    .then(data => {
-      setUser(data.user);
-      setDraft(data.user); // Update draft profile state too
-      showToast('success', `Mock upgrade successful (${gateway === 'stripe' ? 'Stripe Card' : 'GCash/Maya'})!`);
-    })
-    .catch(err => showToast('error', err.message));
-  };
-
-  const handleMockDowngrade = () => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
-    fetch(`${API_BASE_URL}/api/payments/mock-downgrade`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    })
-    .then(async res => {
-      const data = await res.json();
-      if (!res.ok) throw new Error('Failed to mock downgrade');
-      return data;
-    })
-    .then(data => {
-      setUser(data.user);
-      setDraft(data.user); // Update draft profile state too
-      showToast('success', 'Mock downgrade successful!');
-    })
-    .catch(err => showToast('error', err.message));
-  };
   const handleLocalAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -657,7 +613,19 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
           <h3 className="text-[1.1rem] font-bold m-0">Subscription & Billing</h3>
         </div>
 
-        {user.is_premium ? (
+        {user.role === 'superadmin' ? (
+          <div className="p-4 rounded-xl bg-primary-soft/10 border border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="text-sm font-bold text-ink flex items-center gap-2">
+                Admin – Full Pro Access
+                <span className="text-[0.7rem] bg-primary/20 text-primary px-2.5 py-0.5 rounded-full font-bold">Active</span>
+              </div>
+              <div className="text-xs text-ink-muted mt-1 leading-relaxed">
+                All Pro features are unlocked by default for administrator accounts. No payment required.
+              </div>
+            </div>
+          </div>
+        ) : user.is_premium ? (
           <div className="flex flex-col gap-4">
             <div className="p-4 rounded-xl bg-primary-soft/10 border border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
@@ -682,17 +650,6 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 {billingLoading ? <Loader2 size={14} className="animate-spin" /> : 'Manage Subscription'}
               </button>
             </div>
-
-            <div className="flex items-center justify-between p-3 rounded-lg bg-[rgba(0,0,0,0.15)] border border-line text-xs">
-              <span className="text-ink-muted">🛠️ Running in Mock Mode: You can simulate cancellation instantly.</span>
-              <button
-                type="button"
-                onClick={handleMockDowngrade}
-                className="px-3 py-1.5 border border-red-500/40 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-md font-semibold text-[0.75rem] cursor-pointer"
-              >
-                Simulate Downgrade
-              </button>
-            </div>
           </div>
         ) : (
           <div className="flex flex-col gap-4">
@@ -708,26 +665,6 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
               >
                 Upgrade to Pro
               </button>
-            </div>
-
-            <div className="flex items-center justify-between p-3 rounded-lg bg-[rgba(0,0,0,0.15)] border border-line text-xs">
-              <span className="text-ink-muted">🛠️ Running in Mock Mode: You can simulate upgrade instantly.</span>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleMockUpgrade('stripe')}
-                  className="px-2.5 py-1.5 border border-primary/40 bg-primary-soft/10 text-primary hover:bg-primary-soft/20 rounded-md font-semibold text-[0.75rem] cursor-pointer"
-                >
-                  Mock Card
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleMockUpgrade('paymongo')}
-                  className="px-2.5 py-1.5 border border-primary/40 bg-primary-soft/10 text-primary hover:bg-primary-soft/20 rounded-md font-semibold text-[0.75rem] cursor-pointer"
-                >
-                  Mock GCash
-                </button>
-              </div>
             </div>
           </div>
         )}

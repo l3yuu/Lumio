@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Play, Trash2, Zap, RotateCcw, FileText, X, ZoomIn, ZoomOut, Download, MessageSquare, AudioLines, Search, Edit2, Check, MoreVertical, Calendar } from 'lucide-react';
+import { Plus, Play, Trash2, Zap, RotateCcw, FileText, X, Search, Edit2, Check, MoreVertical, Calendar, ExternalLink, Trophy } from 'lucide-react';
 import type { Module, User, ModuleResponse, QuizQuestionResponse, ExamDeadline } from '../../types';
 import { API_BASE_URL } from '../../config';
 
@@ -9,6 +9,8 @@ const mapModule = (m: ModuleResponse): Module => ({
   date: m.date,
   size: m.size,
   subject: m.subject || 'General',
+  sourceFilename: m.source_filename,
+  hasSourceFile: m.has_source_file,
   questionsCount: m.questionsCount !== undefined ? m.questionsCount : (m.questions ? m.questions.length : 0),
   questions: m.questions ? m.questions.map((q: QuizQuestionResponse) => ({
     id: q.id,
@@ -215,21 +217,77 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
   const displayedModules = filteredModules
     .filter(m => viewMode === 'quizzes' ? !isExam(m) : isExam(m))
     .filter(m => m.name.toLowerCase().includes(searchQuery.toLowerCase()));
-  const [viewSourceModule, setViewSourceModule] = useState<Module | null>(null);
-  const [sourceContent, setSourceContent] = useState('');
-  const [isLoadingSource, setIsLoadingSource] = useState(false);
-  const [sourceFileUrl, setSourceFileUrl] = useState('');
-  const [pdfZoom, setPdfZoom] = useState(100);
+  const [activeScoreModule, setActiveScoreModule] = useState<Module | null>(null);
 
-  const handleViewSource = (m: Module) => {
-    setViewSourceModule(m);
-    setSourceContent('');
-    setPdfZoom(100);
-    if (sourceFileUrl) URL.revokeObjectURL(sourceFileUrl);
-    setSourceFileUrl('');
-    setIsLoadingSource(true);
+  const handleOpenSourceInNewTab = (m: Module) => {
     const token = localStorage.getItem('token');
     if (!token) return;
+
+    const newTab = window.open('', '_blank');
+    if (newTab) {
+      newTab.document.write(`
+        <html>
+          <head>
+            <title>${m.name} - Source File</title>
+            <style>
+              body {
+                background: #181818;
+                color: #e0e0e0;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                margin: 0;
+                padding: 24px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                min-height: 100vh;
+              }
+              .container {
+                width: 100%;
+                max-width: 900px;
+                background: #202020;
+                border: 1px solid #333;
+                border-radius: 12px;
+                padding: 40px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+                box-sizing: border-box;
+              }
+              h1 {
+                font-size: 24px;
+                margin-top: 0;
+                margin-bottom: 8px;
+                color: #fff;
+              }
+              .filename {
+                font-size: 14px;
+                color: #888;
+                margin-bottom: 24px;
+              }
+              pre {
+                white-space: pre-wrap;
+                word-wrap: break-word;
+                font-size: 14px;
+                line-height: 1.6;
+                margin: 0;
+              }
+              .loading {
+                font-size: 16px;
+                color: #888;
+                margin-top: 40vh;
+              }
+            </style>
+          </head>
+          <body>
+            <div id="loader" class="loading">Loading source file content...</div>
+            <div id="content" class="container" style="display: none;">
+              <h1 id="title">${m.name}</h1>
+              <div class="filename">${m.sourceFilename || ''}</div>
+              <pre id="pre"></pre>
+            </div>
+          </body>
+        </html>
+      `);
+      newTab.document.close();
+    }
 
     if (m.sourceFilename?.toLowerCase().endsWith('.pdf')) {
       fetch(`${API_BASE_URL}/api/modules/${m.id}/file`, {
@@ -240,7 +298,10 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
         return res.blob();
       })
       .then(blob => {
-        setSourceFileUrl(URL.createObjectURL(blob));
+        const url = URL.createObjectURL(blob);
+        if (newTab) {
+          newTab.location.href = url;
+        }
       })
       .catch(() => {
         fetch(`${API_BASE_URL}/api/modules/${m.id}/source`, {
@@ -248,21 +309,37 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
         })
         .then(res => res.ok ? res.json() : null)
         .then(data => {
-          if (data) setSourceContent(data.source_content || '');
+          if (data && newTab) {
+            const loader = newTab.document.getElementById('loader');
+            const content = newTab.document.getElementById('content');
+            const pre = newTab.document.getElementById('pre');
+            if (loader) loader.style.display = 'none';
+            if (content) content.style.display = 'block';
+            if (pre) pre.textContent = data.source_content || '';
+          }
         })
-        .catch(() => {});
-      })
-      .finally(() => setIsLoadingSource(false));
+        .catch(() => {
+          if (newTab) newTab.close();
+        });
+      });
     } else {
       fetch(`${API_BASE_URL}/api/modules/${m.id}/source`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       .then(res => res.ok ? res.json() : null)
       .then(data => {
-        if (data) setSourceContent(data.source_content || '');
+        if (data && newTab) {
+          const loader = newTab.document.getElementById('loader');
+          const content = newTab.document.getElementById('content');
+          const pre = newTab.document.getElementById('pre');
+          if (loader) loader.style.display = 'none';
+          if (content) content.style.display = 'block';
+          if (pre) pre.textContent = data.source_content || '';
+        }
       })
-      .catch(() => {})
-      .finally(() => setIsLoadingSource(false));
+      .catch(() => {
+        if (newTab) newTab.close();
+      });
     }
   };
 
@@ -528,7 +605,13 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
                   e.dataTransfer.setData('text', m.id.toString());
                   e.dataTransfer.effectAllowed = 'copy';
                 }}
-                onClick={() => isExam(m) ? startQuiz(m) : handleViewSource(m)}
+                onClick={() => {
+                  if (isExam(m)) {
+                    startQuiz(m);
+                  } else {
+                    setActiveScoreModule(m);
+                  }
+                }}
                 className={`flex max-md:flex-col max-md:items-stretch max-md:gap-3 md:justify-between md:items-center bg-app border rounded-lg p-4 max-md:p-3.5 md:px-5 cursor-pointer md:hover:scale-[1.005] transition-all duration-200 select-none relative ${
                   openMenuModuleId === m.id ? 'z-30 shadow-lg' : 'z-0'
                 } ${isSelected ? 'border-primary bg-primary-soft/10' : 'border-line hover:border-primary/50'}`}
@@ -571,7 +654,10 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
                         className="font-bold text-base max-md:text-[0.95rem] text-left w-full bg-input border border-primary rounded-md px-2 py-1 text-ink outline-none pointer-events-auto"
                       />
                     ) : (
-                      <span className="font-bold text-base max-md:text-[0.95rem] text-left wrap-break-word leading-snug">{m.name}</span>
+                      <span className="font-bold text-base max-md:text-[0.95rem] text-left wrap-break-word leading-snug flex items-center gap-1.5">
+                        {(m.hasSourceFile || m.sourceFilename) && <FileText size={16} className="text-primary shrink-0" />}
+                        {m.name}
+                      </span>
                     )}
                     <div className="text-[0.8rem] max-md:text-[0.75rem] text-ink-muted flex items-center gap-x-4 gap-y-1.5 flex-wrap">
                       <span>Date: {m.date}</span>
@@ -600,6 +686,18 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
                   </div>
                 </div>
                 <div className="flex gap-2.5 items-center shrink-0 max-md:w-full max-md:pt-0.5">
+                  {(m.hasSourceFile || m.sourceFilename) && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenSourceInNewTab(m);
+                      }}
+                      className="btn btn-outline flex items-center gap-1.5 py-2 px-3 hover:border-primary transition-all text-xs"
+                      title="View source file in a new tab"
+                    >
+                      <ExternalLink size={13} /> View File
+                    </button>
+                  )}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -656,6 +754,18 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
                             </select>
                           </div>
                         )}
+                        {(m.hasSourceFile || m.sourceFilename) && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenSourceInNewTab(m);
+                              setOpenMenuModuleId(null);
+                            }}
+                            className="w-full text-left px-3.5 py-2.5 text-xs text-ink hover:bg-glass transition-colors font-bold flex items-center gap-2 cursor-pointer"
+                          >
+                            <ExternalLink size={12} /> View Source File
+                          </button>
+                        )}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -689,108 +799,109 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
         )}
       </div>
 
-      {/* Source Content Modal */}
-      {viewSourceModule && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-3000 flex items-center justify-center p-4 sm:p-6">
-          <div className="bg-[#323639] border border-white/10 rounded-2xl w-full max-w-237.5 h-[85vh] flex flex-col overflow-hidden shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
-            {/* Toolbar */}
-            <div className="flex items-center justify-between px-4 py-2.5 bg-[#202124] border-b border-[#1c1d20] shrink-0">
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => { if (sourceFileUrl) URL.revokeObjectURL(sourceFileUrl); setViewSourceModule(null); }}
-                  className="p-1.5 rounded-lg bg-transparent border-0 text-gray-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-                  title="Close"
-                >
-                  <X size={18} />
-                </button>
-                <div className="flex items-center gap-2">
-                  <FileText size={16} className="text-red-400" />
-                  <span className="text-sm font-medium text-white max-w-50 sm:max-w-[320px] truncate">{viewSourceModule.name}</span>
-                </div>
-                {viewSourceModule.sourceFilename && (
-                  <span className="text-xs text-gray-400 hidden sm:inline">{viewSourceModule.sourceFilename}</span>
-                )}
-              </div>
-              <div className="flex items-center gap-1">
-                {/* Zoom controls */}
-                <button
-                  onClick={() => setPdfZoom(z => Math.max(50, z - 10))}
-                  className="p-1.5 rounded-lg bg-transparent border-0 text-gray-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-                  title="Zoom out"
-                >
-                  <ZoomOut size={16} />
-                </button>
-                <span className="text-xs text-white/90 w-12 text-center font-mono font-medium">{pdfZoom}%</span>
-                <button
-                  onClick={() => setPdfZoom(z => Math.min(200, z + 10))}
-                  className="p-1.5 rounded-lg bg-transparent border-0 text-gray-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-                  title="Zoom in"
-                >
-                  <ZoomIn size={16} />
-                </button>
-                <button
-                  onClick={() => setPdfZoom(100)}
-                  className="px-2 py-1 rounded-lg bg-transparent border-0 text-gray-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer text-xs"
-                  title="Reset zoom"
-                >
-                  Fit
-                </button>
-                <div className="w-px h-5 bg-white/10 mx-1" />
-                {/* Action buttons */}
-                <button
-                  className="p-1.5 rounded-lg bg-transparent border-0 text-gray-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-                  title="Comment"
-                >
-                  <MessageSquare size={16} />
-                </button>
-                <button
-                  className="p-1.5 rounded-lg bg-transparent border-0 text-gray-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-                  title="Audio overview"
-                >
-                  <AudioLines size={16} />
-                </button>
-                <div className="w-px h-5 bg-white/10 mx-1" />
-                {sourceFileUrl && (
-                  <a
-                    href={sourceFileUrl}
-                    download={viewSourceModule.sourceFilename || 'file'}
-                    className="p-1.5 rounded-lg bg-transparent border-0 text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
-                    title="Download"
-                  >
-                    <Download size={16} />
-                  </a>
-                )}
-              </div>
-            </div>
+      {/* Module Score Modal */}
+      {activeScoreModule && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-3000 flex items-center justify-center p-4">
+          <div className="bg-card border border-line rounded-2xl w-full max-w-md overflow-hidden shadow-2xl relative animate-in fade-in zoom-in-95 duration-200 p-6 text-center">
+            <button
+              onClick={() => setActiveScoreModule(null)}
+              className="absolute right-4 top-4 p-1.5 rounded-lg bg-transparent border-0 text-ink-muted hover:text-ink hover:bg-glass transition-colors cursor-pointer"
+              title="Close"
+            >
+              <X size={18} />
+            </button>
 
-            {/* Content area */}
-            <div className="flex-1 overflow-auto flex items-start justify-center p-6 bg-[#323639]">
-              {viewSourceModule.sourceFilename?.toLowerCase().endsWith('.pdf') && sourceFileUrl ? (
-                <div
-                  className="bg-white rounded shadow-2xl overflow-hidden transition-transform duration-200 origin-top my-4 w-full max-w-212.5"
-                  style={{ transform: `scale(${pdfZoom / 100})` }}
-                >
-                  <iframe
-                    src={`${sourceFileUrl}#toolbar=0&navpanes=0`}
-                    className="w-full border-0"
-                    style={{ height: 'calc(85vh - 120px)' }}
-                    title={viewSourceModule.sourceFilename}
-                  />
-                </div>
+            <div className="flex flex-col items-center mt-2">
+              <div className="bg-primary-soft text-primary p-3 rounded-full w-14 h-14 flex items-center justify-center mb-4">
+                <Trophy size={28} />
+              </div>
+              
+              <h3 className="text-xl font-bold mb-1.5 text-ink">{activeScoreModule.name}</h3>
+              <p className="text-xs text-ink-muted mb-6">Quiz Results & Diagnostics</p>
+
+              {moduleScores[activeScoreModule.id] ? (
+                (() => {
+                  const scoreVal = moduleScores[activeScoreModule.id]; // e.g. "8/10"
+                  const [correct, total] = scoreVal.split('/').map(Number);
+                  const percentage = total > 0 ? Math.round((correct / total) * 100) : 0;
+                  
+                  let rating = "Review and try again!";
+                  let ratingColor = "text-danger";
+                  if (percentage >= 85) {
+                    rating = "Outstanding Mastery!";
+                    ratingColor = "text-primary";
+                  } else if (percentage >= 70) {
+                    rating = "Great Job!";
+                    ratingColor = "text-accent-cyan";
+                  } else if (percentage >= 50) {
+                    rating = "Good Effort!";
+                    ratingColor = "text-warning";
+                  }
+
+                  return (
+                    <>
+                      {/* Big Score Circle */}
+                      <div className="relative w-32 h-32 flex items-center justify-center mb-4">
+                        <svg className="w-full h-full transform -rotate-90">
+                          <circle
+                            cx="64"
+                            cy="64"
+                            r="54"
+                            stroke="var(--border)"
+                            strokeWidth="8"
+                            fill="transparent"
+                          />
+                          <circle
+                            cx="64"
+                            cy="64"
+                            r="54"
+                            stroke="var(--color-primary)"
+                            strokeWidth="8"
+                            fill="transparent"
+                            strokeDasharray={339.292}
+                            strokeDashoffset={339.292 - (339.292 * percentage) / 100}
+                            strokeLinecap="round"
+                            className="transition-all duration-1000 ease-out"
+                          />
+                        </svg>
+                        <div className="absolute flex flex-col items-center">
+                          <span className="text-3xl font-black text-ink">{percentage}%</span>
+                          <span className="text-xs text-ink-muted font-bold mt-0.5">{correct} / {total} Correct</span>
+                        </div>
+                      </div>
+
+                      <div className={`text-base font-bold mb-6 ${ratingColor}`}>
+                        {rating}
+                      </div>
+                    </>
+                  );
+                })()
               ) : (
-                <div
-                  className="bg-white rounded shadow-[0_4px_24px_rgba(0,0,0,0.25)] p-12 sm:p-16 w-full max-w-212.5 min-h-[calc(85vh-120px)] my-4 text-gray-900 font-sans transition-transform duration-200 origin-top text-left"
-                  style={{ transform: `scale(${pdfZoom / 100})` }}
-                >
-                  {isLoadingSource ? (
-                    <div className="text-center py-24 text-gray-400 font-medium">Loading source content...</div>
-                  ) : sourceContent ? (
-                    <pre className="text-sm text-gray-800 whitespace-pre-wrap font-sans leading-relaxed">{sourceContent}</pre>
-                  ) : (
-                    <div className="text-center py-24 text-gray-400 font-medium">No source content available for this module.</div>
-                  )}
+                <div className="bg-app border border-line rounded-xl p-6 mb-6 w-full text-center">
+                  <p className="text-sm text-ink-muted m-0">No score recorded yet. Complete the practice quiz to track your progress and see performance insights.</p>
                 </div>
               )}
+
+              <div className="flex gap-3 w-full">
+                <button
+                  type="button"
+                  onClick={() => setActiveScoreModule(null)}
+                  className="btn btn-outline flex-1 py-2 h-10"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const m = activeScoreModule;
+                    setActiveScoreModule(null);
+                    startQuiz(m);
+                  }}
+                  className="btn btn-primary flex-1 py-2 h-10"
+                >
+                  {moduleScores[activeScoreModule.id] ? "Retake Quiz" : "Start Quiz"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
