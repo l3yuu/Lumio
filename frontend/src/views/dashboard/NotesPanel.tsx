@@ -89,7 +89,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   useEffect(() => { draftSubjectRef.current = draftSubject; }, [draftSubject]);
   useEffect(() => { saveStatusRef.current = saveStatus; }, [saveStatus]);
 
-  const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const saveNote = async (title: string, content: string, subject: string) => {
     setSaveStatus('saving');
