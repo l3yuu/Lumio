@@ -27,6 +27,8 @@ It is recommended to run the backend and frontend in separate terminals:
 
 **Terminal 1 (Backend):**
 ```bash
+docker compose up -d
+ngrok http 8000
 source venv/bin/activate
 uvicorn main:app --reload --port 8000
 ```
@@ -35,7 +37,6 @@ uvicorn main:app --reload --port 8000
 ```bash
 npm run dev
 ```
-docker compose up -d
 ngrok http 8000
 The API will be available at `http://localhost:8000` and the frontend at `http://localhost:5173`.
 
