@@ -151,9 +151,20 @@ Study Context from student's textbooks:
 Student Query:
 "{body.query}"
 """
+            from ..system_config import get_system_config
+            model_name = get_system_config(db, "default_llm_model") or "gemini-2.5-flash"
+            try:
+                temp_val = float(get_system_config(db, "ai_temperature") or "0.2")
+            except Exception:
+                temp_val = 0.2
+
+            from google.genai import types
             response = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=prompt
+                model=model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    temperature=temp_val
+                )
             )
             answer = response.text if response.text else "No explanation generated. Try another query."
         except Exception as e:

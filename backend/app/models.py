@@ -138,6 +138,10 @@ class QuizQuestion(Base):
     question = Column(Text, nullable=False)
     options = Column(JSON, nullable=False)  # List of strings
     correct_answer_index = Column(Integer, nullable=False)
+    explanation = Column(Text, nullable=True)
+    hint = Column(Text, nullable=True)
+    question_type = Column(String(50), nullable=True)
+    reference = Column(String(255), nullable=True)
     module_id = Column(Integer, ForeignKey('modules.id', ondelete='CASCADE'), nullable=False, index=True)
 
     module = relationship("Module", back_populates="questions")
@@ -340,5 +344,14 @@ class Note(Base):
     updated_at = Column(DateTime, default=now_ph_naive, onupdate=now_ph_naive)
 
     user = relationship("User", back_populates="notes")
+
+
+class SystemConfig(Base):
+    __tablename__ = "system_configs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    key = Column(String(100), unique=True, index=True, nullable=False)
+    value = Column(String(255), nullable=True)
+
 
 

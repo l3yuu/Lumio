@@ -87,6 +87,7 @@
 
 @layer base {
   :root {
+    color-scheme: dark;
     --text-secondary: var(--color-ink-muted);
     --border: var(--color-line);
     --bg-card: var(--color-card);
@@ -121,6 +122,11 @@
 
   button {
     cursor: pointer;
+  }
+
+  select option {
+    background-color: var(--color-card) !important;
+    color: var(--color-ink) !important;
   }
 }
 

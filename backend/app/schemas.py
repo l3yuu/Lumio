@@ -94,6 +94,10 @@ class QuizQuestionBase(BaseModel):
     question: str
     options: List[str]
     correct_answer_index: int
+    explanation: Optional[str] = None
+    hint: Optional[str] = None
+    question_type: Optional[str] = "multiple_choice"
+    reference: Optional[str] = None
 
 class QuizQuestionOut(QuizQuestionBase):
     id: int
@@ -500,6 +504,29 @@ class NoteOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# --- SYSTEM CONFIG SCHEMAS ---
+class SystemConfigOut(BaseModel):
+    allow_registrations: bool
+    require_email_verification: bool
+    allow_circle_creation: bool
+    default_llm_model: str
+    ai_temperature: float
+    free_summaries_limit: int
+    pro_summaries_limit: int
+    maintenance_mode: bool
+
+class SystemConfigUpdate(BaseModel):
+    allow_registrations: Optional[bool] = None
+    require_email_verification: Optional[bool] = None
+    allow_circle_creation: Optional[bool] = None
+    default_llm_model: Optional[str] = None
+    ai_temperature: Optional[float] = None
+    free_summaries_limit: Optional[int] = None
+    pro_summaries_limit: Optional[int] = None
+    maintenance_mode: Optional[bool] = None
+
 
 
 

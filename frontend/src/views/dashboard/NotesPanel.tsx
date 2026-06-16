@@ -48,7 +48,7 @@ const getSubjectBadgeStyle = (subject: string) => {
 // ─── Markdown Renderer ───────────────────────────────────────────────────────
 
 function renderMarkdown(text: string): string {
-  let html = text
+  const html = text
     // escape HTML entities
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     // fenced code blocks

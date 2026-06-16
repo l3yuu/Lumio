@@ -25,8 +25,14 @@ async def condense_document_endpoint(
             detail="Text content is required."
         )
 
-    # Enforce Daily Quota Limit: 5 for free users, 25 for pro users
-    limit = 25 if current_user.is_premium else 5
+    # Enforce Daily Quota Limit: free vs pro configurations from DB
+    from ..system_config import get_system_config
+    try:
+        limit_key = "pro_summaries_limit" if current_user.is_premium else "free_summaries_limit"
+        limit = int(get_system_config(db, limit_key) or ("25" if current_user.is_premium else "5"))
+    except Exception:
+        limit = 25 if current_user.is_premium else 5
+
     today_str = today_ph_str()
     st = current_user.study_time or {}
     if not isinstance(st, dict):

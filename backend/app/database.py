@@ -108,6 +108,17 @@ def ensure_runtime_schema():
             else:
                 statements.append("ALTER TABLE notes ADD COLUMN is_pinned INTEGER DEFAULT 0")
 
+    if "quiz_questions" in table_names:
+        qq_columns = {column["name"] for column in inspector.get_columns("quiz_questions")}
+        if "explanation" not in qq_columns:
+            statements.append("ALTER TABLE quiz_questions ADD COLUMN explanation TEXT")
+        if "hint" not in qq_columns:
+            statements.append("ALTER TABLE quiz_questions ADD COLUMN hint TEXT")
+        if "question_type" not in qq_columns:
+            statements.append("ALTER TABLE quiz_questions ADD COLUMN question_type VARCHAR(50) DEFAULT 'multiple_choice'")
+        if "reference" not in qq_columns:
+            statements.append("ALTER TABLE quiz_questions ADD COLUMN reference VARCHAR(255)")
+
     if not statements:
         return
 

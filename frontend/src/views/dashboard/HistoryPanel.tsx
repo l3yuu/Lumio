@@ -231,10 +231,10 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ attempts }) => {
               onChange={(e) => setSortBy(e.target.value as SortOrder)}
               className="bg-transparent border-0 text-ink text-xs font-semibold outline-none cursor-pointer pr-1"
             >
-              <option value="newest">Newest First</option>
-              <option value="oldest">Oldest First</option>
-              <option value="highest">Highest Score</option>
-              <option value="lowest">Lowest Score</option>
+              <option value="newest" className="bg-card text-ink">Newest First</option>
+              <option value="oldest" className="bg-card text-ink">Oldest First</option>
+              <option value="highest" className="bg-card text-ink">Highest Score</option>
+              <option value="lowest" className="bg-card text-ink">Lowest Score</option>
             </select>
           </div>
         </div>

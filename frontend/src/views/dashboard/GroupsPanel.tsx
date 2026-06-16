@@ -133,7 +133,11 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
             id: q.id,
             question: q.question,
             options: q.options,
-            correctAnswerIndex: q.correct_answer_index
+            correctAnswerIndex: q.correct_answer_index,
+            explanation: q.explanation,
+            hint: q.hint,
+            questionType: q.question_type,
+            reference: q.reference
           })) : []
         })) : [],
         quizSessions: updatedGroup.quiz_sessions ? updatedGroup.quiz_sessions.map((s: GroupQuizSessionResponse) => ({
@@ -513,7 +517,11 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
             id: q.id,
             question: q.question,
             options: q.options,
-            correctAnswerIndex: q.correct_answer_index
+            correctAnswerIndex: q.correct_answer_index,
+            explanation: q.explanation,
+            hint: q.hint,
+            questionType: q.question_type,
+            reference: q.reference
           })) : []
         })) : [],
         quizSessions: updatedGroup.quiz_sessions ? updatedGroup.quiz_sessions.map((s: GroupQuizSessionResponse) => ({
@@ -578,7 +586,11 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
             id: q.id,
             question: q.question,
             options: q.options,
-            correctAnswerIndex: q.correct_answer_index
+            correctAnswerIndex: q.correct_answer_index,
+            explanation: q.explanation,
+            hint: q.hint,
+            questionType: q.question_type,
+            reference: q.reference
           })) : []
         })) : [],
         quizSessions: updatedGroup.quiz_sessions ? updatedGroup.quiz_sessions.map((s: GroupQuizSessionResponse) => ({
@@ -639,7 +651,11 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
             id: q.id,
             question: q.question,
             options: q.options,
-            correctAnswerIndex: q.correct_answer_index
+            correctAnswerIndex: q.correct_answer_index,
+            explanation: q.explanation,
+            hint: q.hint,
+            questionType: q.question_type,
+            reference: q.reference
           })) : []
         })) : [],
         quizSessions: updatedGroup.quiz_sessions ? updatedGroup.quiz_sessions.map((s: GroupQuizSessionResponse) => ({

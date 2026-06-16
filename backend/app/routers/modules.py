@@ -189,6 +189,10 @@ def create_module(
             question=q["question"],
             options=q["options"],
             correct_answer_index=q["correct_answer_index"],
+            explanation=q.get("explanation"),
+            hint=q.get("hint"),
+            question_type=q.get("question_type", "multiple_choice"),
+            reference=q.get("reference"),
             module_id=db_module.id
         )
         db.add(db_question)
@@ -502,6 +506,10 @@ def generate_consolidated_exam(
             question=q["question"],
             options=q["options"],
             correct_answer_index=q["correct_answer_index"],
+            explanation=q.get("explanation"),
+            hint=q.get("hint"),
+            question_type=q.get("question_type", "multiple_choice"),
+            reference=q.get("reference"),
             module_id=db_module.id
         )
         db.add(db_question)

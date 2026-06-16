@@ -1138,7 +1138,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     .catch(err => console.error('Error syncing chat session:', err));
   };
   const [isGroupQuizMode, setIsGroupQuizMode] = useState(false);
-  const [selectedAnswers, setSelectedAnswers] = useState<{ [questionId: number]: number }>({});
+  const [selectedAnswers, setSelectedAnswers] = useState<{ [questionId: number]: number | string }>({});
   const [showQuizResults, setShowQuizResults] = useState(false);
   const [quizScore, setQuizScore] = useState(0);
   const [activeQuizSession, setActiveQuizSession] = useState<GroupQuizSession | null>(null);
@@ -1411,7 +1411,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     setActiveQuizSession(null);
   };
 
-  const handleSelectAnswer = (questionId: number, optionIndex: number) => {
+  const handleSelectAnswer = (questionId: number, optionIndex: number | string) => {
     if (showQuizResults) return;
     setSelectedAnswers({ ...selectedAnswers, [questionId]: optionIndex });
   };
@@ -1420,7 +1420,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     if (!activeQuizModule) return;
     let score = 0;
     activeQuizModule.questions.forEach((q) => {
-      if (selectedAnswers[q.id] === q.correctAnswerIndex) score += 1;
+      if (q.questionType === 'short_answer') {
+        const userAnswer = selectedAnswers[q.id];
+        const correctAnswer = q.options[q.correctAnswerIndex] || '';
+        if (
+          typeof userAnswer === 'string' &&
+          userAnswer.trim().toLowerCase() === correctAnswer.trim().toLowerCase()
+        ) {
+          score += 1;
+        }
+      } else {
+        if (selectedAnswers[q.id] === q.correctAnswerIndex) score += 1;
+      }
     });
     setQuizScore(score);
     setShowQuizResults(true);
@@ -1737,7 +1748,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               id: q.id,
               question: q.question,
               options: q.options,
-              correctAnswerIndex: q.correct_answer_index
+              correctAnswerIndex: q.correct_answer_index,
+              explanation: q.explanation,
+              hint: q.hint,
+              questionType: q.question_type,
+              reference: q.reference
             })) : []
           })) : [],
           quizSessions: g.quiz_sessions ? g.quiz_sessions.map(s => ({
@@ -1990,7 +2005,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     folders={user.folders || ['General']}
                   />
                 )}
-                {dashboardTab === 'settings' && selectedGroupId === null && (
+                {(dashboardTab === 'settings' || dashboardTab === 'admin-settings') && selectedGroupId === null && (
                   <SettingsPanel
                     user={user}
                     setUser={setUser}
@@ -2006,10 +2021,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     setNotifSounds={setNotifSounds}
                     setNotifEmails={setNotifEmails}
                     setView={setView}
+                    isSuperadminMode={dashboardTab === 'admin-settings'}
                   />
                 )}
 
-                {dashboardTab.startsWith('admin') && selectedGroupId === null && user.role === 'superadmin' && (
+                {dashboardTab.startsWith('admin') && dashboardTab !== 'admin-settings' && selectedGroupId === null && user.role === 'superadmin' && (
                   <AdminPanel user={user} currentTab={dashboardTab} setDashboardTab={handleSetDashboardTab} />
                 )}
               </motion.div>
@@ -2096,7 +2112,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <div className="flex flex-col gap-1 w-full text-left">
                       <h3 className="text-xl font-bold text-ink">Delete Study Module?</h3>
                       <p className="text-sm text-ink-muted leading-relaxed mt-2">
-                        Are you sure you want to delete <span className="font-semibold text-ink">"{moduleToDelete.name}"</span>? This will permanently remove the study module and all of its generated quiz questions. This action cannot be undone.
+                        Are you sure you want to delete the module <span className="font-semibold text-ink">"{moduleToDelete.name}"</span>? This will permanently remove the study module and all of its generated quiz questions. This action cannot be undone.
                       </p>
                     </div>
                   </div>

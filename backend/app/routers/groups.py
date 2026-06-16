@@ -25,6 +25,13 @@ def create_group(
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db)
 ):
+    from ..system_config import get_system_config
+    if get_system_config(db, "allow_circle_creation") == "false" and current_user.role != "superadmin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Study group (Circle) creation is currently disabled by the administrator."
+        )
+
     if not current_user.is_premium:
         created_groups_count = db.query(models.StudyGroup).filter(models.StudyGroup.creator_id == current_user.id).count()
         if created_groups_count >= 2:
@@ -895,9 +902,20 @@ Shared Study Context:
 Student Question:
 "{query}"
 """
+                from ..system_config import get_system_config
+                model_name = get_system_config(db, "default_llm_model") or "gemini-2.5-flash"
+                try:
+                    temp_val = float(get_system_config(db, "ai_temperature") or "0.2")
+                except Exception:
+                    temp_val = 0.2
+
+                from google.genai import types
                 response = client.models.generate_content(
-                    model="gemini-2.5-flash",
-                    contents=prompt
+                    model=model_name,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        temperature=temp_val
+                    )
                 )
                 ai_answer = response.text if response.text else "I analyzed the shared materials but couldn't generate a clear explanation. Let's try another question!"
             except Exception as e:

@@ -14,6 +14,10 @@ class QuizQuestionItem(BaseModel):
     question: str
     options: List[str]
     correct_answer_index: int
+    explanation: str
+    hint: Optional[str] = None
+    question_type: str = "multiple_choice"
+    reference: Optional[str] = None
 
 class QuizSchema(BaseModel):
     questions: List[QuizQuestionItem]
@@ -148,59 +152,121 @@ def generate_mock_questions(module_name: str, text_content: Optional[str] = None
                 "The lesson states that definitions and examples are not important for understanding.",
                 "The lesson presents the topic as unrelated to any real concept or process."
             ],
-            "correct_answer_index": 0
+            "correct_answer_index": 0,
+            "explanation": f"The statement '{sentence}' directly reflects the core factual content present in your notes.",
+            "hint": "Focus on the statement that discusses the lesson content directly rather than meta instructions.",
+            "question_type": "multiple_choice",
+            "reference": "Lesson Excerpt"
         })
 
     generic_questions = [
         {
             "question": f"What is the primary objective of studying '{module_name}'?",
             "options": ["Comprehensive mastery of core concepts", "Rote memorization of terms", "Superficial review of chapter headings", "Ignoring external applications"],
-            "correct_answer_index": 0
+            "correct_answer_index": 0,
+            "explanation": "Active learning aims at understanding core ideas deeply rather than simple rote memorization or checking headings.",
+            "hint": "Consider the goal of high-quality learning.",
+            "question_type": "multiple_choice",
+            "reference": "Introduction"
         },
         {
             "question": f"Which study method is most effective for retaining '{module_name}' concepts?",
             "options": ["Passive reading", "Active recall and spaced repetition", "Cramming the night before", "Highlighting entire pages"],
-            "correct_answer_index": 1
+            "correct_answer_index": 1,
+            "explanation": "Active recall and spaced repetition are scientifically proven methods that strengthen memory retrieval pathways over time.",
+            "hint": "Look for the answer that involves testing yourself.",
+            "question_type": "multiple_choice",
+            "reference": "Study Methods"
         },
         {
             "question": f"What represents a key milestone in learning '{module_name}'?",
             "options": ["Failing to practice quizzes", "Explaining the topic in your own words to someone else", "Keeping notes in a closed folder", "Postponing exercises indefinitely"],
-            "correct_answer_index": 1
+            "correct_answer_index": 1,
+            "explanation": "Explaining a concept simply in your own words (the Feynman Technique) is a powerful test of conceptual understanding.",
+            "hint": "Think about how you verify you actually understand a concept.",
+            "question_type": "multiple_choice",
+            "reference": "Feynman Technique"
         },
         {
             "question": f"How does '{module_name}' connect to broader academic frameworks?",
             "options": ["It serves as an isolated factoid", "It provides a foundational building block for advanced topics", "It contradicts all known scientific research", "It is purely theoretical with zero application"],
-            "correct_answer_index": 1
+            "correct_answer_index": 1,
+            "explanation": "Lessons and modules build upon one another to create a structured body of academic knowledge.",
+            "hint": "Think about how introductory concepts support later, more advanced learning.",
+            "question_type": "multiple_choice",
+            "reference": "Curriculum"
         },
         {
             "question": f"Which of the following is a common misconception about '{module_name}'?",
             "options": ["It requires consistent study habits", "It can be fully mastered in a single 5-minute session", "It benefits from mock practice exams", "It is interdisciplinary in nature"],
-            "correct_answer_index": 1
+            "correct_answer_index": 1,
+            "explanation": "Mastering complex topics takes time, deliberate practice, and cognitive engagement, not just a brief scan.",
+            "hint": "Identify the claim that sounds unrealistically quick or easy.",
+            "question_type": "multiple_choice",
+            "reference": "Study Habits"
         },
         {
             "question": f"What is the role of structured feedback in learning '{module_name}'?",
             "options": ["To identify knowledge gaps and focus study efforts", "To discourage students from trying again", "To enforce strict grade penalties", "To replace study materials entirely"],
-            "correct_answer_index": 0
+            "correct_answer_index": 0,
+            "explanation": "Structured feedback highlights what you've mastered and where your understanding falls short, directing your next study steps.",
+            "hint": "How do quiz results help you decide what to study next?",
+            "question_type": "multiple_choice",
+            "reference": "Feedback"
         },
         {
             "question": f"Which cognitive skill is most engaged when analyzing '{module_name}'?",
             "options": ["Critical thinking and synthesis", "Simple audio recognition", "Repetitive handwriting", "Subconscious pattern ignore"],
-            "correct_answer_index": 0
+            "correct_answer_index": 0,
+            "explanation": "Analyzing academic material requires critical evaluation, synthesizing information, and connecting concepts.",
+            "hint": "Which option is a high-level thinking skill?",
+            "question_type": "multiple_choice",
+            "reference": "Cognitive Skills"
         },
         {
             "question": f"How can a student optimize their workspace when studying '{module_name}'?",
             "options": ["Study in a noisy, distracting environment", "Maintain a clean, quiet, and dedicated study zone", "Keep multiple social media tabs open", "Study while multitasking other chores"],
-            "correct_answer_index": 1
+            "correct_answer_index": 1,
+            "explanation": "A clean, quiet, and distraction-free environment maximizes concentration and learning efficiency.",
+            "hint": "Look for the environment description that promotes concentration.",
+            "question_type": "multiple_choice",
+            "reference": "Workspace"
         },
         {
             "question": f"What is a primary benefit of collaborative circles in mastering '{module_name}'?",
             "options": ["Sharing answers without studying", "Discussing difficult concepts and teaching peers", "Reducing individual streak count", "Avoiding practice quiz reviews"],
-            "correct_answer_index": 1
+            "correct_answer_index": 1,
+            "explanation": "Discussing concepts with peers helps verify your own logic and exposes you to alternative ways of understanding the material.",
+            "hint": "Think about the benefits of constructive peer interaction.",
+            "question_type": "multiple_choice",
+            "reference": "Peer Study"
         },
         {
             "question": f"How should a student react when encountering a difficult topic in '{module_name}'?",
             "options": ["Break it down into smaller parts and query the AI tutor", "Skip the topic and hope it is not on the exam", "Abandon the study session entirely", "Memorize the text without understanding it"],
-            "correct_answer_index": 0
+            "correct_answer_index": 0,
+            "explanation": "Breaking complex ideas into bite-sized components and consulting an AI tutor helps clarify confusion systematically.",
+            "hint": "Identify the active, problem-solving response.",
+            "question_type": "multiple_choice",
+            "reference": "Tackling Difficulties"
+        },
+        {
+            "question": "What is the term for actively recalling information from memory to strengthen learning retention?",
+            "options": ["Active Recall"],
+            "correct_answer_index": 0,
+            "explanation": "Active Recall is the process of retrieving information from memory, which is much more effective than passive reading.",
+            "hint": "It starts with 'Active' and is followed by 'Recall'.",
+            "question_type": "short_answer",
+            "reference": "Study Methods"
+        },
+        {
+            "question": "Which study method uses a timer to break down work into intervals (traditionally 25 minutes) separated by short breaks?",
+            "options": ["Pomodoro Technique"],
+            "correct_answer_index": 0,
+            "explanation": "The Pomodoro Technique uses structured time intervals (usually 25 minutes of work, 5 minutes of rest) to maintain high focus levels.",
+            "hint": "It is named after the Italian word for tomato.",
+            "question_type": "short_answer",
+            "reference": "Time Management"
         }
     ]
     return (questions + generic_questions * 3)[:num_questions]
@@ -265,15 +331,23 @@ def generate_quiz_questions(module_name: str, text_content: Optional[str] = None
         lesson_excerpt = build_lesson_excerpt(extracted_text, module_name)
         prompt = f"""
 You are an expert academic tutor.
-Analyze the lesson content provided below and generate exactly {num_questions} high-quality multiple choice questions (MCQs) to test a student's comprehension of what the lesson teaches.
+Analyze the lesson content provided below and generate exactly {num_questions} high-quality questions of different types to test a student's comprehension of what the lesson teaches.
 
 DIFFICULTY LEVEL: {difficulty.upper()}
 Instruction for this difficulty level:
 {difficulty_instructions}
 
+Support a diverse mix of question types. For each question, decide the best fit type and set 'question_type' accordingly:
+1. 'multiple_choice': A standard multiple choice question. Must have exactly 4 options.
+2. 'true_false': A factual statement. Must have exactly 2 options: ["True", "False"].
+3. 'fill_in_blank': A statement containing a blank represented by "_______" (exactly seven underscores). Must have exactly 4 options representing candidate words or phrases to fill the blank.
+4. 'short_answer': A question or prompt requiring a short, specific answer (typically 1-3 words). The options array must contain exactly 1 element, which is the correct answer (at index 0). The user will type their answer.
+
 Each question must satisfy these requirements:
-- Have exactly 4 options.
-- Have exactly 1 correct option index (0 for first, 1 for second, 2 for third, 3 for fourth).
+- Have exactly 1 correct option index (0-indexed).
+- Provide a detailed 'explanation' (rationale) explaining why the correct option is right and why the other options are incorrect.
+- Provide a helpful study 'hint' (clue) that points the student in the right direction without directly giving away the answer.
+- Provide a 'reference' (heading, section title, or topic from the lesson content) identifying where this concept is discussed.
 - Be directly based on facts, definitions, processes, examples, causes/effects, or comparisons present in the lesson content.
 - Ask about the concepts inside the lesson, not about the module title, file, author, objectives, instructions, table of contents, or "what the module is about".
 - Avoid questions that can be answered only from the module name.
@@ -288,13 +362,24 @@ Lesson content to quiz from:
 {lesson_excerpt[:12000]}
 ---
 """
+        from .system_config import get_system_config_global
+        try:
+            model_name = get_system_config_global("default_llm_model") or "gemini-2.5-flash"
+        except Exception:
+            model_name = "gemini-2.5-flash"
+            
+        try:
+            temp_val = float(get_system_config_global("ai_temperature") or "0.2")
+        except Exception:
+            temp_val = 0.2
+
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model=model_name,
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 response_schema=QuizSchema,
-                temperature=0.2,
+                temperature=temp_val,
             )
         )
         
@@ -309,7 +394,11 @@ Lesson content to quiz from:
                     formatted_questions.append({
                         "question": q.get("question"),
                         "options": q.get("options"),
-                        "correct_answer_index": q.get("correct_answer_index")
+                        "correct_answer_index": q.get("correct_answer_index"),
+                        "explanation": q.get("explanation"),
+                        "hint": q.get("hint"),
+                        "question_type": q.get("question_type", "multiple_choice"),
+                        "reference": q.get("reference")
                     })
                 return formatted_questions[:num_questions], extracted_text
 
@@ -592,13 +681,24 @@ Text:
 {excerpt}
 ---
 """
+        from .system_config import get_system_config_global
+        try:
+            model_name = get_system_config_global("default_llm_model") or "gemini-2.5-flash"
+        except Exception:
+            model_name = "gemini-2.5-flash"
+            
+        try:
+            temp_val = float(get_system_config_global("ai_temperature") or "0.3")
+        except Exception:
+            temp_val = 0.3
+
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model=model_name,
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 response_schema=FlashcardSchema,
-                temperature=0.3,
+                temperature=temp_val,
             )
         )
 
@@ -663,13 +763,24 @@ Text to condense:
 {excerpt}
 ---
 """
+        from .system_config import get_system_config_global
+        try:
+            model_name = get_system_config_global("default_llm_model") or "gemini-2.5-flash"
+        except Exception:
+            model_name = "gemini-2.5-flash"
+            
+        try:
+            temp_val = float(get_system_config_global("ai_temperature") or "0.2")
+        except Exception:
+            temp_val = 0.2
+
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model=model_name,
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 response_schema=LocalCondenserSchema,
-                temperature=0.2,
+                temperature=temp_val,
             )
         )
 
@@ -826,13 +937,24 @@ Analyze the essay carefully and return a JSON object containing:
 6. `recommendations`: A list of exactly 3 specific, actionable recommendations/tips for how the student can improve the draft.
 """
 
+        from .system_config import get_system_config_global
+        try:
+            model_name = get_system_config_global("default_llm_model") or "gemini-2.5-flash"
+        except Exception:
+            model_name = "gemini-2.5-flash"
+            
+        try:
+            temp_val = float(get_system_config_global("ai_temperature") or "0.2")
+        except Exception:
+            temp_val = 0.2
+
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model=model_name,
             contents=full_prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 response_schema=EssayGraderResponseSchema,
-                temperature=0.2,
+                temperature=temp_val,
             )
         )
 

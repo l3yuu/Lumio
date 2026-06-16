@@ -16,7 +16,11 @@ const mapModule = (m: ModuleResponse): Module => ({
     id: q.id,
     question: q.question,
     options: q.options,
-    correctAnswerIndex: q.correct_answer_index
+    correctAnswerIndex: q.correct_answer_index,
+    explanation: q.explanation,
+    hint: q.hint,
+    questionType: q.question_type,
+    reference: q.reference
   })) : [],
   lastScore: m.last_score,
   difficulty: m.difficulty
@@ -780,9 +784,7 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (confirm(`Are you sure you want to delete the module "${m.name}"?`)) {
-                              handleDeleteModule(m.id);
-                            }
+                            handleDeleteModule(m.id);
                             setOpenMenuModuleId(null);
                           }}
                           className="w-full text-left px-3.5 py-2.5 text-xs text-danger hover:bg-danger-soft transition-colors font-bold flex items-center gap-2 cursor-pointer"

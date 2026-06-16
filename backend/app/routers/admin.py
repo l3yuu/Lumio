@@ -44,6 +44,62 @@ class GroupBanUpdate(BaseModel):
     is_banned: bool
     reason: Optional[str] = None
 
+@router.get("/config", response_model=schemas.SystemConfigOut)
+def get_system_configurations(
+    db: Session = Depends(get_db),
+    current_admin: models.User = Depends(get_current_superadmin)
+):
+    from ..system_config import get_all_system_configs
+    configs = get_all_system_configs(db)
+    
+    return schemas.SystemConfigOut(
+        allow_registrations=configs.get("allow_registrations") == "true",
+        require_email_verification=configs.get("require_email_verification") == "true",
+        allow_circle_creation=configs.get("allow_circle_creation") == "true",
+        default_llm_model=configs.get("default_llm_model"),
+        ai_temperature=float(configs.get("ai_temperature", "0.2")),
+        free_summaries_limit=int(configs.get("free_summaries_limit", "5")),
+        pro_summaries_limit=int(configs.get("pro_summaries_limit", "25")),
+        maintenance_mode=configs.get("maintenance_mode") == "true"
+    )
+
+@router.put("/config", response_model=schemas.SystemConfigOut)
+def update_system_configurations(
+    config_update: schemas.SystemConfigUpdate,
+    db: Session = Depends(get_db),
+    current_admin: models.User = Depends(get_current_superadmin)
+):
+    from ..system_config import set_system_config, get_all_system_configs
+    
+    if config_update.allow_registrations is not None:
+        set_system_config(db, "allow_registrations", "true" if config_update.allow_registrations else "false")
+    if config_update.require_email_verification is not None:
+        set_system_config(db, "require_email_verification", "true" if config_update.require_email_verification else "false")
+    if config_update.allow_circle_creation is not None:
+        set_system_config(db, "allow_circle_creation", "true" if config_update.allow_circle_creation else "false")
+    if config_update.default_llm_model is not None:
+        set_system_config(db, "default_llm_model", config_update.default_llm_model)
+    if config_update.ai_temperature is not None:
+        set_system_config(db, "ai_temperature", str(config_update.ai_temperature))
+    if config_update.free_summaries_limit is not None:
+        set_system_config(db, "free_summaries_limit", str(config_update.free_summaries_limit))
+    if config_update.pro_summaries_limit is not None:
+        set_system_config(db, "pro_summaries_limit", str(config_update.pro_summaries_limit))
+    if config_update.maintenance_mode is not None:
+        set_system_config(db, "maintenance_mode", "true" if config_update.maintenance_mode else "false")
+        
+    configs = get_all_system_configs(db)
+    return schemas.SystemConfigOut(
+        allow_registrations=configs.get("allow_registrations") == "true",
+        require_email_verification=configs.get("require_email_verification") == "true",
+        allow_circle_creation=configs.get("allow_circle_creation") == "true",
+        default_llm_model=configs.get("default_llm_model"),
+        ai_temperature=float(configs.get("ai_temperature", "0.2")),
+        free_summaries_limit=int(configs.get("free_summaries_limit", "5")),
+        pro_summaries_limit=int(configs.get("pro_summaries_limit", "25")),
+        maintenance_mode=configs.get("maintenance_mode") == "true"
+    )
+
 @router.get("/health")
 def get_admin_health(
     background_tasks: BackgroundTasks,

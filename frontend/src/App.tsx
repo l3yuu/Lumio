@@ -148,6 +148,44 @@ function App() {
   const [view, setView] = useState<View>('landing');
   const [authTab, setAuthTab] = useState<AuthTab>('login');
   const [user, setUser] = useState<User | null>(null);
+  const [isMaintenanceActive, setIsMaintenanceActive] = useState(false);
+
+  // 🛡️ Global Fetch Interceptor for Maintenance Mode (503)
+  useEffect(() => {
+    const originalFetch = window.fetch;
+    window.fetch = async (...args) => {
+      try {
+        const response = await originalFetch(...args);
+        if (response.status === 503) {
+          const clone = response.clone();
+          clone.json().then(data => {
+            if (data && data.detail && data.detail.includes("maintenance")) {
+              setIsMaintenanceActive(true);
+            }
+          }).catch(() => {});
+        }
+        return response;
+      } catch (error) {
+        return Promise.reject(error);
+      }
+    };
+
+    return () => {
+      window.fetch = originalFetch;
+    };
+  }, []);
+
+  // Check health and maintenance mode state on mount
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/health`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data && typeof data.maintenance_mode === 'boolean') {
+          setIsMaintenanceActive(data.maintenance_mode);
+        }
+      })
+      .catch(err => console.error('Error checking initial system health:', err));
+  }, []);
 
   // Global Toast State
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -771,6 +809,7 @@ function App() {
     localStorage.removeItem('token');
     localStorage.removeItem('lumio-module-scores');
     setUser(null);
+    setIsMaintenanceActive(false);
     setView('landing');
     setDashboardTab('overview');
     setSelectedGroupId(null);
@@ -961,8 +1000,14 @@ function App() {
   ];
 
   return (
-    MAINTENANCE_MODE
-      ? <MaintenancePage onReload={() => window.location.reload()} />
+    (MAINTENANCE_MODE || (isMaintenanceActive && user?.role !== 'superadmin' && view !== 'auth'))
+      ? <MaintenancePage 
+          onReload={() => window.location.reload()} 
+          onAdminLogin={() => {
+            setView('auth');
+            setAuthTab('login');
+          }}
+        />
       : <div className={`flex flex-col ${view === 'dashboard' ? 'h-screen overflow-hidden pt-14.5' : view === 'auth' ? 'h-screen' : 'pt-14.5 min-h-screen'}`}>
         {view !== 'auth' && (
           <Navbar

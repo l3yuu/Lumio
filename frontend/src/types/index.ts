@@ -16,7 +16,7 @@ export type View =
 
 export type AuthTab = 'login' | 'signup';
 
-export type DashboardTab = 'overview' | 'modules' | 'groups' | 'tools' | 'settings' | 'calendar' | 'notifications' | 'history' | 'notes' | 'admin' | 'admin-overview' | 'admin-users' | 'admin-sales' | 'admin-modules' | 'admin-exams' | 'admin-groups' | 'tool-flashcards' | 'tool-essay' | 'tool-condenser' | 'tool-pomodoro';
+export type DashboardTab = 'overview' | 'modules' | 'groups' | 'tools' | 'settings' | 'calendar' | 'notifications' | 'history' | 'notes' | 'admin' | 'admin-overview' | 'admin-users' | 'admin-sales' | 'admin-modules' | 'admin-exams' | 'admin-groups' | 'admin-settings' | 'tool-flashcards' | 'tool-essay' | 'tool-condenser' | 'tool-pomodoro';
 
 export interface Notification {
   id: number;
@@ -87,6 +87,10 @@ export interface QuizQuestion {
   question: string;
   options: string[];
   correctAnswerIndex: number;
+  explanation?: string;
+  hint?: string;
+  questionType?: string;
+  reference?: string;
 }
 
 export interface Module {
@@ -172,6 +176,10 @@ export interface QuizQuestionResponse {
   question: string;
   options: string[];
   correct_answer_index: number;
+  explanation?: string;
+  hint?: string;
+  question_type?: string;
+  reference?: string;
 }
 
 export interface ModuleResponse {

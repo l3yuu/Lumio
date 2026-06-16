@@ -196,11 +196,11 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
       )}
 
       <button
-        className={`${btnClass(dashboardTab === 'settings' && selectedGroupId === null)} ${user.role === 'superadmin' ? '' : 'mt-auto max-md:mt-0'}`}
-        onClick={() => { setDashboardTab('settings'); setActiveQuizModule(null); setSelectedGroupId(null); completeQuest('view_settings'); }}
+        className={`${btnClass((dashboardTab === 'settings' || dashboardTab === 'admin-settings') && selectedGroupId === null)} ${user.role === 'superadmin' ? '' : 'mt-auto max-md:mt-0'}`}
+        onClick={() => { setDashboardTab(isAdminMode ? 'admin-settings' : 'settings'); setActiveQuizModule(null); setSelectedGroupId(null); completeQuest('view_settings'); }}
         title={isCollapsed ? 'Settings' : undefined}
       >
-        <div className={iconClass(dashboardTab === 'settings' && selectedGroupId === null)}>
+        <div className={iconClass((dashboardTab === 'settings' || dashboardTab === 'admin-settings') && selectedGroupId === null)}>
           <Settings size={18} />
         </div>
         <span className={labelClass()}>Settings</span>
