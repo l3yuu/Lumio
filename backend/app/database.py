@@ -100,6 +100,14 @@ def ensure_runtime_schema():
     statements.append("CREATE INDEX IF NOT EXISTS idx_quiz_attempts_user_id ON quiz_attempts(user_id)")
     statements.append("CREATE INDEX IF NOT EXISTS idx_notes_user_id ON notes(user_id)")
 
+    if "notes" in table_names:
+        note_columns = {column["name"] for column in inspector.get_columns("notes")}
+        if "is_pinned" not in note_columns:
+            if engine.dialect.name == "postgresql":
+                statements.append("ALTER TABLE notes ADD COLUMN is_pinned BOOLEAN DEFAULT FALSE")
+            else:
+                statements.append("ALTER TABLE notes ADD COLUMN is_pinned INTEGER DEFAULT 0")
+
     if not statements:
         return
 

@@ -306,6 +306,7 @@ export interface Note {
   title: string;
   content: string;
   subject: string;
+  isPinned: boolean;
   createdAt: string;
   updatedAt: string;
 }

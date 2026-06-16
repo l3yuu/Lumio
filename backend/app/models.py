@@ -335,6 +335,7 @@ class Note(Base):
     title = Column(String(255), nullable=False)
     content = Column(Text, nullable=False)
     subject = Column(String(100), nullable=False, default="General")
+    is_pinned = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=now_ph_naive)
     updated_at = Column(DateTime, default=now_ph_naive, onupdate=now_ph_naive)
 

@@ -671,12 +671,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         return res.json();
       })
       .then(data => {
-        const mapped: Note[] = (data as { id: number; user_id: number; title: string; content: string; subject: string; created_at: string; updated_at: string }[]).map(item => ({
+        const mapped: Note[] = (data as { id: number; user_id: number; title: string; content: string; subject: string; is_pinned: boolean; created_at: string; updated_at: string }[]).map(item => ({
           id: item.id,
           userId: item.user_id,
           title: item.title,
           content: item.content,
           subject: item.subject,
+          isPinned: item.is_pinned,
           createdAt: item.created_at,
           updatedAt: item.updated_at
         }));
@@ -708,6 +709,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       title: data.title,
       content: data.content,
       subject: data.subject,
+      isPinned: data.is_pinned ?? false,
       createdAt: data.created_at,
       updatedAt: data.updated_at
     };
@@ -720,10 +722,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     const token = localStorage.getItem('token');
     if (!token) throw new Error('Not authenticated');
     
-    const payload: { title?: string; content?: string; subject?: string } = {};
+    const payload: { title?: string; content?: string; subject?: string; is_pinned?: boolean } = {};
     if (updatedFields.title !== undefined) payload.title = updatedFields.title;
     if (updatedFields.content !== undefined) payload.content = updatedFields.content;
     if (updatedFields.subject !== undefined) payload.subject = updatedFields.subject;
+    if (updatedFields.isPinned !== undefined) payload.is_pinned = updatedFields.isPinned;
     
     const res = await fetch(`${API_BASE_URL}/api/notes/${id}`, {
       method: 'PUT',
@@ -742,6 +745,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       title: data.title,
       content: data.content,
       subject: data.subject,
+      isPinned: data.is_pinned ?? false,
       createdAt: data.created_at,
       updatedAt: data.updated_at
     };

@@ -14,10 +14,10 @@ def get_notes(
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get all notes of the current user ordered by updated_at desc."""
+    """Get all notes of the current user ordered by pinned first then updated_at desc."""
     return db.query(models.Note).filter(
         models.Note.user_id == current_user.id
-    ).order_by(models.Note.updated_at.desc()).all()
+    ).order_by(models.Note.is_pinned.desc(), models.Note.updated_at.desc()).all()
 
 @router.post("", response_model=schemas.NoteOut, status_code=status.HTTP_201_CREATED)
 def create_note(
@@ -60,6 +60,8 @@ def update_note(
         db_note.content = note_update.content
     if note_update.subject is not None:
         db_note.subject = note_update.subject
+    if note_update.is_pinned is not None:
+        db_note.is_pinned = note_update.is_pinned
         
     db.commit()
     db.refresh(db_note)

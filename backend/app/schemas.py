@@ -486,6 +486,7 @@ class NoteUpdate(BaseModel):
     title: Optional[str] = None
     content: Optional[str] = None
     subject: Optional[str] = None
+    is_pinned: Optional[bool] = None
 
 class NoteOut(BaseModel):
     id: int
@@ -493,6 +494,7 @@ class NoteOut(BaseModel):
     title: str
     content: str
     subject: str
+    is_pinned: bool
     created_at: datetime
     updated_at: datetime
 
