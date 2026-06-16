@@ -460,3 +460,44 @@ class EssayGraderHistoryOut(BaseModel):
         from_attributes = True
 
 
+# --- QUIZ ATTEMPT SCHEMAS ---
+class QuizAttemptCreate(BaseModel):
+    title: str
+    attempt_type: str  # 'study_module', 'exam', 'group_quiz'
+    score: str         # e.g., "8/10"
+    percentage: int    # e.g., 80
+    date: str          # e.g., "Jun 16, 2026, 9:15 PM"
+
+class QuizAttemptOut(QuizAttemptCreate):
+    id: int
+    user_id: int
+
+    class Config:
+        from_attributes = True
+
+
+# --- NOTE SCHEMAS ---
+class NoteCreate(BaseModel):
+    title: str = "Untitled Note"
+    content: str = ""
+    subject: str = "General"
+
+class NoteUpdate(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+    subject: Optional[str] = None
+
+class NoteOut(BaseModel):
+    id: int
+    user_id: int
+    title: str
+    content: str
+    subject: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+

@@ -510,3 +510,33 @@ def generate_consolidated_exam(
     db.refresh(db_module)
     return db_module
 
+
+@router.post("/quiz-attempts", response_model=schemas.QuizAttemptOut)
+def record_quiz_attempt(
+    attempt: schemas.QuizAttemptCreate,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    db_attempt = models.QuizAttempt(
+        user_id=current_user.id,
+        title=attempt.title,
+        attempt_type=attempt.attempt_type,
+        score=attempt.score,
+        percentage=attempt.percentage,
+        date=attempt.date
+    )
+    db.add(db_attempt)
+    db.commit()
+    db.refresh(db_attempt)
+    return db_attempt
+
+
+@router.get("/quiz-attempts", response_model=List[schemas.QuizAttemptOut])
+def get_quiz_attempts(
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    return db.query(models.QuizAttempt).filter(
+        models.QuizAttempt.user_id == current_user.id
+    ).order_by(models.QuizAttempt.id.desc()).all()
+

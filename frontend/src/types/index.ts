@@ -16,7 +16,7 @@ export type View =
 
 export type AuthTab = 'login' | 'signup';
 
-export type DashboardTab = 'overview' | 'modules' | 'groups' | 'tools' | 'settings' | 'calendar' | 'notifications' | 'admin' | 'admin-overview' | 'admin-users' | 'admin-sales' | 'admin-modules' | 'admin-exams' | 'admin-groups' | 'tool-flashcards' | 'tool-essay' | 'tool-condenser' | 'tool-pomodoro';
+export type DashboardTab = 'overview' | 'modules' | 'groups' | 'tools' | 'settings' | 'calendar' | 'notifications' | 'history' | 'notes' | 'admin' | 'admin-overview' | 'admin-users' | 'admin-sales' | 'admin-modules' | 'admin-exams' | 'admin-groups' | 'tool-flashcards' | 'tool-essay' | 'tool-condenser' | 'tool-pomodoro';
 
 export interface Notification {
   id: number;
@@ -289,4 +289,25 @@ export interface ChatSession {
   messages: ChatMessage[];
   timestamp: Date;
 }
+
+export interface QuizAttempt {
+  id: number;
+  userId: number;
+  title: string;
+  attemptType: 'study_module' | 'exam' | 'group_quiz';
+  score: string;
+  percentage: number;
+  date: string;
+}
+
+export interface Note {
+  id: number;
+  userId: number;
+  title: string;
+  content: string;
+  subject: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 

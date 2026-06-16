@@ -7,11 +7,12 @@ interface Props {
   onSearchChange: (q: string) => void;
   onManageGroup: (g: AdminGroup) => void;
   onViewChat: (g: AdminGroup) => void;
+  onViewMembers: (g: AdminGroup) => void;
 }
 
 export const AdminGroups = ({
   groups, searchQuery,
-  onSearchChange, onManageGroup, onViewChat
+  onSearchChange, onManageGroup, onViewChat, onViewMembers
 }: Props) => {
   const filtered = groups.filter(g =>
     g.creator_email !== "System/Unknown" &&
@@ -70,7 +71,16 @@ export const AdminGroups = ({
                     <span className="font-semibold block text-ink">{item.creator_name}</span>
                     <span className="text-xs text-ink-muted block">{item.creator_email}</span>
                   </td>
-                  <td className="p-4 text-center font-bold">{item.members_count} Members</td>
+                  <td className="p-4 text-center">
+                    <button
+                      type="button"
+                      onClick={() => onViewMembers(item)}
+                      className="px-2.5 py-1 rounded-lg text-xs font-bold border border-primary/20 bg-primary-soft text-primary hover:bg-primary hover:text-ink-on-primary transition cursor-pointer"
+                      title="View Group Members"
+                    >
+                      {item.members_count} Members
+                    </button>
+                  </td>
                   <td className="p-4 text-center font-bold">{item.modules_count} Modules</td>
                   <td className="p-4 pr-6 text-right flex items-center justify-end gap-2.5">
                     <button

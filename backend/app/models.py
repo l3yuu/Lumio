@@ -103,6 +103,8 @@ class User(Base):
     exams = relationship("ExamDeadline", back_populates="owner", cascade="all, delete-orphan")
     joined_groups = relationship("StudyGroup", secondary=group_members, back_populates="members")
     posts = relationship("GroupPost", back_populates="user", cascade="all, delete-orphan")
+    quiz_attempts = relationship("QuizAttempt", back_populates="user", cascade="all, delete-orphan")
+    notes = relationship("Note", back_populates="user", cascade="all, delete-orphan")
 
 class Module(Base):
     __tablename__ = "modules"
@@ -112,7 +114,7 @@ class Module(Base):
     date = Column(String(255), nullable=False)
     size = Column(String(50), nullable=False)
     subject = Column(String(100), nullable=True)
-    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
     source_content = Column(Text, nullable=True)
     source_filename = Column(String(255), nullable=True)
     source_file_path = Column(String(500), nullable=True)
@@ -136,7 +138,7 @@ class QuizQuestion(Base):
     question = Column(Text, nullable=False)
     options = Column(JSON, nullable=False)  # List of strings
     correct_answer_index = Column(Integer, nullable=False)
-    module_id = Column(Integer, ForeignKey('modules.id', ondelete='CASCADE'), nullable=False)
+    module_id = Column(Integer, ForeignKey('modules.id', ondelete='CASCADE'), nullable=False, index=True)
 
     module = relationship("Module", back_populates="questions")
 
@@ -149,7 +151,7 @@ class ExamDeadline(Base):
     date = Column(String(100), nullable=False)
     raw_date = Column(String(100), nullable=True)
     priority = Column(String(20), nullable=False)  # high, medium, low
-    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
     reminder_sent = Column(Boolean, default=False)
     completed = Column(Boolean, default=False)
     score = Column(String(50), nullable=True)
@@ -162,7 +164,7 @@ class StudyGroup(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
-    creator_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    creator_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True)
     is_banned = Column(Boolean, default=False)
 
     members = relationship("User", secondary=group_members, back_populates="joined_groups")
@@ -174,7 +176,7 @@ class QuizSession(Base):
     __tablename__ = "quiz_sessions"
 
     id = Column(Integer, primary_key=True, index=True)
-    group_id = Column(Integer, ForeignKey('study_groups.id', ondelete='CASCADE'), nullable=False)
+    group_id = Column(Integer, ForeignKey('study_groups.id', ondelete='CASCADE'), nullable=False, index=True)
     module_name = Column(String(255), nullable=False)
     date = Column(String(255), nullable=False)
     avg_score = Column(String(50), nullable=False)
@@ -254,8 +256,8 @@ class GroupPost(Base):
     __tablename__ = "group_posts"
 
     id = Column(Integer, primary_key=True, index=True)
-    group_id = Column(Integer, ForeignKey('study_groups.id', ondelete='CASCADE'), nullable=False)
-    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=True)
+    group_id = Column(Integer, ForeignKey('study_groups.id', ondelete='CASCADE'), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=True, index=True)
     user_name = Column(String(255), nullable=False)
     user_avatar = Column(Text, nullable=True)
     content = Column(Text, nullable=False)
@@ -309,4 +311,33 @@ class EssayGraderHistory(Base):
     created_at = Column(DateTime, default=now_ph_naive)
 
     user = relationship("User")
+
+
+class QuizAttempt(Base):
+    __tablename__ = "quiz_attempts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    title = Column(String(255), nullable=False)
+    attempt_type = Column(String(50), nullable=False) # 'study_module', 'exam', 'group_quiz'
+    score = Column(String(50), nullable=False)
+    percentage = Column(Integer, nullable=False)
+    date = Column(String(255), nullable=False)
+
+    user = relationship("User", back_populates="quiz_attempts")
+
+
+class Note(Base):
+    __tablename__ = "notes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    title = Column(String(255), nullable=False)
+    content = Column(Text, nullable=False)
+    subject = Column(String(100), nullable=False, default="General")
+    created_at = Column(DateTime, default=now_ph_naive)
+    updated_at = Column(DateTime, default=now_ph_naive, onupdate=now_ph_naive)
+
+    user = relationship("User", back_populates="notes")
+
 

@@ -42,6 +42,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
   const [isLeaving, setIsLeaving] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
+  const [isMembersModalOpen, setIsMembersModalOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameError, setRenameError] = useState('');
@@ -688,6 +689,13 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
               <div className="flex items-center gap-2">
                 <span className="inline-flex items-center gap-1 text-[0.7rem] font-bold uppercase tracking-wider py-1 px-2.5 rounded-full border bg-primary-soft text-primary border-primary-line">Group Active</span>
                 <button
+                  onClick={() => setIsMembersModalOpen(true)}
+                  className="p-1.5 rounded-lg border transition-all duration-200 bg-transparent border-line text-ink-muted hover:bg-glass hover:text-ink"
+                  title="Group Members"
+                >
+                  <Users size={14} />
+                </button>
+                <button
                   onClick={() => setGroupSettingsOpen(!groupSettingsOpen)}
                   className={`p-1.5 rounded-lg border transition-all duration-200 ${groupSettingsOpen ? 'bg-primary text-ink-on-primary border-primary' : 'bg-transparent border-line text-ink-muted hover:bg-glass hover:text-ink'}`}
                   title="Group Settings"
@@ -774,6 +782,14 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
 
                 <button
                   type="button"
+                  onClick={() => setIsMembersModalOpen(true)}
+                  className="inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold text-xs transition-all duration-200 cursor-pointer border bg-glass border-line hover:bg-glass-hover text-ink hover:text-primary max-md:w-full"
+                >
+                  <Users size={12} /> View Members
+                </button>
+
+                <button
+                  type="button"
                   onClick={handleCopyInviteLink}
                   className={`inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold text-xs transition-all duration-200 cursor-pointer border max-md:w-full ${
                     copiedLink
@@ -847,121 +863,6 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
                     groupNotifsEnabled ? 'translate-x-5' : 'translate-x-0'
                   }`} />
                 </button>
-              </div>
-
-              {/* Member List */}
-              <div className="p-4 bg-app border border-line rounded-lg">
-                <p className="text-sm font-semibold text-ink mb-3 flex items-center gap-2">
-                  <Users size={16} /> Members ({activeGroup.members.length})
-                </p>
-                <div className="flex flex-col gap-2">
-                  {/* Current user */}
-                  <div className="flex items-center gap-3 py-2 px-3 bg-card rounded-lg">
-                    <div className="relative">
-                      {user.avatar ? (
-                        <img src={user.avatar} alt={user.name} referrerPolicy="no-referrer"
-                          className="w-8 h-8 rounded-full object-cover border-2 border-primary" />
-                      ) : (
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold bg-primary text-ink-on-primary border-2 border-primary">
-                          {user.name.charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                      <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-app" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-ink truncate flex items-center gap-1.5">
-                        <span className="truncate">{user.name}</span>
-                        <span className="text-xs text-ink-muted font-normal shrink-0">(You)</span>
-                        {user.is_premium && (
-                          <span className="text-[0.6rem] font-extrabold bg-primary/20 text-primary border border-primary/30 px-1.5 py-0.5 rounded-full uppercase tracking-wider leading-none shrink-0">
-                            Pro
-                          </span>
-                        )}
-                        {isCurrentUserOwner && (
-                          <span className="text-[0.6rem] font-bold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded uppercase tracking-wider leading-none shrink-0">Owner</span>
-                        )}
-                      </p>
-                      <p className="text-xs text-ink-muted truncate">{user.email}</p>
-                    </div>
-                  </div>
-                  {/* Other members (excluding current user) */}
-                  {activeGroup.members.filter(m => m.email !== user.email).map((m, idx) => (
-                    <div key={idx} className="flex items-center gap-3 py-2 px-3 bg-card rounded-lg">
-                      <div className="relative">
-                        {m.avatar ? (
-                          <img src={m.avatar} alt={m.name} referrerPolicy="no-referrer"
-                            className="w-8 h-8 rounded-full object-cover border-2 border-card" />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold bg-glass-strong border-2 border-card text-ink">
-                            {m.name.charAt(0).toUpperCase()}
-                          </div>
-                        )}
-                        <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-app ${
-                          m.online ? 'bg-emerald-400' : 'bg-zinc-500'
-                        }`} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-ink truncate flex items-center gap-1.5">
-                          <span className="truncate">{m.name}</span>
-                          {m.is_premium && (
-                            <span className="text-[0.6rem] font-extrabold bg-primary/20 text-primary border border-primary/30 px-1.5 py-0.5 rounded-full uppercase tracking-wider leading-none shrink-0">
-                              Pro
-                            </span>
-                          )}
-                          {activeGroup.creator_id === m.id && (
-                            <span className="text-[0.6rem] font-bold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded uppercase tracking-wider leading-none shrink-0">Owner</span>
-                          )}
-                        </p>
-                        <p className="text-xs text-ink-muted truncate">{m.email}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {isCurrentUserOwner && m.id && (
-                          <div className="relative">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setOpenMenuMemberId(openMenuMemberId === m.id ? null : m.id ?? null);
-                              }}
-                              disabled={isRemovingMemberId === m.id}
-                              className="inline-flex items-center justify-center p-1.5 rounded hover:bg-glass text-ink-muted hover:text-ink transition-all cursor-pointer border border-line"
-                              title="More Options"
-                            >
-                              <MoreVertical size={16} />
-                            </button>
-                             {openMenuMemberId === m.id && (
-                              <div
-                                className="absolute right-0 top-full mt-1 w-44 bg-card border border-line rounded-lg shadow-lg py-1 z-20"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setTransferConfirmMember({ id: m.id!, name: m.name });
-                                    setOpenMenuMemberId(null);
-                                  }}
-                                  className="w-full text-left px-3 py-2 text-xs text-amber-400 hover:bg-amber-500/10 transition-colors font-semibold flex items-center gap-1.5 cursor-pointer border-b border-line"
-                                >
-                                  <Crown size={12} /> Transfer Ownership
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setRemoveConfirmMember({ id: m.id!, name: m.name });
-                                    setOpenMenuMemberId(null);
-                                  }}
-                                  className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors font-semibold flex items-center gap-1.5 cursor-pointer"
-                                >
-                                  <Trash2 size={12} /> Remove Member
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
               </div>
 
               {/* Leave Group */}
@@ -1345,6 +1246,145 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
                   className="inline-flex items-center justify-center gap-2 py-2 px-4 rounded-md font-semibold text-xs transition-all duration-200 cursor-pointer bg-amber-500 hover:bg-amber-600 text-white border border-amber-500 hover:border-amber-600 disabled:opacity-50"
                 >
                   {isTransferringOwnershipId === transferConfirmMember.id ? 'Transferring...' : 'Transfer Ownership'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Group Members Modal */}
+        {isMembersModalOpen && (
+          <div className="fixed inset-0 bg-[rgba(5,5,5,0.7)] backdrop-blur-sm z-3000 flex items-center justify-center p-4">
+            <div className="bg-card border border-line rounded-2xl p-6 max-w-md w-full shadow-lg flex flex-col max-h-[85vh]">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold text-ink flex items-center gap-2">
+                  <Users size={18} className="text-primary" /> Group Members ({activeGroup.members.length})
+                </h3>
+                <button 
+                  onClick={() => setIsMembersModalOpen(false)} 
+                  className="bg-transparent border-0 text-ink-muted hover:text-ink cursor-pointer p-1"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="overflow-y-auto pr-1 flex flex-col gap-2 mt-2 max-h-[55vh]">
+                {/* Current user */}
+                <div className="flex items-center gap-3 py-2.5 px-3 bg-app border border-line rounded-lg">
+                  <div className="relative">
+                    {user.avatar ? (
+                      <img src={user.avatar} alt={user.name} referrerPolicy="no-referrer"
+                        className="w-8 h-8 rounded-full object-cover border-2 border-primary" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold bg-primary text-ink-on-primary border-2 border-primary">
+                        {user.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-app" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-ink truncate flex items-center gap-1.5 m-0 text-left">
+                      <span className="truncate">{user.name}</span>
+                      <span className="text-xs text-ink-muted font-normal shrink-0">(You)</span>
+                      {user.is_premium && (
+                        <span className="text-[0.6rem] font-extrabold bg-primary/20 text-primary border border-primary/30 px-1.5 py-0.5 rounded-full uppercase tracking-wider leading-none shrink-0">
+                          Pro
+                        </span>
+                      )}
+                      {isCurrentUserOwner && (
+                        <span className="text-[0.6rem] font-bold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded uppercase tracking-wider leading-none shrink-0">Owner</span>
+                      )}
+                    </p>
+                    <p className="text-xs text-ink-muted truncate m-0 text-left">{user.email}</p>
+                  </div>
+                </div>
+
+                {/* Other members */}
+                {activeGroup.members.filter(m => m.email !== user.email).map((m, idx) => (
+                  <div key={idx} className="flex items-center gap-3 py-2.5 px-3 bg-app border border-line rounded-lg">
+                    <div className="relative">
+                      {m.avatar ? (
+                        <img src={m.avatar} alt={m.name} referrerPolicy="no-referrer"
+                          className="w-8 h-8 rounded-full object-cover border-2 border-card" />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold bg-glass-strong border-2 border-card text-ink">
+                          {m.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-app ${
+                        m.online ? 'bg-emerald-400' : 'bg-zinc-500'
+                      }`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-ink truncate flex items-center gap-1.5 m-0 text-left">
+                        <span className="truncate">{m.name}</span>
+                        {m.is_premium && (
+                          <span className="text-[0.6rem] font-extrabold bg-primary/20 text-primary border border-primary/30 px-1.5 py-0.5 rounded-full uppercase tracking-wider leading-none shrink-0">
+                            Pro
+                          </span>
+                        )}
+                        {activeGroup.creator_id === m.id && (
+                          <span className="text-[0.6rem] font-bold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded uppercase tracking-wider leading-none shrink-0">Owner</span>
+                        )}
+                      </p>
+                      <p className="text-xs text-ink-muted truncate m-0 text-left">{m.email}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {isCurrentUserOwner && m.id && (
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenMenuMemberId(openMenuMemberId === m.id ? null : m.id ?? null);
+                            }}
+                            disabled={isRemovingMemberId === m.id}
+                            className="inline-flex items-center justify-center p-1.5 rounded hover:bg-glass text-ink-muted hover:text-ink transition-all cursor-pointer border border-line"
+                            title="More Options"
+                          >
+                            <MoreVertical size={16} />
+                          </button>
+                          {openMenuMemberId === m.id && (
+                            <div
+                              className="absolute right-0 top-full mt-1 w-44 bg-card border border-line rounded-lg shadow-lg py-1 z-20"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setTransferConfirmMember({ id: m.id!, name: m.name });
+                                  setOpenMenuMemberId(null);
+                                }}
+                                className="w-full text-left px-3 py-2 text-xs text-amber-400 hover:bg-amber-500/10 transition-colors font-semibold flex items-center gap-1.5 cursor-pointer border-b border-line"
+                              >
+                                <Crown size={12} /> Transfer Ownership
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setRemoveConfirmMember({ id: m.id!, name: m.name });
+                                  setOpenMenuMemberId(null);
+                                }}
+                                className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors font-semibold flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <Trash2 size={12} /> Remove Member
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-end mt-6 pt-4 border-t border-line">
+                <button
+                  type="button"
+                  onClick={() => setIsMembersModalOpen(false)}
+                  className="inline-flex items-center justify-center gap-2 py-2 px-4 rounded-md font-semibold text-xs transition-all duration-200 cursor-pointer bg-primary text-ink-on-primary border border-primary hover:bg-primary-hover hover:border-primary-hover"
+                >
+                  Close
                 </button>
               </div>
             </div>

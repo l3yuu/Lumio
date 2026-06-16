@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Shield, Loader2, XCircle, X, AlertTriangle, MessageSquare, Sparkles } from 'lucide-react';
+import { Shield, Loader2, XCircle, X, AlertTriangle, MessageSquare, Sparkles, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { API_BASE_URL } from '../../config';
 import type { User, DashboardTab, Module, QuizQuestionResponse } from '../../types';
@@ -28,6 +28,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
   const [deleteConfirmModule, setDeleteConfirmModule] = useState<AdminModule | null>(null);
   const [deleteConfirmExam, setDeleteConfirmExam] = useState<AdminExam | null>(null);
   const [activeManageGroup, setActiveManageGroup] = useState<AdminGroup | null>(null);
+  const [activeViewMembersGroup, setActiveViewMembersGroup] = useState<AdminGroup | null>(null);
   const [manageAction, setManageAction] = useState<'menu' | 'confirm-ban' | 'confirm-delete'>('menu');
   const [actionReason, setActionReason] = useState('');
   const [roleChangeTarget, setRoleChangeTarget] = useState<{ userId: number; targetRole: string; userName: string } | null>(null);
@@ -1005,24 +1006,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
                       Select an administrative action for <span className="font-semibold text-ink">"{activeManageGroup.name}"</span>.
                     </p>
                   </div>
-                  <div className="flex flex-col gap-2 max-h-[160px] overflow-y-auto border border-line rounded-xl p-3 bg-input/15 mb-2">
-                    <span className="text-xs font-bold text-ink-muted uppercase tracking-wider block mb-1">
-                      Group Members ({activeManageGroup.members?.length || 0})
-                    </span>
-                    {activeManageGroup.members && activeManageGroup.members.length > 0 ? (
-                      activeManageGroup.members.map((m) => (
-                        <div key={m.id} className="flex flex-col py-1.5 border-b border-line/40 last:border-0 text-xs gap-0.5">
-                          <div className="flex justify-between items-center">
-                            <span className="font-semibold text-ink">{m.name}</span>
-                            <span className="px-1 py-0.2 rounded text-[0.6rem] bg-input border border-line capitalize font-medium text-ink-muted">{m.role}</span>
-                          </div>
-                          <span className="text-[0.7rem] text-ink-muted">{m.email}</span>
-                        </div>
-                      ))
-                    ) : (
-                      <span className="text-xs text-ink-muted italic">No active members in group.</span>
-                    )}
-                  </div>
+
 
                   <div className="flex flex-col gap-3">
                     <button
@@ -1192,6 +1176,68 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
                   </div>
                 </div>
               )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── Superadmin View Group Members Modal ─────────────────── */}
+      <AnimatePresence>
+        {activeViewMembersGroup && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-3000 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+              className="bg-card border border-line rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative text-left"
+            >
+              <button
+                type="button"
+                onClick={() => setActiveViewMembersGroup(null)}
+                className="absolute top-4 right-4 bg-transparent border-0 text-ink-muted hover:text-ink p-1 rounded-lg transition-colors cursor-pointer"
+                aria-label="Close"
+              >
+                <X size={20} />
+              </button>
+
+              <div className="border-b border-line pb-4 mb-4">
+                <h3 className="text-lg font-bold text-ink flex items-center gap-2">
+                  <Users size={20} className="text-primary" /> Group Members
+                </h3>
+                <p className="text-xs text-ink-muted mt-1 leading-relaxed">
+                  List of members currently registered in <span className="font-semibold text-ink">"{activeViewMembersGroup.name}"</span>.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto border border-line rounded-xl p-4 bg-input/15 mb-6">
+                <span className="text-xs font-bold text-ink-muted uppercase tracking-wider block mb-2">
+                  Active Members ({activeViewMembersGroup.members?.length || 0})
+                </span>
+                {activeViewMembersGroup.members && activeViewMembersGroup.members.length > 0 ? (
+                  activeViewMembersGroup.members.map((m) => (
+                    <div key={m.id} className="flex flex-col py-2 border-b border-line/40 last:border-0 text-xs gap-1">
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold text-ink text-sm">{m.name}</span>
+                        <span className="px-1.5 py-0.5 rounded text-[0.6rem] bg-input border border-line capitalize font-medium text-ink-muted">{m.role}</span>
+                      </div>
+                      <span className="text-[0.75rem] text-ink-muted">{m.email}</span>
+                    </div>
+                  ))
+                ) : (
+                  <span className="text-xs text-ink-muted italic">No active members in group.</span>
+                )}
+              </div>
+
+              <div className="flex gap-3 justify-end border-t border-line pt-4">
+                <button
+                  type="button"
+                  onClick={() => setActiveViewMembersGroup(null)}
+                  className="py-2 px-6 rounded-xl border border-line text-ink hover:bg-glass font-semibold text-sm transition cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
@@ -1398,6 +1444,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
               onSearchChange={setSearchQuery}
               onManageGroup={handleOpenManageGroup}
               onViewChat={handleViewChat}
+              onViewMembers={setActiveViewMembersGroup}
             />
           )}
         </div>

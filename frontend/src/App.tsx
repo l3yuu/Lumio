@@ -524,7 +524,12 @@ function App() {
         // Superadmins go to the admin overview by default
         if (mappedUser.role === 'superadmin') {
           setDashboardTab('admin-overview');
+        } else {
+          setDashboardTab('overview');
         }
+        setSelectedGroupId(null);
+        setActiveQuizModule(null);
+        setIsAiSidebarOpen(false);
 
         // Fetch modules
         fetch(`${API_BASE_URL}/api/modules`, {
@@ -580,7 +585,12 @@ function App() {
     // Superadmins go to the admin overview by default
     if (userData.role === 'superadmin') {
       setDashboardTab('admin-overview');
+    } else {
+      setDashboardTab('overview');
     }
+    setSelectedGroupId(null);
+    setActiveQuizModule(null);
+    setIsAiSidebarOpen(false);
     
     // Fetch modules
     fetch(`${API_BASE_URL}/api/modules`, {
@@ -762,6 +772,10 @@ function App() {
     localStorage.removeItem('lumio-module-scores');
     setUser(null);
     setView('landing');
+    setDashboardTab('overview');
+    setSelectedGroupId(null);
+    setActiveQuizModule(null);
+    setIsAiSidebarOpen(false);
   };
 
   const handleFileSelection = (file: File) => {

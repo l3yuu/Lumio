@@ -89,6 +89,17 @@ def ensure_runtime_schema():
             else:
                 statements.append("ALTER TABLE study_groups ADD COLUMN is_banned INTEGER DEFAULT 0")
 
+    # Add indexes on foreign keys to optimize query performance (joins and filters)
+    statements.append("CREATE INDEX IF NOT EXISTS idx_modules_user_id ON modules(user_id)")
+    statements.append("CREATE INDEX IF NOT EXISTS idx_quiz_questions_module_id ON quiz_questions(module_id)")
+    statements.append("CREATE INDEX IF NOT EXISTS idx_exam_deadlines_user_id ON exam_deadlines(user_id)")
+    statements.append("CREATE INDEX IF NOT EXISTS idx_study_groups_creator_id ON study_groups(creator_id)")
+    statements.append("CREATE INDEX IF NOT EXISTS idx_quiz_sessions_group_id ON quiz_sessions(group_id)")
+    statements.append("CREATE INDEX IF NOT EXISTS idx_group_posts_group_id ON group_posts(group_id)")
+    statements.append("CREATE INDEX IF NOT EXISTS idx_group_posts_user_id ON group_posts(user_id)")
+    statements.append("CREATE INDEX IF NOT EXISTS idx_quiz_attempts_user_id ON quiz_attempts(user_id)")
+    statements.append("CREATE INDEX IF NOT EXISTS idx_notes_user_id ON notes(user_id)")
+
     if not statements:
         return
 

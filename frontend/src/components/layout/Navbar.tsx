@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sun, Moon, Menu, X, ChevronRight, Sparkles, Layers, Settings, Bell, FileText, Users, Calendar } from 'lucide-react';
+import { Sun, Moon, Menu, X, ChevronRight, Sparkles, Layers, Settings, Bell, FileText, Users, Calendar, History, Notebook } from 'lucide-react';
 import type { User, View, AuthTab, DashboardTab, Module, Notification, GroupInvitation } from '../../types';
 
 interface NavbarProps {
@@ -473,6 +473,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                       {([
                         { tab: 'overview' as const, icon: <Layers size={18} />, label: 'Overview Panels' },
                         { tab: 'modules'  as const, icon: <FileText size={18} />, label: 'My Study Modules' },
+                        { tab: 'history'  as const, icon: <History size={18} />, label: 'Quiz History' },
+                        { tab: 'notes'    as const, icon: <Notebook size={18} />, label: 'My Notes' },
                         { tab: 'groups'   as const, icon: <Users size={18} />, label: 'Collaborative Circles' },
                         { tab: 'tools'    as const, icon: <Sparkles size={18} />, label: 'Study Tools' },
                         { tab: 'calendar' as const, icon: <Calendar size={18} />, label: 'Exam Calendar' },
