@@ -88,6 +88,11 @@ def ensure_runtime_schema():
                 statements.append("ALTER TABLE study_groups ADD COLUMN is_banned BOOLEAN DEFAULT FALSE")
             else:
                 statements.append("ALTER TABLE study_groups ADD COLUMN is_banned INTEGER DEFAULT 0")
+        if "is_public" not in group_columns:
+            if engine.dialect.name == "postgresql":
+                statements.append("ALTER TABLE study_groups ADD COLUMN is_public BOOLEAN DEFAULT FALSE")
+            else:
+                statements.append("ALTER TABLE study_groups ADD COLUMN is_public INTEGER DEFAULT 0")
 
     # Add indexes on foreign keys to optimize query performance (joins and filters)
     statements.append("CREATE INDEX IF NOT EXISTS idx_modules_user_id ON modules(user_id)")

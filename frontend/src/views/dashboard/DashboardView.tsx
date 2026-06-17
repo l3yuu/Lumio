@@ -1737,6 +1737,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       .then(data => {
         const mapped = (data as StudyGroupResponse[]).map(g => ({
           ...g,
+          isPublic: g.is_public ?? false,
+          joinCode: g.join_code,
           modules: g.modules ? g.modules.map(m => ({
             id: m.id,
             name: m.name,
@@ -1754,6 +1756,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               questionType: q.question_type,
               reference: q.reference
             })) : []
+          })) : [],
+          notes: g.notes ? g.notes.map(n => ({
+            id: n.id,
+            userId: n.user_id,
+            title: n.title,
+            content: n.content,
+            subject: n.subject,
+            isPinned: n.is_pinned,
+            createdAt: n.created_at,
+            updatedAt: n.updated_at
           })) : [],
           quizSessions: g.quiz_sessions ? g.quiz_sessions.map(s => ({
             id: s.id,
@@ -1934,6 +1946,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     completeQuest={completeQuest}
                     setIsGroupModalOpen={setIsGroupModalOpen}
                     modules={modules}
+                    notes={notes}
                     setGroups={setGroups}
                     invitations={invitations}
                     onAcceptInvitation={onAcceptInvitation}
@@ -1951,6 +1964,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     completeQuest={completeQuest}
                     setIsGroupModalOpen={setIsGroupModalOpen}
                     modules={modules}
+                    notes={notes}
                     setGroups={setGroups}
                     invitations={invitations}
                     onAcceptInvitation={onAcceptInvitation}

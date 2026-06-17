@@ -222,16 +222,20 @@ class QuizSessionOut(BaseModel):
 class StudyGroupCreate(BaseModel):
     name: str
     members: List[str] = []  # List of emails to add
+    is_public: bool = False
 
 class StudyGroupUpdate(BaseModel):
     name: str
+    is_public: Optional[bool] = None
 
 class StudyGroupOut(BaseModel):
     id: int
     name: str
     creator_id: Optional[int] = None
+    is_public: bool = False
     members: List[GroupMemberOut]
     modules: List[ModuleOut]
+    notes: List[NoteOut]
     quiz_sessions: List[QuizSessionOut]
 
     class Config:

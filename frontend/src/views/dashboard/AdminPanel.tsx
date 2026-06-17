@@ -11,6 +11,7 @@ import { AdminSalesView } from './AdminPanel/AdminSales';
 import { AdminModules } from './AdminPanel/AdminModules';
 import { AdminExams } from './AdminPanel/AdminExams';
 import { AdminGroups } from './AdminPanel/AdminGroups';
+import { AdminNotes } from './AdminPanel/AdminNotes';
 
 interface AdminPanelProps {
   user: User;
@@ -1380,6 +1381,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
               {currentTab === 'admin-modules' && 'Modules Generated'}
               {currentTab === 'admin-exams' && 'Scheduled Exams'}
               {currentTab === 'admin-groups' && 'Collaborative Circles'}
+              {currentTab === 'admin-notes' && 'User Notes'}
             </h2>
             <span className="text-xs text-ink-muted">
               {currentTab === 'admin-overview' && 'System statistics, database status, and API health metrics'}
@@ -1388,6 +1390,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
               {currentTab === 'admin-modules' && 'View all AI-generated module summaries created across the platform'}
               {currentTab === 'admin-exams' && 'Monitor exam schedules, priorities, due dates, and completion status'}
               {currentTab === 'admin-groups' && 'Monitor all collaborative circles, group sizes, and creators'}
+              {currentTab === 'admin-notes' && 'Browse and search all notes created by users across the platform'}
             </span>
           </div>
         </div>
@@ -1451,6 +1454,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
               onViewMembers={setActiveViewMembersGroup}
             />
           )}
+          {currentTab === 'admin-notes' && <AdminNotes />}
         </div>
       )}
     </div>

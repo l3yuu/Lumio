@@ -77,6 +77,35 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
   const [cooldownLeft, setCooldownLeft] = useState(0);
   const googleInitialized = useRef(false);
 
+  interface GoogleWindow extends Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (options: { client_id: string; callback: (res: { credential: string }) => void }) => void;
+          renderButton: (element: HTMLElement, options: { theme?: string; size?: string; width?: number; type?: string; shape?: string; text?: string; logo_alignment?: string }) => void;
+          prompt: () => void;
+        };
+      };
+    };
+  }
+
+  const renderGoogleButton = () => {
+    const google = (window as GoogleWindow).google;
+    if (!google?.accounts) return;
+    const btnElem = document.getElementById("google-signin-button");
+    if (btnElem) {
+      btnElem.innerHTML = '';
+      google.accounts.id.renderButton(btnElem, {
+        theme: "outline",
+        size: "large",
+        width: btnElem.clientWidth || 380,
+        type: "standard",
+        shape: "rectangular",
+        text: "continue_with",
+        logo_alignment: "left"
+      });
+    }
+  };
 
   // Countdown timer for rate-limit cooldown
   useEffect(() => {
@@ -265,50 +294,28 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
   useEffect(() => {
     if (screen !== 'login' && screen !== 'signup') return;
     
-    interface GoogleWindow extends Window {
-      google?: {
-        accounts: {
-          id: {
-            initialize: (options: { client_id: string; callback: (res: { credential: string }) => void }) => void;
-            renderButton: (element: HTMLElement, options: { theme?: string; size?: string; width?: number; type?: string; shape?: string; text?: string; logo_alignment?: string }) => void;
-          };
-        };
-      };
-    }
-
-    const initializeGoogleSignIn = () => {
-      if (googleInitialized.current) return;
-      const google = (window as GoogleWindow).google;
-      if (google && google.accounts) {
-        try {
-          const client_id = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-          if (!client_id) {
-            console.error("Missing VITE_GOOGLE_CLIENT_ID. Google Sign-In requires an OAuth Web client ID.");
-            return;
-          }
-          googleInitialized.current = true;
-          google.accounts.id.initialize({
-            client_id: client_id,
-            callback: handleGoogleCredentialResponse,
-          });
-          const btnElem = document.getElementById("google-signin-button");
-          if (btnElem) {
-            google.accounts.id.renderButton(btnElem, {
-              theme: "outline",
-              size: "large",
-              width: btnElem.clientWidth || 380,
-              type: "standard",
-              shape: "rectangular",
-              text: "continue_with",
-              logo_alignment: "left"
+      const initializeGoogleSignIn = () => {
+        if (googleInitialized.current) return;
+        const google = (window as GoogleWindow).google;
+        if (google && google.accounts) {
+          try {
+            const client_id = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+            if (!client_id) {
+              console.error("Missing VITE_GOOGLE_CLIENT_ID. Google Sign-In requires an OAuth Web client ID.");
+              return;
+            }
+            googleInitialized.current = true;
+            google.accounts.id.initialize({
+              client_id: client_id,
+              callback: handleGoogleCredentialResponse,
             });
+            renderGoogleButton();
+          } catch (e) {
+            googleInitialized.current = false;
+            console.error("Failed to initialize Google Sign-In:", e);
           }
-        } catch (e) {
-          googleInitialized.current = false;
-          console.error("Failed to initialize Google Sign-In:", e);
         }
-      }
-    };
+      };
 
     const google = (window as GoogleWindow).google;
     if (google && google.accounts) {
@@ -326,6 +333,20 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
 
     return () => clearInterval(timer);
   }, [screen, handleGoogleCredentialResponse]);
+
+  // Re-render Google button when screen changes (AnimatePresence defers new DOM until exit animation finishes)
+  useEffect(() => {
+    if (screen !== 'login' && screen !== 'signup') return;
+    if (!googleInitialized.current) return;
+    const id = setInterval(() => {
+      const btnElem = document.getElementById("google-signin-button");
+      if (btnElem && btnElem.offsetParent !== null) {
+        clearInterval(id);
+        renderGoogleButton();
+      }
+    }, 50);
+    return () => clearInterval(id);
+  }, [screen]);
 
 
   const formContent = () => {

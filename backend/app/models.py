@@ -20,6 +20,13 @@ group_modules = Table(
     Column('module_id', Integer, ForeignKey('modules.id', ondelete='CASCADE'), primary_key=True)
 )
 
+group_notes = Table(
+    'group_notes',
+    Base.metadata,
+    Column('group_id', Integer, ForeignKey('study_groups.id', ondelete='CASCADE'), primary_key=True),
+    Column('note_id', Integer, ForeignKey('notes.id', ondelete='CASCADE'), primary_key=True)
+)
+
 class User(Base):
     __tablename__ = "users"
 
@@ -170,9 +177,11 @@ class StudyGroup(Base):
     name = Column(String(255), nullable=False)
     creator_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True)
     is_banned = Column(Boolean, default=False)
+    is_public = Column(Boolean, default=False)
 
     members = relationship("User", secondary=group_members, back_populates="joined_groups")
     modules = relationship("Module", secondary=group_modules, back_populates="groups")
+    notes = relationship("Note", secondary=group_notes, back_populates="groups")
     quiz_sessions = relationship("QuizSession", back_populates="group", cascade="all, delete-orphan")
     posts = relationship("GroupPost", back_populates="group", cascade="all, delete-orphan")
 
@@ -344,6 +353,7 @@ class Note(Base):
     updated_at = Column(DateTime, default=now_ph_naive, onupdate=now_ph_naive)
 
     user = relationship("User", back_populates="notes")
+    groups = relationship("StudyGroup", secondary=group_notes, back_populates="notes")
 
 
 class SystemConfig(Base):

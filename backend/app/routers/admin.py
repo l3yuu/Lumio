@@ -412,6 +412,33 @@ def get_admin_sales(
         "transactions": recent_transactions
     }
 
+@router.get("/notes")
+def list_admin_notes(
+    db: Session = Depends(get_db),
+    current_admin: models.User = Depends(get_current_superadmin)
+):
+    results = db.query(models.Note, models.User).join(
+        models.User, models.Note.user_id == models.User.id
+    ).filter(
+        ~models.User.email.like("%@example.com")
+    ).order_by(models.Note.updated_at.desc()).all()
+    return [
+        {
+            "id": n.id,
+            "user_id": n.user_id,
+            "title": n.title,
+            "content": n.content,
+            "subject": n.subject,
+            "is_pinned": n.is_pinned,
+            "created_at": n.created_at.isoformat() if n.created_at else None,
+            "updated_at": n.updated_at.isoformat() if n.updated_at else None,
+            "owner_email": owner.email,
+            "owner_name": owner.name,
+        }
+        for n, owner in results
+    ]
+
+
 @router.delete("/users/{user_id}")
 def admin_delete_user(
     user_id: int,
