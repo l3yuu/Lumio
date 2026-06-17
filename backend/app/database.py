@@ -151,6 +151,8 @@ CREATE TABLE IF NOT EXISTS ai_usage_logs (
         ai_columns = {column["name"] for column in inspector.get_columns("ai_usage_logs")}
         if "prompt" not in ai_columns:
             statements.append("ALTER TABLE ai_usage_logs ADD COLUMN prompt TEXT")
+        if "response" not in ai_columns:
+            statements.append("ALTER TABLE ai_usage_logs ADD COLUMN response TEXT")
         if "tokens_used" not in ai_columns:
             statements.append("ALTER TABLE ai_usage_logs ADD COLUMN tokens_used INTEGER")
 

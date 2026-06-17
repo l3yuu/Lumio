@@ -364,6 +364,7 @@ class AiUsageLog(Base):
     feature = Column(String(50), nullable=False, index=True)
     model = Column(String(100), nullable=True)
     prompt = Column(Text, nullable=True)
+    response = Column(Text, nullable=True)
     tokens_used = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=now_ph_naive)
 

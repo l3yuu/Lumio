@@ -64,6 +64,7 @@ async def condense_document_endpoint(
                 feature="condenser",
                 model=model_name,
                 prompt=prompt_text,
+                response=result.get("summary", "")[:3000] if result else None,
                 tokens_used=len(prompt_text) // 4
             ))
             db.commit()

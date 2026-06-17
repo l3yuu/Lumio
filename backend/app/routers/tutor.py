@@ -175,6 +175,7 @@ Student Query:
                     feature="tutor",
                     model=model_name,
                     prompt=prompt_text,
+                    response=answer[:3000] if answer else None,
                     tokens_used=len(prompt_text) // 4
                 ))
                 db.commit()

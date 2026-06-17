@@ -658,6 +658,8 @@ class AiUsageSummary(BaseModel):
     requests_today: int
     requests_this_week: int
     requests_this_month: int
+    total_tokens_used: int
+    tokens_per_minute: float
     by_feature: List[dict]
     by_day: List[dict]
     by_hour: List[dict]
@@ -680,6 +682,20 @@ def get_ai_usage(
     month = db.query(models.AiUsageLog).filter(models.AiUsageLog.created_at >= month_start).count()
 
     from sqlalchemy import func as sa_func
+
+    # --- Token stats ---
+    total_tokens_result = db.query(sa_func.sum(models.AiUsageLog.tokens_used)).scalar()
+    total_tokens_used = int(total_tokens_result or 0)
+
+    # Tokens per minute: sum of tokens in the last 60 minutes divided by 60
+    cutoff_60m = now - timedelta(minutes=60)
+    tokens_last_60m_result = db.query(
+        sa_func.sum(models.AiUsageLog.tokens_used)
+    ).filter(
+        models.AiUsageLog.created_at >= cutoff_60m,
+        models.AiUsageLog.tokens_used.isnot(None)
+    ).scalar()
+    tokens_per_minute = round((tokens_last_60m_result or 0) / 60, 2)
 
     by_feature = db.query(
         models.AiUsageLog.feature,
@@ -739,6 +755,8 @@ def get_ai_usage(
         requests_today=today,
         requests_this_week=week,
         requests_this_month=month,
+        total_tokens_used=total_tokens_used,
+        tokens_per_minute=tokens_per_minute,
         by_feature=[{"feature": f.feature, "count": f.count} for f in by_feature],
         by_day=by_day,
         by_hour=by_hour,
@@ -808,6 +826,7 @@ def get_user_ai_usage(
             "feature": r.feature,
             "model": r.model,
             "prompt": r.prompt or "",
+            "response": r.response or "",
             "tokens_used": r.tokens_used or 0,
             "created_at": r.created_at.strftime("%Y-%m-%d %H:%M") if r.created_at else ""
         }

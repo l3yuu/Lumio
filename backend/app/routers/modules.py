@@ -156,11 +156,19 @@ def create_module(
     model_name = get_system_config(db, "default_llm_model") or "gemini-2.5-flash"
     try:
         prompt_text = f"{name}: {(text_content or '')[:1800]}".strip()[:2000]
+        q_preview = "\n".join(
+            f"Q{i+1}: {q.get('question', '')[:120]}"
+            for i, q in enumerate((questions_data or [])[:5])
+        )
+        if len(questions_data or []) > 5:
+            q_preview += f"\n… (+{len(questions_data) - 5} more questions)"
+        response_text = f"Generated {len(questions_data or [])} questions for '{name}':\n{q_preview}"
         db.add(models.AiUsageLog(
             user_id=current_user.id,
             feature="quiz",
             model=model_name,
             prompt=prompt_text,
+            response=response_text[:3000],
             tokens_used=len(prompt_text) // 4
         ))
         db.commit()
@@ -505,11 +513,19 @@ def generate_consolidated_exam(
     model_name = get_system_config(db, "default_llm_model") or "gemini-2.5-flash"
     try:
         prompt_text = f"{exam_name}: {combined_text[:1800]}".strip()[:2000]
+        q_preview = "\n".join(
+            f"Q{i+1}: {q.get('question', '')[:120]}"
+            for i, q in enumerate((questions_data or [])[:5])
+        )
+        if len(questions_data or []) > 5:
+            q_preview += f"\n… (+{len(questions_data) - 5} more questions)"
+        response_text = f"Generated {len(questions_data or [])} questions for '{exam_name}':\n{q_preview}"
         db.add(models.AiUsageLog(
             user_id=current_user.id,
             feature="consolidated_exam",
             model=model_name,
             prompt=prompt_text,
+            response=response_text[:3000],
             tokens_used=len(prompt_text) // 4
         ))
         db.commit()

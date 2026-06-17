@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
-import { Sparkles, Activity, CalendarDays, Clock, Users, ArrowLeft, Hash, Zap, Search, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react';
+import { Sparkles, Activity, CalendarDays, Clock, Users, ArrowLeft, Hash, Zap, Search, ChevronDown, ChevronUp, MessageSquare, TrendingUp } from 'lucide-react';
 import { API_BASE_URL } from '../../../config';
 
 interface AiUsageData {
@@ -8,6 +8,8 @@ interface AiUsageData {
   requests_today: number;
   requests_this_week: number;
   requests_this_month: number;
+  total_tokens_used: number;
+  tokens_per_minute: number;
   by_feature: { feature: string; count: number }[];
   by_day: { date: string; total?: number; [key: string]: unknown }[];
   by_hour: { date: string; hour: string; count: number }[];
@@ -19,6 +21,7 @@ interface RecentRequest {
   feature: string;
   model: string;
   prompt: string;
+  response: string;
   tokens_used: number;
   created_at: string;
 }
@@ -89,7 +92,7 @@ const Overview = ({ data, onSelectUser }: { data: AiUsageData; onSelectUser: (us
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <div className="bg-card border border-line rounded-xl p-5 flex flex-col gap-4">
           <div className="flex justify-between items-start">
             <span className="text-xs text-ink-muted uppercase tracking-wider font-semibold">Total Requests</span>
@@ -121,6 +124,22 @@ const Overview = ({ data, onSelectUser }: { data: AiUsageData; onSelectUser: (us
           </div>
           <div className="text-3xl font-extrabold tracking-tight">{data.requests_this_month.toLocaleString()}</div>
           <span className="text-xs text-ink-muted">Requests this month</span>
+        </div>
+        <div className="bg-card border border-line rounded-xl p-5 flex flex-col gap-4 border-amber-400/25 bg-amber-400/5">
+          <div className="flex justify-between items-start">
+            <span className="text-xs text-amber-400 uppercase tracking-wider font-semibold">Total Tokens Used</span>
+            <Zap size={18} className="text-amber-400" />
+          </div>
+          <div className="text-3xl font-extrabold tracking-tight text-amber-400">{data.total_tokens_used.toLocaleString()}</div>
+          <span className="text-xs text-ink-muted">Cumulative estimated tokens</span>
+        </div>
+        <div className="bg-card border border-line rounded-xl p-5 flex flex-col gap-4 border-indigo-400/25 bg-indigo-400/5">
+          <div className="flex justify-between items-start">
+            <span className="text-xs text-indigo-400 uppercase tracking-wider font-semibold">Tokens / Min</span>
+            <TrendingUp size={18} className="text-indigo-400" />
+          </div>
+          <div className="text-3xl font-extrabold tracking-tight text-indigo-400">{data.tokens_per_minute.toLocaleString()}</div>
+          <span className="text-xs text-ink-muted">Rolling 60-min avg rate</span>
         </div>
       </div>
 
@@ -241,7 +260,9 @@ const PromptHistoryTab = ({ requests }: { requests: RecentRequest[] }) => {
 
   const filtered = requests.filter(r => {
     const matchesFeature = featureFilter === 'all' || r.feature === featureFilter;
-    const matchesSearch = search.trim() === '' || r.prompt.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = search.trim() === '' ||
+      r.prompt.toLowerCase().includes(search.toLowerCase()) ||
+      r.response.toLowerCase().includes(search.toLowerCase());
     return matchesFeature && matchesSearch;
   });
 
@@ -255,7 +276,7 @@ const PromptHistoryTab = ({ requests }: { requests: RecentRequest[] }) => {
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
           <input
             type="text"
-            placeholder="Search prompt text…"
+            placeholder="Search prompts or AI responses…"
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="w-full pl-9 pr-4 py-2 text-sm bg-input border border-line rounded-lg text-ink placeholder:text-ink-muted focus:outline-none focus:border-primary/50 transition-colors"
@@ -289,81 +310,104 @@ const PromptHistoryTab = ({ requests }: { requests: RecentRequest[] }) => {
         <span><span className="font-semibold text-ink">{totalTokens.toLocaleString()}</span> est. tokens</span>
       </div>
 
-      {/* Table */}
-      <div className="bg-card border border-line rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-line bg-input/30">
-                <th className="text-left px-4 py-3 text-ink-muted uppercase tracking-wider font-semibold w-32">Feature</th>
-                <th className="text-left px-4 py-3 text-ink-muted uppercase tracking-wider font-semibold">Prompt</th>
-                <th className="text-right px-4 py-3 text-ink-muted uppercase tracking-wider font-semibold w-28">Est. Tokens</th>
-                <th className="text-right px-4 py-3 text-ink-muted uppercase tracking-wider font-semibold w-36">Time</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="py-10 text-center text-ink-muted">
-                    {search ? 'No prompts match your search.' : 'No prompt history yet.'}
-                  </td>
-                </tr>
-              )}
-              {filtered.map(r => {
-                const isExpanded = expandedId === r.id;
-                const hasLongPrompt = r.prompt.length > 120;
-                return (
-                  <tr
-                    key={r.id}
-                    className={`border-b border-line/50 transition-colors ${hasLongPrompt ? 'cursor-pointer hover:bg-glass-strong' : ''}`}
-                    onClick={() => hasLongPrompt && setExpandedId(isExpanded ? null : r.id)}
-                  >
-                    <td className="px-4 py-3 align-top">
-                      <span
-                        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[0.65rem] font-semibold text-white"
-                        style={{ background: FEATURE_COLORS[r.feature] || '#6B7280' }}
-                      >
-                        <span className="w-1.5 h-1.5 rounded-full bg-white/50" />
-                        {FEATURE_LABELS[r.feature] || r.feature}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 align-top">
-                      <div className="flex items-start gap-2">
-                        <div className="flex-1 min-w-0">
-                          {r.prompt ? (
-                            <p className={`text-ink leading-relaxed ${isExpanded ? '' : 'line-clamp-2'}`}>
-                              {r.prompt}
-                            </p>
-                          ) : (
-                            <span className="text-ink-muted italic">No prompt recorded</span>
-                          )}
+      {/* Cards */}
+      <div className="flex flex-col gap-3">
+        {filtered.length === 0 && (
+          <div className="bg-card border border-line rounded-xl py-12 text-center text-ink-muted text-sm">
+            {search ? 'No prompts match your search.' : 'No prompt history yet.'}
+          </div>
+        )}
+        {filtered.map(r => {
+          const isExpanded = expandedId === r.id;
+          return (
+            <div
+              key={r.id}
+              className="bg-card border border-line rounded-xl overflow-hidden transition-all duration-200"
+            >
+              {/* Header row */}
+              <div
+                className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-glass-strong transition-colors select-none"
+                onClick={() => setExpandedId(isExpanded ? null : r.id)}
+              >
+                {/* Feature badge */}
+                <span
+                  className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[0.65rem] font-bold text-white"
+                  style={{ background: FEATURE_COLORS[r.feature] || '#6B7280' }}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-white/50" />
+                  {FEATURE_LABELS[r.feature] || r.feature}
+                </span>
+
+                {/* Prompt preview */}
+                <p className="flex-1 min-w-0 text-sm text-ink truncate">
+                  {r.prompt || <span className="text-ink-muted italic">No prompt recorded</span>}
+                </p>
+
+                {/* Meta */}
+                <div className="flex items-center gap-3 shrink-0">
+                  {r.tokens_used > 0 && (
+                    <span className="inline-flex items-center gap-1 text-xs text-amber-400 font-semibold">
+                      <Zap size={10} />
+                      {r.tokens_used.toLocaleString()}
+                    </span>
+                  )}
+                  <span className="text-xs text-ink-muted font-mono whitespace-nowrap">{r.created_at}</span>
+                  <span className="text-ink-muted">
+                    {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  </span>
+                </div>
+              </div>
+
+              {/* Expanded detail */}
+              {isExpanded && (
+                <div className="border-t border-line">
+                  {/* User prompt */}
+                  {r.prompt && (
+                    <div className="px-4 py-3 border-b border-line/50">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <div className="w-5 h-5 rounded-full bg-primary/15 flex items-center justify-center">
+                          <Users size={11} className="text-primary" />
                         </div>
-                        {hasLongPrompt && (
-                          <span className="shrink-0 text-ink-muted mt-0.5">
-                            {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                          </span>
-                        )}
+                        <span className="text-[0.65rem] font-bold text-primary uppercase tracking-wider">User Prompt</span>
                       </div>
-                    </td>
-                    <td className="px-4 py-3 text-right align-top">
-                      {r.tokens_used > 0 ? (
-                        <span className="inline-flex items-center gap-1 text-amber-400 font-semibold">
-                          <Zap size={10} />
-                          {r.tokens_used.toLocaleString()}
-                        </span>
-                      ) : (
-                        <span className="text-ink-muted">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right text-ink-muted align-top font-mono whitespace-nowrap">
-                      {r.created_at}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      <p className="text-sm text-ink leading-relaxed whitespace-pre-wrap pl-7">{r.prompt}</p>
+                    </div>
+                  )}
+
+                  {/* AI response */}
+                  <div className="px-4 py-3">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div className="w-5 h-5 rounded-full bg-[#3ECF8E]/15 flex items-center justify-center">
+                        <Sparkles size={11} className="text-[#3ECF8E]" />
+                      </div>
+                      <span className="text-[0.65rem] font-bold text-[#3ECF8E] uppercase tracking-wider">AI Response</span>
+                    </div>
+                    {r.response ? (
+                      <p className="text-sm text-ink leading-relaxed whitespace-pre-wrap pl-7">{r.response}</p>
+                    ) : (
+                      <p className="text-sm text-ink-muted italic pl-7">No response recorded (logged before this feature was enabled).</p>
+                    )}
+                  </div>
+
+                  {/* Footer meta */}
+                  <div className="px-4 py-2 border-t border-line/50 bg-input/20 flex items-center gap-4 text-xs text-ink-muted">
+                    <span className="font-mono">{r.model || 'Unknown model'}</span>
+                    <span>·</span>
+                    {r.tokens_used > 0 ? (
+                      <span className="flex items-center gap-1 text-amber-400 font-semibold">
+                        <Zap size={10} /> {r.tokens_used.toLocaleString()} est. tokens
+                      </span>
+                    ) : (
+                      <span>No token estimate</span>
+                    )}
+                    <span>·</span>
+                    <span>{r.created_at}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

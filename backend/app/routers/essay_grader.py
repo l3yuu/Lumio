@@ -30,11 +30,13 @@ async def grade_essay_endpoint(
         model_name = get_system_config(db, "default_llm_model") or "gemini-2.5-flash"
         try:
             prompt_text = (body.prompt or body.text)[:2000]
+            grade_summary = f"Grade: {result.get('grade', '?')} | Thesis: {result.get('thesis_score', '?')}/10 | Grammar: {result.get('grammar_score', '?')}/10 | Structure: {result.get('structure_score', '?')}/10\n\n{result.get('critique', '')}"
             db.add(models.AiUsageLog(
                 user_id=current_user.id,
                 feature="essay_grader",
                 model=model_name,
                 prompt=prompt_text,
+                response=grade_summary[:3000],
                 tokens_used=len(prompt_text) // 4
             ))
             db.commit()
