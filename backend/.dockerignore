@@ -1,0 +1,26 @@
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Python cache — avoids Python 3.14 pyc conflicts with the 3.11 image
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Test and dev files
+test_*.py
+scratch/
+
+# Environment files
+.env
+.env.*
+
+# Editor / OS
+.DS_Store
+*.swp
+*.swo
+
+# Uploaded files (large, not needed in image)
+uploads/
