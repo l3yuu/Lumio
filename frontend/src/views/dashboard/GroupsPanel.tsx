@@ -93,6 +93,8 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
     }
   }, [selectedGroupId, groups]);
 
+  const [publicGroups, setPublicGroups] = useState<StudyGroup[]>([]);
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
@@ -211,7 +213,6 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
     .finally(() => setIsJoiningGroup(null));
   };
   const [isTogglingVisibility, setIsTogglingVisibility] = useState(false);
-  const [publicGroups, setPublicGroups] = useState<StudyGroup[]>([]);
   const [isJoiningGroup, setIsJoiningGroup] = useState<number | null>(null);
 
   const handleToggleGroupVisibility = () => {

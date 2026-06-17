@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, RefreshCw, MessageSquare, Notebook } from 'lucide-react';
 import { API_BASE_URL } from '../../../config';
 
@@ -22,9 +22,8 @@ export const AdminNotes = () => {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
 
-  const fetchNotes = useCallback(() => {
+  useEffect(() => {
     const token = localStorage.getItem('token');
-    setLoading(true);
     fetch(`${API_BASE_URL}/api/admin/notes`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
@@ -36,8 +35,6 @@ export const AdminNotes = () => {
     .catch(err => console.error('Error fetching admin notes:', err))
     .finally(() => setLoading(false));
   }, []);
-
-  useEffect(() => { fetchNotes(); }, [fetchNotes]);
 
   const uniqueUsers = [...new Set(notes.map(n => n.owner_email))];
 
