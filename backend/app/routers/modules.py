@@ -151,6 +151,21 @@ def create_module(
         difficulty=difficulty,
         num_questions=num_questions
     )
+
+    from ..system_config import get_system_config
+    model_name = get_system_config(db, "default_llm_model") or "gemini-2.5-flash"
+    try:
+        prompt_text = f"{name}: {(text_content or '')[:1800]}".strip()[:2000]
+        db.add(models.AiUsageLog(
+            user_id=current_user.id,
+            feature="quiz",
+            model=model_name,
+            prompt=prompt_text,
+            tokens_used=len(prompt_text) // 4
+        ))
+        db.commit()
+    except Exception:
+        db.rollback()
     
     # Format date nicely
     date_str = now_ph().strftime("%b %d, %Y")
@@ -485,6 +500,21 @@ def generate_consolidated_exam(
         difficulty=difficulty,
         num_questions=50
     )
+
+    from ..system_config import get_system_config
+    model_name = get_system_config(db, "default_llm_model") or "gemini-2.5-flash"
+    try:
+        prompt_text = f"{exam_name}: {combined_text[:1800]}".strip()[:2000]
+        db.add(models.AiUsageLog(
+            user_id=current_user.id,
+            feature="consolidated_exam",
+            model=model_name,
+            prompt=prompt_text,
+            tokens_used=len(prompt_text) // 4
+        ))
+        db.commit()
+    except Exception:
+        db.rollback()
 
     # Format date and save
     date_str = now_ph().strftime("%b %d, %Y")

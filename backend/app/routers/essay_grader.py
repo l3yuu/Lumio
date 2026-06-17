@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from .. import schemas, models, auth
 from ..database import get_db
 from ..quiz_generator import grade_essay
+from ..system_config import get_system_config
 
 logger = logging.getLogger("lumio.essay_grader")
 
@@ -25,7 +26,21 @@ async def grade_essay_endpoint(
 
     try:
         result = grade_essay(body.text, body.prompt)
-        
+
+        model_name = get_system_config(db, "default_llm_model") or "gemini-2.5-flash"
+        try:
+            prompt_text = (body.prompt or body.text)[:2000]
+            db.add(models.AiUsageLog(
+                user_id=current_user.id,
+                feature="essay_grader",
+                model=model_name,
+                prompt=prompt_text,
+                tokens_used=len(prompt_text) // 4
+            ))
+            db.commit()
+        except Exception:
+            db.rollback()
+
         # Generate a nice title
         prompt_preview = body.prompt.strip() if body.prompt else ""
         text_preview = body.text.strip()

@@ -49,6 +49,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
     { tab: 'admin-exams', icon: <Calendar size={18} />, label: 'Exams Scheduled', matches: (tab) => tab === 'admin-exams', badge: 0 },
     { tab: 'admin-groups', icon: GroupListIcon, label: 'Groups Created', matches: (tab) => tab === 'admin-groups', badge: 0 },
     { tab: 'admin-notes', icon: <Notebook size={18} />, label: 'User Notes', matches: (tab) => tab === 'admin-notes', badge: 0 },
+    { tab: 'admin-ai-usage', icon: <Sparkles size={18} />, label: 'AI Usage Report', matches: (tab) => tab === 'admin-ai-usage', badge: 0 },
   ] : [
     { tab: 'overview', icon: <Layers size={18} />, label: 'Overview Panels', matches: (tab, gid) => tab === 'overview' && gid === null, badge: 0 },
     { tab: 'modules', icon: <FileText size={18} />, label: 'My Study Modules', matches: (tab, gid) => tab === 'modules' && gid === null, badge: 0 },

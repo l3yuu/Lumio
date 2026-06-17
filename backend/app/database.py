@@ -124,6 +124,36 @@ def ensure_runtime_schema():
         if "reference" not in qq_columns:
             statements.append("ALTER TABLE quiz_questions ADD COLUMN reference VARCHAR(255)")
 
+    if "ai_usage_logs" not in table_names:
+        create_sql = """
+CREATE TABLE IF NOT EXISTS ai_usage_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    feature VARCHAR(50) NOT NULL,
+    model VARCHAR(100),
+    prompt TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+"""
+        if engine.dialect.name == "postgresql":
+            create_sql = """
+CREATE TABLE IF NOT EXISTS ai_usage_logs (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    feature VARCHAR(50) NOT NULL,
+    model VARCHAR(100),
+    prompt TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+"""
+        statements.append(create_sql)
+    else:
+        ai_columns = {column["name"] for column in inspector.get_columns("ai_usage_logs")}
+        if "prompt" not in ai_columns:
+            statements.append("ALTER TABLE ai_usage_logs ADD COLUMN prompt TEXT")
+        if "tokens_used" not in ai_columns:
+            statements.append("ALTER TABLE ai_usage_logs ADD COLUMN tokens_used INTEGER")
+
     if not statements:
         return
 

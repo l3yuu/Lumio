@@ -356,6 +356,20 @@ class Note(Base):
     groups = relationship("StudyGroup", secondary=group_notes, back_populates="notes")
 
 
+class AiUsageLog(Base):
+    __tablename__ = "ai_usage_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    feature = Column(String(50), nullable=False, index=True)
+    model = Column(String(100), nullable=True)
+    prompt = Column(Text, nullable=True)
+    tokens_used = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=now_ph_naive)
+
+    user = relationship("User", backref="ai_usage_logs")
+
+
 class SystemConfig(Base):
     __tablename__ = "system_configs"
 

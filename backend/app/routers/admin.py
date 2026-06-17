@@ -16,6 +16,7 @@ from ..config import settings
 from sqlalchemy import text
 from typing import List, Optional
 from pydantic import BaseModel
+from datetime import datetime, timedelta
 from ..database import get_db
 from .. import models, schemas, auth
 
@@ -650,3 +651,181 @@ def get_admin_group_discussion(
         )
     posts = db.query(models.GroupPost).filter(models.GroupPost.group_id == group_id).order_by(models.GroupPost.id.asc()).all()
     return posts
+
+
+class AiUsageSummary(BaseModel):
+    total_requests: int
+    requests_today: int
+    requests_this_week: int
+    requests_this_month: int
+    by_feature: List[dict]
+    by_day: List[dict]
+    by_hour: List[dict]
+    top_users: List[dict]
+
+
+@router.get("/ai-usage", response_model=AiUsageSummary)
+def get_ai_usage(
+    db: Session = Depends(get_db),
+    current_admin: models.User = Depends(get_current_superadmin)
+):
+    now = datetime.utcnow()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = today_start - timedelta(days=today_start.weekday())
+    month_start = today_start.replace(day=1)
+
+    total = db.query(models.AiUsageLog).count()
+    today = db.query(models.AiUsageLog).filter(models.AiUsageLog.created_at >= today_start).count()
+    week = db.query(models.AiUsageLog).filter(models.AiUsageLog.created_at >= week_start).count()
+    month = db.query(models.AiUsageLog).filter(models.AiUsageLog.created_at >= month_start).count()
+
+    from sqlalchemy import func as sa_func
+
+    by_feature = db.query(
+        models.AiUsageLog.feature,
+        sa_func.count(models.AiUsageLog.id).label("count")
+    ).group_by(models.AiUsageLog.feature).order_by(sa_func.count(models.AiUsageLog.id).desc()).all()
+
+    cutoff_30d = today_start - timedelta(days=30)
+    all_30d = db.query(models.AiUsageLog).filter(models.AiUsageLog.created_at >= cutoff_30d).all()
+    day_map: dict[str, dict[str, int]] = {}
+    for log in all_30d:
+        d = log.created_at.strftime("%Y-%m-%d") if log.created_at else ""
+        if not d:
+            continue
+        if d not in day_map:
+            day_map[d] = {"date": d}
+        day_map[d][log.feature] = day_map[d].get(log.feature, 0) + 1
+        day_map[d]["total"] = day_map[d].get("total", 0) + 1
+    by_day = sorted(day_map.values(), key=lambda x: x["date"])
+
+    cutoff_7d = today_start - timedelta(days=7)
+    all_7d = db.query(models.AiUsageLog).filter(models.AiUsageLog.created_at >= cutoff_7d).all()
+    hour_map: dict[str, dict] = {}
+    for log in all_7d:
+        if not log.created_at:
+            continue
+        d = log.created_at.strftime("%Y-%m-%d")
+        h = log.created_at.strftime("%H")
+        key = f"{d}T{h}"
+        if key not in hour_map:
+            hour_map[key] = {"date": d, "hour": h, "count": 0}
+        hour_map[key]["count"] += 1
+    by_hour = sorted(hour_map.values(), key=lambda x: (x["date"], x["hour"]))
+
+    top_users_data = db.query(
+        models.AiUsageLog.user_id,
+        sa_func.count(models.AiUsageLog.id).label("count")
+    ).filter(
+        models.AiUsageLog.user_id.isnot(None)
+    ).group_by(
+        models.AiUsageLog.user_id
+    ).order_by(
+        sa_func.count(models.AiUsageLog.id).desc()
+    ).limit(10).all()
+
+    top_users = []
+    for u in top_users_data:
+        user_obj = db.query(models.User).filter(models.User.id == u.user_id).first()
+        top_users.append({
+            "user_id": u.user_id,
+            "name": user_obj.name if user_obj else "Unknown",
+            "email": user_obj.email if user_obj else "Unknown",
+        "count": u.count
+    })
+
+    return AiUsageSummary(
+        total_requests=total,
+        requests_today=today,
+        requests_this_week=week,
+        requests_this_month=month,
+        by_feature=[{"feature": f.feature, "count": f.count} for f in by_feature],
+        by_day=by_day,
+        by_hour=by_hour,
+        top_users=top_users
+    )
+
+
+class UserAiUsageDetail(BaseModel):
+    user_id: int
+    name: str
+    email: str
+    total_requests: int
+    requests_today: int
+    requests_this_week: int
+    requests_this_month: int
+    total_tokens_used: int
+    by_feature: List[dict]
+    by_day: List[dict]
+    recent_requests: List[dict]
+
+
+@router.get("/ai-usage/user/{user_id}", response_model=UserAiUsageDetail)
+def get_user_ai_usage(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_admin: models.User = Depends(get_current_superadmin)
+):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    now = datetime.utcnow()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = today_start - timedelta(days=today_start.weekday())
+    month_start = today_start.replace(day=1)
+
+    base = db.query(models.AiUsageLog).filter(models.AiUsageLog.user_id == user_id)
+
+    total = base.count()
+    today = base.filter(models.AiUsageLog.created_at >= today_start).count()
+    week = base.filter(models.AiUsageLog.created_at >= week_start).count()
+    month = base.filter(models.AiUsageLog.created_at >= month_start).count()
+
+    from sqlalchemy import func as sa_func
+    by_feature = base.with_entities(
+        models.AiUsageLog.feature,
+        sa_func.count(models.AiUsageLog.id).label("count")
+    ).group_by(models.AiUsageLog.feature).order_by(sa_func.count(models.AiUsageLog.id).desc()).all()
+
+    cutoff_30d = today_start - timedelta(days=30)
+    all_30d = base.filter(models.AiUsageLog.created_at >= cutoff_30d).all()
+    day_map: dict[str, dict[str, int]] = {}
+    for log in all_30d:
+        d = log.created_at.strftime("%Y-%m-%d") if log.created_at else ""
+        if not d:
+            continue
+        if d not in day_map:
+            day_map[d] = {"date": d}
+        day_map[d][log.feature] = day_map[d].get(log.feature, 0) + 1
+        day_map[d]["total"] = day_map[d].get("total", 0) + 1
+    by_day = sorted(day_map.values(), key=lambda x: x["date"])
+
+    recent = base.order_by(models.AiUsageLog.created_at.desc()).limit(50).all()
+    recent_requests = [
+        {
+            "id": r.id,
+            "feature": r.feature,
+            "model": r.model,
+            "prompt": r.prompt or "",
+            "tokens_used": r.tokens_used or 0,
+            "created_at": r.created_at.strftime("%Y-%m-%d %H:%M") if r.created_at else ""
+        }
+        for r in recent
+    ]
+
+    total_tokens_used = sum(r.tokens_used or 0 for r in base.all())
+
+    return UserAiUsageDetail(
+        user_id=user.id,
+        name=user.name or "Unknown",
+        email=user.email or "",
+        total_requests=total,
+        requests_today=today,
+        requests_this_week=week,
+        requests_this_month=month,
+        total_tokens_used=total_tokens_used,
+        by_feature=[{"feature": f.feature, "count": f.count} for f in by_feature],
+        by_day=by_day,
+        recent_requests=recent_requests
+    )

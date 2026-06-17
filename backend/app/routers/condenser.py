@@ -55,7 +55,21 @@ async def condense_document_endpoint(
 
     try:
         result = condense_document(body.text)
-        
+
+        model_name = get_system_config(db, "default_llm_model") or "gemini-2.5-flash"
+        try:
+            prompt_text = body.text[:2000]
+            db.add(models.AiUsageLog(
+                user_id=current_user.id,
+                feature="condenser",
+                model=model_name,
+                prompt=prompt_text,
+                tokens_used=len(prompt_text) // 4
+            ))
+            db.commit()
+        except Exception:
+            db.rollback()
+
         # Generate a nice title
         text_preview = body.text.strip()
         title = f"Summary: {text_preview[:30]}..." if len(text_preview) > 30 else f"Summary: {text_preview}"

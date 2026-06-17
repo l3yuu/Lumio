@@ -167,6 +167,19 @@ Student Query:
                 )
             )
             answer = response.text if response.text else "No explanation generated. Try another query."
+
+            try:
+                prompt_text = body.query[:2000]
+                db.add(models.AiUsageLog(
+                    user_id=current_user.id,
+                    feature="tutor",
+                    model=model_name,
+                    prompt=prompt_text,
+                    tokens_used=len(prompt_text) // 4
+                ))
+                db.commit()
+            except Exception:
+                db.rollback()
         except Exception as e:
             print(f"Error querying Gemini API for tutor: {e}")
             if local_explanation:

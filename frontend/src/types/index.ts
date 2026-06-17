@@ -16,7 +16,7 @@ export type View =
 
 export type AuthTab = 'login' | 'signup';
 
-export type DashboardTab = 'overview' | 'modules' | 'groups' | 'tools' | 'settings' | 'calendar' | 'notifications' | 'history' | 'notes' | 'admin' | 'admin-overview' | 'admin-users' | 'admin-sales' | 'admin-modules' | 'admin-exams' | 'admin-groups' | 'admin-notes' | 'admin-settings' | 'tool-flashcards' | 'tool-essay' | 'tool-condenser' | 'tool-pomodoro';
+export type DashboardTab = 'overview' | 'modules' | 'groups' | 'tools' | 'settings' | 'calendar' | 'notifications' | 'history' | 'notes' | 'admin' | 'admin-overview' | 'admin-users' | 'admin-sales' | 'admin-modules' | 'admin-exams' | 'admin-groups' | 'admin-notes' | 'admin-ai-usage' | 'admin-settings' | 'tool-flashcards' | 'tool-essay' | 'tool-condenser' | 'tool-pomodoro';
 
 export interface Notification {
   id: number;

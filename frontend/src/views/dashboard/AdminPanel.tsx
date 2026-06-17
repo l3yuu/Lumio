@@ -12,6 +12,7 @@ import { AdminModules } from './AdminPanel/AdminModules';
 import { AdminExams } from './AdminPanel/AdminExams';
 import { AdminGroups } from './AdminPanel/AdminGroups';
 import { AdminNotes } from './AdminPanel/AdminNotes';
+import { AdminAiUsage } from './AdminPanel/AdminAiUsage';
 
 interface AdminPanelProps {
   user: User;
@@ -1382,6 +1383,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
               {currentTab === 'admin-exams' && 'Scheduled Exams'}
               {currentTab === 'admin-groups' && 'Collaborative Circles'}
               {currentTab === 'admin-notes' && 'User Notes'}
+              {currentTab === 'admin-ai-usage' && 'AI Usage Report'}
             </h2>
             <span className="text-xs text-ink-muted">
               {currentTab === 'admin-overview' && 'System statistics, database status, and API health metrics'}
@@ -1391,6 +1393,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
               {currentTab === 'admin-exams' && 'Monitor exam schedules, priorities, due dates, and completion status'}
               {currentTab === 'admin-groups' && 'Monitor all collaborative circles, group sizes, and creators'}
               {currentTab === 'admin-notes' && 'Browse and search all notes created by users across the platform'}
+              {currentTab === 'admin-ai-usage' && 'AI usage analytics, request volume, and feature breakdown'}
             </span>
           </div>
         </div>
@@ -1455,6 +1458,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
             />
           )}
           {currentTab === 'admin-notes' && <AdminNotes />}
+          {currentTab === 'admin-ai-usage' && <AdminAiUsage />}
         </div>
       )}
     </div>
