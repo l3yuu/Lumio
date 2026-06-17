@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Search, RefreshCw, MessageSquare, Notebook } from 'lucide-react';
 import { API_BASE_URL } from '../../../config';
 
@@ -22,18 +22,30 @@ export const AdminNotes = () => {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
 
+  const fetchNotes = useCallback(async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      // Remove trailing slash to prevent double-slash issues in production proxies
+      const baseUrl = API_BASE_URL.replace(/\/+$/, '');
+      const res = await fetch(`${baseUrl}/api/admin/notes`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`HTTP ${res.status}: ${errText}`);
+      }
+      const data = await res.json();
+      setNotes(data);
+    } catch (err) {
+      console.error('Error fetching admin notes:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    fetch(`${API_BASE_URL}/api/admin/notes`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-    .then(res => {
-      if (!res.ok) throw new Error('Failed to fetch user notes');
-      return res.json();
-    })
-    .then(setNotes)
-    .catch(err => console.error('Error fetching admin notes:', err))
-    .finally(() => setLoading(false));
+    fetchNotes();
   }, []);
 
   const uniqueUsers = [...new Set(notes.map(n => n.owner_email))];
@@ -60,20 +72,7 @@ export const AdminNotes = () => {
           </div>
           <button
             type="button"
-            onClick={() => {
-              const token = localStorage.getItem('token');
-              setLoading(true);
-              fetch(`${API_BASE_URL}/api/admin/notes`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-              })
-              .then(res => {
-                if (!res.ok) throw new Error('Failed to fetch user notes');
-                return res.json();
-              })
-              .then(setNotes)
-              .catch(err => console.error('Error fetching admin notes:', err))
-              .finally(() => setLoading(false));
-            }}
+            onClick={fetchNotes}
             disabled={loading}
             className="flex items-center gap-1.5 text-xs font-semibold text-ink-muted hover:text-ink bg-transparent border border-line rounded-lg px-3 py-1.5 cursor-pointer transition-colors disabled:opacity-50"
           >

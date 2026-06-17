@@ -423,7 +423,8 @@ const UserDetail = ({ userId, onBack }: { userId: number; onBack: () => void }) 
   useEffect(() => {
     let cancelled = false;
     const token = localStorage.getItem('token');
-    fetch(`${API_BASE_URL}/api/admin/ai-usage/user/${userId}`, {
+    const baseUrl = API_BASE_URL.replace(/\/+$/, '');
+    fetch(`${baseUrl}/api/admin/ai-usage/user/${userId}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
       .then(res => {
@@ -641,7 +642,8 @@ export const AdminAiUsage = () => {
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    fetch(`${API_BASE_URL}/api/admin/ai-usage`, {
+    const baseUrl = API_BASE_URL.replace(/\/+$/, '');
+    fetch(`${baseUrl}/api/admin/ai-usage`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
       .then(res => {
