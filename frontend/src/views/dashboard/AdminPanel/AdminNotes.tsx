@@ -23,7 +23,6 @@ export const AdminNotes = () => {
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
 
   const fetchNotes = useCallback(async () => {
-    setLoading(true);
     try {
       const token = localStorage.getItem('token');
       // Remove trailing slash to prevent double-slash issues in production proxies
@@ -46,7 +45,7 @@ export const AdminNotes = () => {
 
   useEffect(() => {
     fetchNotes();
-  }, []);
+  }, [fetchNotes]);
 
   const uniqueUsers = [...new Set(notes.map(n => n.owner_email))];
 
@@ -72,7 +71,10 @@ export const AdminNotes = () => {
           </div>
           <button
             type="button"
-            onClick={fetchNotes}
+            onClick={() => {
+              setLoading(true);
+              fetchNotes();
+            }}
             disabled={loading}
             className="flex items-center gap-1.5 text-xs font-semibold text-ink-muted hover:text-ink bg-transparent border border-line rounded-lg px-3 py-1.5 cursor-pointer transition-colors disabled:opacity-50"
           >
