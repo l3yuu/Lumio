@@ -60,7 +60,20 @@ export const AdminNotes = () => {
           </div>
           <button
             type="button"
-            onClick={fetchNotes}
+            onClick={() => {
+              const token = localStorage.getItem('token');
+              setLoading(true);
+              fetch(`${API_BASE_URL}/api/admin/notes`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+              })
+              .then(res => {
+                if (!res.ok) throw new Error('Failed to fetch user notes');
+                return res.json();
+              })
+              .then(setNotes)
+              .catch(err => console.error('Error fetching admin notes:', err))
+              .finally(() => setLoading(false));
+            }}
             disabled={loading}
             className="flex items-center gap-1.5 text-xs font-semibold text-ink-muted hover:text-ink bg-transparent border border-line rounded-lg px-3 py-1.5 cursor-pointer transition-colors disabled:opacity-50"
           >

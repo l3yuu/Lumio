@@ -185,7 +185,6 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
         name: group.name,
         creator_id: group.creator_id,
         isPublic: group.is_public ?? false,
-        joinCode: group.join_code,
         members: (group.members || []).map((m: GroupMember) => ({
           id: m.id, name: m.name, email: m.email, avatar: m.avatar, online: m.online, is_premium: m.is_premium,
         })),

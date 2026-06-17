@@ -1738,7 +1738,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         const mapped = (data as StudyGroupResponse[]).map(g => ({
           ...g,
           isPublic: g.is_public ?? false,
-          joinCode: g.join_code,
           modules: g.modules ? g.modules.map(m => ({
             id: m.id,
             name: m.name,
