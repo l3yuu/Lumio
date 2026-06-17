@@ -426,9 +426,12 @@ const UserDetail = ({ userId, onBack }: { userId: number; onBack: () => void }) 
     fetch(`${API_BASE_URL}/api/admin/ai-usage/user/${userId}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error(`Failed to fetch user AI usage (${res.status})`);
+        return res.json();
+      })
       .then(data => { if (!cancelled) setDetail(data); })
-      .catch(console.error)
+      .catch(err => { console.error('Error fetching user AI usage:', err); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [userId]);
@@ -641,9 +644,12 @@ export const AdminAiUsage = () => {
     fetch(`${API_BASE_URL}/api/admin/ai-usage`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error(`Failed to fetch AI usage data (${res.status})`);
+        return res.json();
+      })
       .then(setData)
-      .catch(console.error)
+      .catch(err => console.error('Error fetching AI usage:', err))
       .finally(() => setLoading(false));
   }, []);
 
