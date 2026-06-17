@@ -421,15 +421,16 @@ const UserDetail = ({ userId, onBack }: { userId: number; onBack: () => void }) 
   const [activeTab, setActiveTab] = useState<'overview' | 'prompts'>('overview');
 
   useEffect(() => {
+    let cancelled = false;
     const token = localStorage.getItem('token');
-    setLoading(true);
     fetch(`${API_BASE_URL}/api/admin/ai-usage/user/${userId}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
       .then(res => res.json())
-      .then(setDetail)
+      .then(data => { if (!cancelled) setDetail(data); })
       .catch(console.error)
-      .finally(() => setLoading(false));
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [userId]);
 
   if (loading) {
