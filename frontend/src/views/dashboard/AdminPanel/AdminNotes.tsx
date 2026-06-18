@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, RefreshCw, MessageSquare, Notebook } from 'lucide-react';
 import { API_BASE_URL } from '../../../config';
 
@@ -21,31 +21,34 @@ export const AdminNotes = () => {
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
-
-  const fetchNotes = useCallback(async () => {
-    try {
-      const token = localStorage.getItem('token');
-      // Remove trailing slash to prevent double-slash issues in production proxies
-      const baseUrl = API_BASE_URL.replace(/\/+$/, '');
-      const res = await fetch(`${baseUrl}/api/admin/notes`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`HTTP ${res.status}: ${errText}`);
-      }
-      const data = await res.json();
-      setNotes(data);
-    } catch (err) {
-      console.error('Error fetching admin notes:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
+    let cancelled = false;
+
+    const fetchNotes = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const baseUrl = API_BASE_URL.replace(/\/+$/, '');
+        const res = await fetch(`${baseUrl}/api/admin/notes`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error(`HTTP ${res.status}: ${errText}`);
+        }
+        const data = await res.json();
+        if (!cancelled) setNotes(data);
+      } catch (err) {
+        console.error('Error fetching admin notes:', err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
     fetchNotes();
-  }, [fetchNotes]);
+    return () => { cancelled = true; };
+  }, [refreshKey]);
 
   const uniqueUsers = [...new Set(notes.map(n => n.owner_email))];
 
@@ -73,7 +76,7 @@ export const AdminNotes = () => {
             type="button"
             onClick={() => {
               setLoading(true);
-              fetchNotes();
+              setRefreshKey(k => k + 1);
             }}
             disabled={loading}
             className="flex items-center gap-1.5 text-xs font-semibold text-ink-muted hover:text-ink bg-transparent border border-line rounded-lg px-3 py-1.5 cursor-pointer transition-colors disabled:opacity-50"

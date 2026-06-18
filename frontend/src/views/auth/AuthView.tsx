@@ -89,7 +89,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
     };
   }
 
-  const renderGoogleButton = () => {
+  const renderGoogleButton = useCallback(() => {
     const google = (window as GoogleWindow).google;
     if (!google?.accounts) return;
     const btnElem = document.getElementById("google-signin-button");
@@ -105,7 +105,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
         logo_alignment: "left"
       });
     }
-  };
+  }, []);
 
   // Countdown timer for rate-limit cooldown
   useEffect(() => {
@@ -332,7 +332,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
     }, 500);
 
     return () => clearInterval(timer);
-  }, [screen, handleGoogleCredentialResponse]);
+  }, [screen, handleGoogleCredentialResponse, renderGoogleButton]);
 
   // Re-render Google button when screen changes (AnimatePresence defers new DOM until exit animation finishes)
   useEffect(() => {
@@ -346,7 +346,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
       }
     }, 50);
     return () => clearInterval(id);
-  }, [screen]);
+  }, [screen, renderGoogleButton]);
 
 
   const formContent = () => {
