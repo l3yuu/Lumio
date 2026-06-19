@@ -30,6 +30,7 @@ It is recommended to run the backend and frontend in separate terminals:
 docker compose up -d
 ngrok http 8000
 source venv/bin/activate
+.\venv\Scripts\Activate
 uvicorn main:app --reload --port 8000
 ```
 
