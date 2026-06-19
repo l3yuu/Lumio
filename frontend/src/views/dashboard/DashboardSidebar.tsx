@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Layers, FileText, Users, Sparkles, Calendar, Settings, Shield, ChevronDown, HelpCircle, Timer, History, Notebook } from 'lucide-react';
+import { Layers, FileText, Users, Sparkles, Calendar, Settings, Shield, ChevronDown, HelpCircle, Timer, Notebook, Globe } from 'lucide-react';
 import type { User, Module, DashboardTab } from '../../types';
 
 interface DashboardSidebarProps {
@@ -53,7 +53,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
   ] : [
     { tab: 'overview', icon: <Layers size={18} />, label: 'Overview Panels', matches: (tab, gid) => tab === 'overview' && gid === null, badge: 0 },
     { tab: 'modules', icon: <FileText size={18} />, label: 'My Study Modules', matches: (tab, gid) => tab === 'modules' && gid === null, badge: 0 },
-    { tab: 'history', icon: <History size={18} />, label: 'Quiz History', matches: (tab, gid) => tab === 'history' && gid === null, badge: 0 },
+    { tab: 'public-explorer', icon: <Globe size={18} />, label: 'Public Explorer', matches: (tab, gid) => tab === 'public-explorer' && gid === null, badge: 0 },
     { tab: 'notes', icon: <Notebook size={18} />, label: 'My Notes', matches: (tab, gid) => tab === 'notes' && gid === null, badge: 0 },
     { tab: 'groups', icon: <Users size={18} />, label: 'Collaborative Circles', matches: (tab, gid) => tab === 'groups' || gid !== null, badge: invitationCount },
     { tab: 'calendar', icon: <Calendar size={18} />, label: 'Exam Calendar', matches: (tab, gid) => tab === 'calendar' && gid === null, badge: 0 },

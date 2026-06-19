@@ -16,7 +16,7 @@ export type View =
 
 export type AuthTab = 'login' | 'signup';
 
-export type DashboardTab = 'overview' | 'modules' | 'groups' | 'tools' | 'settings' | 'calendar' | 'notifications' | 'history' | 'notes' | 'admin' | 'admin-overview' | 'admin-users' | 'admin-sales' | 'admin-modules' | 'admin-exams' | 'admin-groups' | 'admin-notes' | 'admin-ai-usage' | 'admin-settings' | 'tool-flashcards' | 'tool-essay' | 'tool-condenser' | 'tool-pomodoro';
+export type DashboardTab = 'overview' | 'modules' | 'groups' | 'tools' | 'settings' | 'calendar' | 'notifications' | 'history' | 'notes' | 'admin' | 'admin-overview' | 'admin-users' | 'admin-sales' | 'admin-modules' | 'admin-exams' | 'admin-groups' | 'admin-notes' | 'admin-ai-usage' | 'admin-settings' | 'tool-flashcards' | 'tool-essay' | 'tool-condenser' | 'tool-pomodoro' | 'public-explorer';
 
 export interface Notification {
   id: number;
@@ -105,6 +105,7 @@ export interface Module {
   hasSourceFile?: boolean;
   lastScore?: string;
   difficulty?: string;
+  isPublic?: boolean;
 }
 
 export interface GroupMember {
@@ -196,6 +197,7 @@ export interface ModuleResponse {
   questions?: QuizQuestionResponse[];
   last_score?: string;
   difficulty?: string;
+  is_public?: boolean;
 }
 
 export interface GroupQuizRankResponse {

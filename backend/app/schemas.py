@@ -113,6 +113,7 @@ class ModuleBase(BaseModel):
     name: str
     subject: Optional[str] = None
     size: str
+    is_public: bool = False
 
 class ModuleCreate(ModuleBase):
     questions: List[QuizQuestionBase]
@@ -144,6 +145,7 @@ class ModuleScoreUpdate(BaseModel):
 class ModuleUpdate(BaseModel):
     subject: Optional[str] = None
     name: Optional[str] = None
+    is_public: Optional[bool] = None
 
 
 class FolderRename(BaseModel):

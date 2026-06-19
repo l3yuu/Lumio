@@ -76,7 +76,8 @@ const mapModule = (m: ModuleResponse): Module => ({
     correctAnswerIndex: q.correct_answer_index
   })) : [],
   lastScore: m.last_score,
-  difficulty: m.difficulty
+  difficulty: m.difficulty,
+  isPublic: m.is_public || false
 });
 
 const mapGroup = (g: StudyGroupResponse): StudyGroup => ({
@@ -1055,6 +1056,7 @@ function App() {
             onPwaInstall={handlePwaInstall}
             showPwaBanner={showPwaBanner}
             onDismissPwaBanner={handleDismissPwaBanner}
+            groups={groups}
           />
         )}
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sun, Moon, Menu, X, ChevronRight, Sparkles, Layers, Settings, Bell, FileText, Users, Calendar, History, Notebook } from 'lucide-react';
-import type { User, View, AuthTab, DashboardTab, Module, Notification, GroupInvitation } from '../../types';
+import type { User, View, AuthTab, DashboardTab, Module, Notification, GroupInvitation, StudyGroup } from '../../types';
 
 interface NavbarProps {
   theme: 'dark' | 'light';
@@ -30,6 +30,7 @@ interface NavbarProps {
   onPwaInstall?: () => void;
   showPwaBanner?: boolean;
   onDismissPwaBanner?: () => void;
+  groups?: StudyGroup[];
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -58,6 +59,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onPwaInstall = () => {},
   showPwaBanner = false,
   onDismissPwaBanner = () => {},
+  groups = [],
 }) => {
   const [notifOpen, setNotifOpen] = React.useState(false);
   const [userMenuOpen, setUserMenuOpen] = React.useState(false);
@@ -276,6 +278,20 @@ export const Navbar: React.FC<NavbarProps> = ({
                           onClick={() => {
                             if (onMarkNotificationRead && !n.is_read) onMarkNotificationRead(n.id);
                             setNotifOpen(false);
+                            
+                            if (n.type === 'module_shared' || n.type === 'note_shared') {
+                              const isModule = n.type === 'module_shared';
+                              const group = groups.find(g =>
+                                isModule
+                                  ? g.modules?.some(m => m.id === n.related_id)
+                                  : g.notes?.some(nt => nt.id === n.related_id)
+                              );
+                              if (group) {
+                                setView('dashboard');
+                                setSelectedGroupId(group.id);
+                                setDashboardTab('groups');
+                              }
+                            }
                           }}
                           className={`p-3 px-4 flex flex-col gap-0.5 border-b border-line cursor-pointer transition-colors duration-150 hover:bg-glass last:border-b-0 ${!n.is_read ? 'bg-primary-soft/10' : ''}`}
                         >

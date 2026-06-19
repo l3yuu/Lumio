@@ -13,7 +13,6 @@ import { SettingsPanel } from './SettingsPanel';
 import { QuizPanel } from './QuizPanel';
 import { CalendarPanel } from './CalendarPanel';
 import { NotificationsPanel } from './NotificationsPanel';
-import { HistoryPanel } from './HistoryPanel';
 import { NotesPanel } from './NotesPanel';
 import { AdminPanel } from './AdminPanel';
 import { FlashcardsTool } from '../tools/FlashcardsTool';
@@ -1907,6 +1906,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     getActivityColor={getActivityColor}
                     handleStreakCheckIn={handleStreakCheckIn}
                     recentExamFinish={recentExamFinish}
+                    notifications={notifications}
+                    onMarkNotificationRead={onMarkNotificationRead}
+                    groups={groups}
+                    setSelectedGroupId={setSelectedGroupId}
                   />
                 )}
 
@@ -1932,6 +1935,36 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     exams={exams}
                     handleLinkExamToQuiz={handleLinkExamToQuiz}
                     onAddExamToCalendar={handleAddExamToCalendar}
+                    initialViewMode="quizzes"
+                    quizAttempts={quizAttempts}
+                    setView={setView}
+                  />
+                )}
+
+                {dashboardTab === 'public-explorer' && selectedGroupId === null && (
+                  <ModulesPanel
+                    modules={modules}
+                    user={user}
+                    setModules={setModules}
+                    showToast={showToast}
+                    selectedSubject={selectedSubject}
+                    subjects={['All', ...(user.folders || ['General'])]}
+                    filteredModules={filteredModules}
+                    setSelectedSubject={setSelectedSubject}
+                    startQuiz={startQuiz}
+                    handleDeleteModule={handleDeleteModule}
+                    setIsUploadOpen={setIsUploadOpen}
+                    moduleScores={moduleScores}
+                    onFileDropped={onFileDropped}
+                    onCreateFolder={handleCreateFolder}
+                    onMoveModule={handleMoveModule}
+                    onRenameFolder={handleRenameFolder}
+                    onDeleteFolder={handleDeleteFolder}
+                    exams={exams}
+                    handleLinkExamToQuiz={handleLinkExamToQuiz}
+                    onAddExamToCalendar={handleAddExamToCalendar}
+                    initialViewMode="public"
+                    setView={setView}
                   />
                 )}
 
@@ -2002,10 +2035,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     onMarkAsRead={onMarkNotificationRead}
                     onMarkAllAsRead={onMarkAllNotificationsRead}
                     onRefresh={onRefreshNotifications}
+                    groups={groups}
+                    setSelectedGroupId={setSelectedGroupId}
+                    setDashboardTab={handleSetDashboardTab}
                   />
-                )}
-                {dashboardTab === 'history' && selectedGroupId === null && (
-                  <HistoryPanel attempts={quizAttempts} />
                 )}
                 {dashboardTab === 'notes' && selectedGroupId === null && (
                   <NotesPanel

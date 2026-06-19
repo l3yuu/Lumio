@@ -38,6 +38,11 @@ def ensure_runtime_schema():
             statements.append("ALTER TABLE modules ADD COLUMN last_score VARCHAR(50)")
         if "difficulty" not in module_columns:
             statements.append("ALTER TABLE modules ADD COLUMN difficulty VARCHAR(20) DEFAULT 'medium'")
+        if "is_public" not in module_columns:
+            if engine.dialect.name == "postgresql":
+                statements.append("ALTER TABLE modules ADD COLUMN is_public BOOLEAN DEFAULT FALSE")
+            else:
+                statements.append("ALTER TABLE modules ADD COLUMN is_public INTEGER DEFAULT 0")
 
     if "exam_deadlines" in table_names:
         exam_columns = {column["name"] for column in inspector.get_columns("exam_deadlines")}

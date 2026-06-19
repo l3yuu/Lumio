@@ -129,6 +129,7 @@ class Module(Base):
     source_file_mime = Column(String(100), nullable=True)
     last_score = Column(String(50), nullable=True)
     difficulty = Column(String(20), default="medium", nullable=True)
+    is_public = Column(Boolean, default=False, nullable=False)
 
     @property
     def has_source_file(self) -> bool:

@@ -319,11 +319,8 @@ def get_module_source(
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db)
 ):
-    module = db.query(models.Module).filter(
-        models.Module.id == module_id,
-        models.Module.user_id == current_user.id
-    ).first()
-    if not module:
+    module = db.query(models.Module).filter(models.Module.id == module_id).first()
+    if not module or (module.user_id != current_user.id and not module.is_public):
         raise HTTPException(status_code=404, detail="Module not found")
     return schemas.ModuleSourceOut(
         id=module.id,
@@ -338,11 +335,8 @@ def get_module_file(
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db)
 ):
-    module = db.query(models.Module).filter(
-        models.Module.id == module_id,
-        models.Module.user_id == current_user.id
-    ).first()
-    if not module:
+    module = db.query(models.Module).filter(models.Module.id == module_id).first()
+    if not module or (module.user_id != current_user.id and not module.is_public):
         raise HTTPException(status_code=404, detail="Module not found")
     if module.source_file_data:
         return Response(
@@ -359,6 +353,71 @@ def get_module_file(
         filename=module.source_filename or "file",
         media_type=module.source_file_mime or get_source_media_type(module.source_filename)
     )
+
+
+@router.get("/public", response_model=List[schemas.ModuleOut])
+def get_public_modules(
+    search: Optional[str] = None,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    query = db.query(models.Module).filter(
+        models.Module.is_public == True
+    )
+    if search:
+        query = query.filter(
+            (models.Module.name.ilike(f"%{search}%")) |
+            (models.Module.subject.ilike(f"%{search}%"))
+        )
+    return query.order_by(models.Module.id.desc()).all()
+
+
+@router.post("/{module_id}/copy", response_model=schemas.ModuleOut)
+def copy_public_module(
+    module_id: int,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    source_module = db.query(models.Module).filter(
+        models.Module.id == module_id,
+        models.Module.is_public == True
+    ).first()
+    if not source_module:
+        raise HTTPException(status_code=404, detail="Public module not found")
+        
+    cloned_module = models.Module(
+        name=source_module.name,
+        date=today_ph_str(),
+        size=source_module.size,
+        subject=source_module.subject,
+        user_id=current_user.id,
+        source_content=source_module.source_content,
+        source_filename=source_module.source_filename,
+        source_file_path=source_module.source_file_path,
+        source_file_data=source_module.source_file_data,
+        source_file_mime=source_module.source_file_mime,
+        difficulty=source_module.difficulty,
+        is_public=False
+    )
+    db.add(cloned_module)
+    db.flush()
+    
+    for q in source_module.questions:
+        cloned_q = models.QuizQuestion(
+            question=q.question,
+            options=q.options,
+            correct_answer_index=q.correct_answer_index,
+            explanation=q.explanation,
+            hint=q.hint,
+            question_type=q.question_type,
+            reference=q.reference,
+            module_id=cloned_module.id
+        )
+        db.add(cloned_q)
+        
+    db.commit()
+    db.refresh(cloned_module)
+    return cloned_module
 
 
 @router.put("/{module_id}", response_model=schemas.ModuleOut)
@@ -379,6 +438,8 @@ def update_module(
         module.subject = body.subject
     if body.name is not None:
         module.name = body.name
+    if body.is_public is not None:
+        module.is_public = body.is_public
     db.commit()
     db.refresh(module)
     return module
