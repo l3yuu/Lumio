@@ -94,15 +94,19 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
   const [pdfThumbnails, setPdfThumbnails] = useState<{ [moduleId: number]: string }>({});
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const loadPdfJs = (): Promise<any> => {
     return new Promise((resolve, reject) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if ((window as any).pdfjsLib) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         resolve((window as any).pdfjsLib);
         return;
       }
       const script = document.createElement('script');
       script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js';
       script.onload = () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const pdfjsLib = (window as any).pdfjsLib;
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
         resolve(pdfjsLib);
@@ -112,7 +116,7 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
     });
   };
 
-  const generatePdfThumbnail = async (moduleId: number): Promise<string> => {
+  const generatePdfThumbnail = React.useCallback(async (moduleId: number): Promise<string> => {
     const token = localStorage.getItem('token');
     if (!token) throw new Error('Unauthorized');
 
@@ -141,7 +145,7 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
 
     pdf.destroy();
     return dataUrl;
-  };
+  }, []);
 
   React.useEffect(() => {
     loadPdfJs().catch(err => console.error('Failed to pre-load PDF.js:', err));
@@ -162,7 +166,7 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
         }
       });
     }
-  }, [publicModules, viewMode]);
+  }, [publicModules, viewMode, pdfThumbnails, generatePdfThumbnail]);
 
   const fetchPublicModules = (queryStr: string = '') => {
     const token = localStorage.getItem('token');
@@ -229,12 +233,16 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
     });
   };
 
-  React.useEffect(() => {
+  // Sync state during render if initialViewMode changes to avoid useEffect state cascades
+  const [prevInitialViewMode, setPrevInitialViewMode] = useState(initialViewMode);
+  if (initialViewMode !== prevInitialViewMode) {
+    setPrevInitialViewMode(initialViewMode);
     setViewMode(initialViewMode);
-  }, [initialViewMode]);
+  }
 
   React.useEffect(() => {
     if (viewMode === 'public') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchPublicModules(publicSearchQuery);
     }
   }, [viewMode, publicSearchQuery]);
