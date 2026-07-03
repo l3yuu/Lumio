@@ -4,11 +4,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine, Base, ensure_runtime_schema
 from app.routers import auth, modules, exams, groups, notifications, tutor, admin, payments, flashcards, condenser, essay_grader, notes
 
+from prometheus_fastapi_instrumentator import Instrumentator
+
 # Create database tables automatically
 Base.metadata.create_all(bind=engine)
 ensure_runtime_schema()
 
 app = FastAPI(title="Lumio API")
+
+# Expose prometheus metrics
+Instrumentator().instrument(app).expose(app)
 
 # Configure CORS
 origins = [
