@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Table, Text, JSON, DateTime, LargeBinary
 from sqlalchemy.orm import relationship
 from datetime import datetime
