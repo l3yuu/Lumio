@@ -47,6 +47,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
   const [inviteError, setInviteError] = useState('');
   const [isLeaving, setIsLeaving] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [selectedNewOwnerId, setSelectedNewOwnerId] = useState<number | null>(null);
   const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
   const [isMembersModalOpen, setIsMembersModalOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
@@ -61,6 +62,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
   const [removeConfirmMember, setRemoveConfirmMember] = useState<{ id: number; name: string } | null>(null);
   const [transferConfirmMember, setTransferConfirmMember] = useState<{ id: number; name: string } | null>(null);
   const [isTransferringOwnershipId, setIsTransferringOwnershipId] = useState<number | null>(null);
+  const [isRemovingModuleId, setIsRemovingModuleId] = useState<number | null>(null);
 
   const [activeTab, setActiveTab] = useState<'study' | 'discussion'>('study');
   const [discussionPosts, setDiscussionPosts] = useState<GroupPost[]>([]);
@@ -114,6 +116,8 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
       size: m.size,
       subject: m.subject || 'General',
       questionsCount: m.questionsCount !== undefined ? m.questionsCount : (m.questions ? m.questions.length : 0),
+      userId: m.user_id,
+      sharedByName: m.shared_by_name,
       questions: m.questions ? m.questions.map((q: QuizQuestionResponse) => ({
         id: q.id,
         question: q.question,
@@ -168,7 +172,8 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
     const skip = pageNum * limit;
     
     fetch(`${API_BASE_URL}/api/groups/public?skip=${skip}&limit=${limit}`, {
-      headers: { 'Authorization': `Bearer ${token}` }
+      headers: { 'Authorization': `Bearer ${token}` },
+      cache: 'no-store'
     })
     .then(res => res.ok ? res.json() : [])
     .then((data: StudyGroupResponse[]) => {
@@ -199,7 +204,8 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
     const skip = pageNum * limit;
     
     fetch(`${API_BASE_URL}/api/groups?skip=${skip}&limit=${limit}`, {
-      headers: { 'Authorization': `Bearer ${token}` }
+      headers: { 'Authorization': `Bearer ${token}` },
+      cache: 'no-store'
     })
     .then(res => res.ok ? res.json() : [])
     .then((data: StudyGroupResponse[]) => {
@@ -221,6 +227,23 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
       setIsFetchingUserGroups(false);
     });
   }, []);
+
+  // Re-fetch a single group from server and sync into parent state
+  const fetchGroupById = React.useCallback((groupId: number) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    fetch(`${API_BASE_URL}/api/groups/${groupId}`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+      cache: 'no-store'
+    })
+    .then(res => res.ok ? res.json() : null)
+    .then((data: StudyGroupResponse | null) => {
+      if (!data) return;
+      const mapped = mapStudyGroup(data);
+      setGroups(prev => prev.map(g => g.id === mapped.id ? mapped : g));
+    })
+    .catch(err => console.error('Error refreshing group:', err));
+  }, [mapStudyGroup, setGroups]);
 
   // Initial loads
   useEffect(() => {
@@ -343,15 +366,16 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify({ name: currentGroup.name, is_public: !currentGroup.isPublic })
+      body: JSON.stringify({ name: currentGroup.name, is_public: !currentGroup.isPublic }),
+      cache: 'no-store'
     })
     .then(async res => {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.detail || 'Failed to update group visibility');
       return data as StudyGroupResponse;
     })
-    .then((updatedGroup: StudyGroupResponse) => {
-      setGroups(prev => prev.map(g => g.id === updatedGroup.id ? { ...g, isPublic: updatedGroup.is_public ?? false } : g));
+    .then(() => {
+      fetchGroupById(selectedGroupId!);
     })
     .catch(err => alert(err.message))
     .finally(() => setIsTogglingVisibility(false));
@@ -372,70 +396,16 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify({ name: newGroupName.trim() })
+      body: JSON.stringify({ name: newGroupName.trim() }),
+      cache: 'no-store'
     })
     .then(async res => {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.detail || 'Failed to rename group');
       return data as StudyGroupResponse;
     })
-    .then((updatedGroup: StudyGroupResponse) => {
-      const mapped: StudyGroup = {
-        id: updatedGroup.id,
-        name: updatedGroup.name,
-        creator_id: updatedGroup.creator_id,
-        isPublic: updatedGroup.is_public ?? false,
-        members: (updatedGroup.members || []).map(m => ({
-          id: m.id,
-          name: m.name,
-          email: m.email,
-          avatar: m.avatar,
-          online: m.online,
-          is_premium: m.is_premium,
-        })),
-        modules: updatedGroup.modules ? updatedGroup.modules.map((m: ModuleResponse) => ({
-          id: m.id,
-          name: m.name,
-          date: m.date,
-          size: m.size,
-          subject: m.subject || 'General',
-          questionsCount: m.questionsCount !== undefined ? m.questionsCount : (m.questions ? m.questions.length : 0),
-          questions: m.questions ? m.questions.map((q: QuizQuestionResponse) => ({
-            id: q.id,
-            question: q.question,
-            options: q.options,
-            correctAnswerIndex: q.correct_answer_index,
-            explanation: q.explanation,
-            hint: q.hint,
-            questionType: q.question_type,
-            reference: q.reference
-          })) : []
-        })) : [],
-        notes: updatedGroup.notes ? updatedGroup.notes.map((n: { id: number; user_id: number; title: string; content: string; subject: string; is_pinned: boolean; created_at: string; updated_at: string }) => ({
-          id: n.id,
-          userId: n.user_id,
-          title: n.title,
-          content: n.content,
-          subject: n.subject,
-          isPinned: n.is_pinned,
-          createdAt: n.created_at,
-          updatedAt: n.updated_at
-        })) : [],
-        quizSessions: updatedGroup.quiz_sessions ? updatedGroup.quiz_sessions.map((s: GroupQuizSessionResponse) => ({
-          id: s.id,
-          moduleName: s.module_name,
-          date: s.date,
-          avgScore: s.avg_score,
-          rankings: s.rankings ? s.rankings.map((r: GroupQuizRankResponse) => ({
-            name: r.name,
-            score: r.score,
-            percentage: r.percentage,
-            time: r.time,
-            isUser: r.is_user
-          })) : []
-        })) : []
-      };
-      setGroups(prev => prev.map(g => g.id === mapped.id ? mapped : g));
+    .then(() => {
+      fetchGroupById(selectedGroupId!);
       setRenameSuccess(true);
     })
     .catch(err => {
@@ -692,9 +662,14 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
     if (!token) return;
 
     setIsLeaving(true);
+    const isOwner = activeGroup.creator_id === user.id;
     fetch(`${API_BASE_URL}/api/groups/${activeGroup.id}/leave`, {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}` }
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: isOwner ? JSON.stringify({ new_owner_id: selectedNewOwnerId }) : undefined
     })
     .then(async res => {
       if (!res.ok) {
@@ -705,7 +680,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
       setSelectedGroupId(null);
     })
     .catch(err => alert(err.message))
-    .finally(() => { setIsLeaving(false); setConfirmLeave(false); setGroupSettingsOpen(false); });
+    .finally(() => { setIsLeaving(false); setConfirmLeave(false); setGroupSettingsOpen(false); setSelectedNewOwnerId(null); });
   };
 
   const handleInviteMember = (e: React.FormEvent) => {
@@ -770,72 +745,15 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
     setIsRemovingMemberId(memberId);
     fetch(`${API_BASE_URL}/api/groups/${activeGroup.id}/members/${memberId}`, {
       method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
+      headers: { 'Authorization': `Bearer ${token}` },
+      cache: 'no-store'
     })
     .then(async res => {
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.detail || 'Failed to remove member');
-      return data;
     })
-    .then((updatedGroup: StudyGroupResponse) => {
-      const mapped: StudyGroup = {
-        id: updatedGroup.id,
-        name: updatedGroup.name,
-        creator_id: updatedGroup.creator_id,
-        isPublic: updatedGroup.is_public ?? false,
-        members: (updatedGroup.members || []).map((m: GroupMember) => ({
-          id: m.id,
-          name: m.name,
-          email: m.email,
-          avatar: m.avatar,
-          online: m.online,
-          is_premium: m.is_premium,
-        })),
-        modules: updatedGroup.modules ? updatedGroup.modules.map((m: ModuleResponse) => ({
-          id: m.id,
-          name: m.name,
-          date: m.date,
-          size: m.size,
-          subject: m.subject || 'General',
-          questionsCount: m.questionsCount !== undefined ? m.questionsCount : (m.questions ? m.questions.length : 0),
-          questions: m.questions ? m.questions.map((q: QuizQuestionResponse) => ({
-            id: q.id,
-            question: q.question,
-            options: q.options,
-            correctAnswerIndex: q.correct_answer_index,
-            explanation: q.explanation,
-            hint: q.hint,
-            questionType: q.question_type,
-            reference: q.reference
-          })) : []
-        })) : [],
-        notes: updatedGroup.notes ? updatedGroup.notes.map((n: { id: number; user_id: number; title: string; content: string; subject: string; is_pinned: boolean; created_at: string; updated_at: string }) => ({
-          id: n.id,
-          userId: n.user_id,
-          title: n.title,
-          content: n.content,
-          subject: n.subject,
-          isPinned: n.is_pinned,
-          createdAt: n.created_at,
-          updatedAt: n.updated_at
-        })) : [],
-        quizSessions: updatedGroup.quiz_sessions ? updatedGroup.quiz_sessions.map((s: GroupQuizSessionResponse) => ({
-          id: s.id,
-          moduleName: s.module_name,
-          date: s.date,
-          avgScore: s.avg_score,
-          rankings: s.rankings ? s.rankings.map((r: GroupQuizRankResponse) => ({
-            name: r.name,
-            score: r.score,
-            percentage: r.percentage,
-            time: r.time,
-            isUser: r.is_user
-          })) : []
-        })) : []
-      };
-      setGroups(prev => prev.map(g => g.id === mapped.id ? mapped : g));
+    .then(() => {
+      fetchGroupById(activeGroup.id!);
     })
     .catch(err => alert(err.message))
     .finally(() => setIsRemovingMemberId(null));
@@ -850,72 +768,15 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
     setIsTransferringOwnershipId(memberId);
     fetch(`${API_BASE_URL}/api/groups/${activeGroup.id}/transfer-ownership/${memberId}`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
+      headers: { 'Authorization': `Bearer ${token}` },
+      cache: 'no-store'
     })
     .then(async res => {
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.detail || 'Failed to transfer ownership');
-      return data;
     })
-    .then((updatedGroup: StudyGroupResponse) => {
-      const mapped: StudyGroup = {
-        id: updatedGroup.id,
-        name: updatedGroup.name,
-        creator_id: updatedGroup.creator_id,
-        isPublic: updatedGroup.is_public ?? false,
-        members: (updatedGroup.members || []).map((m: GroupMember) => ({
-          id: m.id,
-          name: m.name,
-          email: m.email,
-          avatar: m.avatar,
-          online: m.online,
-          is_premium: m.is_premium,
-        })),
-        modules: updatedGroup.modules ? updatedGroup.modules.map((m: ModuleResponse) => ({
-          id: m.id,
-          name: m.name,
-          date: m.date,
-          size: m.size,
-          subject: m.subject || 'General',
-          questionsCount: m.questionsCount !== undefined ? m.questionsCount : (m.questions ? m.questions.length : 0),
-          questions: m.questions ? m.questions.map((q: QuizQuestionResponse) => ({
-            id: q.id,
-            question: q.question,
-            options: q.options,
-            correctAnswerIndex: q.correct_answer_index,
-            explanation: q.explanation,
-            hint: q.hint,
-            questionType: q.question_type,
-            reference: q.reference
-          })) : []
-        })) : [],
-        notes: updatedGroup.notes ? updatedGroup.notes.map((n: { id: number; user_id: number; title: string; content: string; subject: string; is_pinned: boolean; created_at: string; updated_at: string }) => ({
-          id: n.id,
-          userId: n.user_id,
-          title: n.title,
-          content: n.content,
-          subject: n.subject,
-          isPinned: n.is_pinned,
-          createdAt: n.created_at,
-          updatedAt: n.updated_at
-        })) : [],
-        quizSessions: updatedGroup.quiz_sessions ? updatedGroup.quiz_sessions.map((s: GroupQuizSessionResponse) => ({
-          id: s.id,
-          moduleName: s.module_name,
-          date: s.date,
-          avgScore: s.avg_score,
-          rankings: s.rankings ? s.rankings.map((r: GroupQuizRankResponse) => ({
-            name: r.name,
-            score: r.score,
-            percentage: r.percentage,
-            time: r.time,
-            isUser: r.is_user
-          })) : []
-        })) : []
-      };
-      setGroups(prev => prev.map(g => g.id === mapped.id ? mapped : g));
+    .then(() => {
+      fetchGroupById(activeGroup.id!);
     })
     .catch(err => alert(err.message))
     .finally(() => setIsTransferringOwnershipId(null));
@@ -932,66 +793,15 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
     setIsSharing(true);
     fetch(`${API_BASE_URL}/api/groups/${activeGroup.id}/share-module/${selectedModuleId}`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
+      headers: { 'Authorization': `Bearer ${token}` },
+      cache: 'no-store'
     })
     .then(async res => {
       const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(data?.detail || 'Failed to share module with group');
-      }
-      return data;
+      if (!res.ok) throw new Error(data?.detail || 'Failed to share module with group');
     })
-    .then((updatedGroup: StudyGroupResponse) => {
-      const mapped: StudyGroup = {
-        id: updatedGroup.id,
-        name: updatedGroup.name,
-        isPublic: updatedGroup.is_public ?? false,
-        members: updatedGroup.members || [],
-        modules: updatedGroup.modules ? updatedGroup.modules.map((m: ModuleResponse) => ({
-          id: m.id,
-          name: m.name,
-          date: m.date,
-          size: m.size,
-          subject: m.subject || 'General',
-          questionsCount: m.questionsCount !== undefined ? m.questionsCount : (m.questions ? m.questions.length : 0),
-          questions: m.questions ? m.questions.map((q: QuizQuestionResponse) => ({
-            id: q.id,
-            question: q.question,
-            options: q.options,
-            correctAnswerIndex: q.correct_answer_index,
-            explanation: q.explanation,
-            hint: q.hint,
-            questionType: q.question_type,
-            reference: q.reference
-          })) : []
-        })) : [],
-        notes: updatedGroup.notes ? updatedGroup.notes.map((n: { id: number; user_id: number; title: string; content: string; subject: string; is_pinned: boolean; created_at: string; updated_at: string }) => ({
-          id: n.id,
-          userId: n.user_id,
-          title: n.title,
-          content: n.content,
-          subject: n.subject,
-          isPinned: n.is_pinned,
-          createdAt: n.created_at,
-          updatedAt: n.updated_at
-        })) : [],
-        quizSessions: updatedGroup.quiz_sessions ? updatedGroup.quiz_sessions.map((s: GroupQuizSessionResponse) => ({
-          id: s.id,
-          moduleName: s.module_name,
-          date: s.date,
-          avgScore: s.avg_score,
-          rankings: s.rankings ? s.rankings.map((r: GroupQuizRankResponse) => ({
-            name: r.name,
-            score: r.score,
-            percentage: r.percentage,
-            time: r.time,
-            isUser: r.is_user
-          })) : []
-        })) : []
-      };
-      setGroups(groups.map(g => g.id === mapped.id ? mapped : g));
+    .then(() => {
+      fetchGroupById(activeGroup.id!);
       setSelectedModuleId('');
       setIsShareModalOpen(false);
     })
@@ -1015,63 +825,15 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
     setIsNoteSharing(true);
     fetch(`${API_BASE_URL}/api/groups/${activeGroup.id}/share-note/${selectedNoteId}`, {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}` }
+      headers: { 'Authorization': `Bearer ${token}` },
+      cache: 'no-store'
     })
     .then(async res => {
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.detail || 'Failed to share note with group');
-      return data;
     })
-    .then((updatedGroup: StudyGroupResponse) => {
-      const mapped: StudyGroup = {
-        id: updatedGroup.id,
-        name: updatedGroup.name,
-        creator_id: updatedGroup.creator_id,
-        isPublic: updatedGroup.is_public ?? false,
-        members: updatedGroup.members || [],
-        modules: updatedGroup.modules ? updatedGroup.modules.map((m: ModuleResponse) => ({
-          id: m.id,
-          name: m.name,
-          date: m.date,
-          size: m.size,
-          subject: m.subject || 'General',
-          questionsCount: m.questionsCount !== undefined ? m.questionsCount : (m.questions ? m.questions.length : 0),
-          questions: m.questions ? m.questions.map((q: QuizQuestionResponse) => ({
-            id: q.id,
-            question: q.question,
-            options: q.options,
-            correctAnswerIndex: q.correct_answer_index,
-            explanation: q.explanation,
-            hint: q.hint,
-            questionType: q.question_type,
-            reference: q.reference
-          })) : []
-        })) : [],
-        notes: updatedGroup.notes ? updatedGroup.notes.map((n: { id: number; user_id: number; title: string; content: string; subject: string; is_pinned: boolean; created_at: string; updated_at: string }) => ({
-          id: n.id,
-          userId: n.user_id,
-          title: n.title,
-          content: n.content,
-          subject: n.subject,
-          isPinned: n.is_pinned,
-          createdAt: n.created_at,
-          updatedAt: n.updated_at
-        })) : [],
-        quizSessions: updatedGroup.quiz_sessions ? updatedGroup.quiz_sessions.map((s: GroupQuizSessionResponse) => ({
-          id: s.id,
-          moduleName: s.module_name,
-          date: s.date,
-          avgScore: s.avg_score,
-          rankings: s.rankings ? s.rankings.map((r: GroupQuizRankResponse) => ({
-            name: r.name,
-            score: r.score,
-            percentage: r.percentage,
-            time: r.time,
-            isUser: r.is_user
-          })) : []
-        })) : []
-      };
-      setGroups(groups.map(g => g.id === mapped.id ? mapped : g));
+    .then(() => {
+      fetchGroupById(activeGroup.id!);
       setSelectedNoteId(null);
       setIsNoteShareModalOpen(false);
     })
@@ -1080,6 +842,29 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
       alert(err.message || 'Error sharing note');
     })
     .finally(() => setIsNoteSharing(false));
+  };
+
+  const handleRemoveModuleFromGroup = (moduleId: number) => {
+    const activeGroup = groups.find(g => g.id === selectedGroupId);
+    if (!activeGroup) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    setIsRemovingModuleId(moduleId);
+    fetch(`${API_BASE_URL}/api/groups/${activeGroup.id}/remove-module/${moduleId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` },
+      cache: 'no-store'
+    })
+    .then(async res => {
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.detail || 'Failed to remove module from group');
+    })
+    .then(() => {
+      fetchGroupById(activeGroup.id!);
+    })
+    .catch(err => alert(err.message))
+    .finally(() => setIsRemovingModuleId(null));
   };
 
   if (selectedGroupId !== null) {
@@ -1292,8 +1077,8 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
               </div>
 
               {/* Leave Group */}
-              <div className="flex items-center justify-between p-4 bg-app border border-line rounded-lg max-md:flex-col max-md:items-stretch max-md:gap-3">
-                <div className="min-w-0">
+              <div className="p-4 bg-app border border-line rounded-lg max-md:flex-col max-md:items-stretch max-md:gap-3">
+                <div className="min-w-0 mb-3">
                   <p className="text-sm font-semibold text-ink">Leave this group</p>
                   <p className="text-xs text-ink-muted mt-0.5">You will lose access to shared modules and scorecards.</p>
                 </div>
@@ -1305,18 +1090,37 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
                     <X size={12} /> Leave Group
                   </button>
                 ) : (
-                  <div className="flex items-center gap-2 max-md:w-full">
-                    <button
-                      onClick={() => setConfirmLeave(false)}
-                      className="py-1.5 px-3 rounded-lg text-[0.72rem] font-semibold bg-transparent border border-line text-ink-muted hover:bg-glass transition-all max-md:flex-1"
-                    >Cancel</button>
-                    <button
-                      onClick={handleLeaveGroup}
-                      disabled={isLeaving}
-                      className="py-1.5 px-3 rounded-lg text-[0.72rem] font-semibold bg-red-500 text-white border border-red-500 hover:bg-red-600 transition-all disabled:opacity-60 max-md:flex-1"
-                    >
-                      {isLeaving ? 'Leaving...' : 'Yes, Leave'}
-                    </button>
+                  <div className="flex flex-col gap-3">
+                    {activeGroup && isCurrentUserOwner && activeGroup.members.length > 1 && (
+                      <div>
+                        <label className="text-xs font-semibold text-ink mb-1.5 block">Transfer ownership to:</label>
+                        <select
+                          value={selectedNewOwnerId ?? ''}
+                          onChange={(e) => setSelectedNewOwnerId(e.target.value ? Number(e.target.value) : null)}
+                          className="w-full bg-input border border-line rounded-md p-2 text-ink text-[0.85rem] outline-none focus:border-primary transition-colors"
+                        >
+                          <option value="">Select a member...</option>
+                          {activeGroup.members
+                            .filter((m: GroupMember) => m.id !== user.id)
+                            .map((m: GroupMember) => (
+                              <option key={m.id} value={m.id}>{m.name} ({m.email})</option>
+                            ))}
+                        </select>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 max-md:w-full">
+                      <button
+                        onClick={() => { setConfirmLeave(false); setSelectedNewOwnerId(null); }}
+                        className="py-1.5 px-3 rounded-lg text-[0.72rem] font-semibold bg-transparent border border-line text-ink-muted hover:bg-glass transition-all max-md:flex-1"
+                      >Cancel</button>
+                      <button
+                        onClick={handleLeaveGroup}
+                        disabled={isLeaving || (isCurrentUserOwner && activeGroup && activeGroup.members.length > 1 && !selectedNewOwnerId)}
+                        className="py-1.5 px-3 rounded-lg text-[0.72rem] font-semibold bg-red-500 text-white border border-red-500 hover:bg-red-600 transition-all disabled:opacity-60 max-md:flex-1"
+                      >
+                        {isLeaving ? 'Leaving...' : 'Yes, Leave'}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1372,9 +1176,37 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
                         <div className="flex max-md:flex-col max-md:items-stretch max-md:gap-3 md:justify-between md:items-center bg-app border border-line rounded-lg p-4 max-md:p-3.5 md:px-5" key={m.id}>
                           <div className="flex flex-col gap-1 min-w-0">
                             <span className="font-bold text-base max-md:text-[0.95rem] text-left wrap-break-word leading-snug">{m.name}</span>
-                            <div className="text-[0.75rem] text-ink-muted flex gap-4"><span>Questions: {m.questionsCount}</span></div>
+                            <div className="text-[0.75rem] text-ink-muted flex gap-3">
+                              <span>Questions: {m.questionsCount}</span>
+                              {(m.sharedByName || m.userId) && (
+                                <span className="flex items-center gap-1">
+                                  · Shared by <span className="text-ink font-medium">
+                                    {m.userId === user.id
+                                      ? 'You'
+                                      : m.sharedByName ?? activeGroup.members.find(mem => mem.id === m.userId)?.name ?? 'Unknown'}
+                                  </span>
+                                </span>
+                              )}
+                            </div>
                           </div>
-                          <button onClick={() => startGroupQuiz(m, activeGroup.id)} className="btn btn-primary px-3.5 py-2 text-[0.8rem] max-md:w-full max-md:justify-center max-md:py-2.5 shrink-0">Take Group Quiz</button>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {(isCurrentUserOwner || m.userId === user.id) && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveModuleFromGroup(m.id)}
+                                disabled={isRemovingModuleId === m.id}
+                                className="inline-flex items-center justify-center p-1.5 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="Remove from group"
+                              >
+                                {isRemovingModuleId === m.id ? (
+                                  <span className="w-4 h-4 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin inline-block" />
+                                ) : (
+                                  <Trash2 size={14} />
+                                )}
+                              </button>
+                            )}
+                            <button onClick={() => startGroupQuiz(m, activeGroup.id)} className="btn btn-primary px-3.5 py-2 text-[0.8rem] max-md:w-full max-md:justify-center max-md:py-2.5">Take Group Quiz</button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1924,7 +1756,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
                           </button>
                           {openMenuMemberId === m.id && (
                             <div
-                              className="absolute right-0 top-full mt-1 w-44 bg-card border border-line rounded-lg shadow-lg py-1 z-20"
+                              className="absolute right-0 bottom-full mb-1 w-44 bg-card border border-line rounded-lg shadow-lg py-1 z-20"
                               onClick={(e) => e.stopPropagation()}
                             >
                               <button

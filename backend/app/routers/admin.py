@@ -26,6 +26,10 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 START_TIME = time.time()
 LAST_GEMINI_ALERT_TIME = 0.0
 
+ADMIN_HEALTH_CACHE = None
+ADMIN_HEALTH_CACHE_TIME = 0.0
+ADMIN_HEALTH_TTL = 300
+
 # Security dependency for superadmins
 def get_current_superadmin(current_user: models.User = Depends(auth.get_current_user)) -> models.User:
     if current_user.role != "superadmin":
@@ -107,7 +111,12 @@ def get_admin_health(
     db: Session = Depends(get_db),
     current_admin: models.User = Depends(get_current_superadmin)
 ):
-    global LAST_GEMINI_ALERT_TIME
+    global LAST_GEMINI_ALERT_TIME, ADMIN_HEALTH_CACHE, ADMIN_HEALTH_CACHE_TIME
+
+    # Return cached counts if still fresh
+    now = time.time()
+    if ADMIN_HEALTH_CACHE is not None and now - ADMIN_HEALTH_CACHE_TIME < ADMIN_HEALTH_TTL:
+        return ADMIN_HEALTH_CACHE
 
     # Test DB connection and measure latency
     try:
@@ -156,7 +165,7 @@ def get_admin_health(
     if db_status != "connected" or gemini_status != "healthy":
         overall_status = "unhealthy"
 
-    return {
+    result = {
         "status": overall_status,
         "uptime_seconds": uptime_seconds,
         "database": {
@@ -174,6 +183,10 @@ def get_admin_health(
             "exams": total_exams
         }
     }
+
+    ADMIN_HEALTH_CACHE = result
+    ADMIN_HEALTH_CACHE_TIME = now
+    return result
 
 @router.get("/users", response_model=List[schemas.UserOut])
 def list_users(

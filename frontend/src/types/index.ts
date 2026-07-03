@@ -106,6 +106,8 @@ export interface Module {
   lastScore?: string;
   difficulty?: string;
   isPublic?: boolean;
+  userId?: number;
+  sharedByName?: string;
 }
 
 export interface GroupMember {
@@ -198,6 +200,8 @@ export interface ModuleResponse {
   last_score?: string;
   difficulty?: string;
   is_public?: boolean;
+  user_id?: number;
+  shared_by_name?: string;
 }
 
 export interface GroupQuizRankResponse {

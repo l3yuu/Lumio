@@ -18,6 +18,10 @@ router = APIRouter(prefix="/api/modules", tags=["modules"])
 # In-memory global cache for public module source files and text content
 PUBLIC_SOURCE_CACHE = {}
 PUBLIC_FILE_CACHE = {}
+PUBLIC_LISTINGS_CACHE = {}
+
+def _invalidate_public_listings():
+    PUBLIC_LISTINGS_CACHE.clear()
 
 ALLOWED_EXTENSIONS = {"pdf", "txt", "docx"}
 ALLOWED_MIME_TYPES = {
@@ -222,6 +226,8 @@ def create_module(
         except Exception as e:
             print(f"Warning: Failed to save source file: {e}")
     
+    _invalidate_public_listings()
+
     # Create associated questions in the database
     for q in questions_data:
         db_question = models.QuizQuestion(
@@ -326,6 +332,7 @@ def delete_module(module_id: int, current_user: models.User = Depends(auth.get_c
 
     PUBLIC_SOURCE_CACHE.pop(module_id, None)
     PUBLIC_FILE_CACHE.pop(module_id, None)
+    _invalidate_public_listings()
     db.delete(module)
     db.commit()
     return {"message": "Module deleted successfully"}
@@ -406,6 +413,10 @@ def get_public_modules(
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db)
 ):
+    key = (search, skip, limit)
+    if key in PUBLIC_LISTINGS_CACHE:
+        return PUBLIC_LISTINGS_CACHE[key]
+
     query = db.query(models.Module).filter(
         models.Module.is_public == True
     )
@@ -414,7 +425,9 @@ def get_public_modules(
             (models.Module.name.ilike(f"%{search}%")) |
             (models.Module.subject.ilike(f"%{search}%"))
         )
-    return query.order_by(models.Module.id.desc()).offset(skip).limit(limit).all()
+    results = query.order_by(models.Module.id.desc()).offset(skip).limit(limit).all()
+    PUBLIC_LISTINGS_CACHE[key] = results
+    return results
 
 
 @router.post("/{module_id}/copy", response_model=schemas.ModuleOut)
@@ -487,6 +500,7 @@ def update_module(
         module.is_public = body.is_public
     PUBLIC_SOURCE_CACHE.pop(module_id, None)
     PUBLIC_FILE_CACHE.pop(module_id, None)
+    _invalidate_public_listings()
     db.commit()
     db.refresh(module)
     return module
@@ -563,6 +577,7 @@ def delete_folder(
 @router.delete("")
 def delete_all_modules(current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     db.query(models.Module).filter(models.Module.user_id == current_user.id).delete()
+    _invalidate_public_listings()
     db.commit()
     return {"message": "All modules deleted"}
 

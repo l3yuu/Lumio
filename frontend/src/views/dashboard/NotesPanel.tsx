@@ -147,7 +147,7 @@ const AiModal: React.FC<AiModalProps> = ({ noteContent, noteTitle, onClose, onAp
   };
 
   return (
-    <div className="fixed inset-0 bg-[rgba(5,5,5,0.7)] backdrop-blur-md z-[9999] flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-[rgba(5,5,5,0.7)] backdrop-blur-md z-9999 flex items-center justify-center p-4">
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -687,7 +687,7 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({
     })
     .then(res => res.ok ? res.json() : [])
     .then((data) => {
-      const mapped: Note[] = (data as any[]).map(item => ({
+      const mapped: Note[] = (data as { id: number; user_id: number; title: string; content: string; subject: string; is_pinned: boolean; created_at: string; updated_at: string }[]).map(item => ({
         id: item.id,
         userId: item.user_id,
         title: item.title,
@@ -719,11 +719,13 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({
   // Initial load
   useEffect(() => {
     notesPageRef.current = 0;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchNotes(0, false);
   }, [fetchNotes]);
 
   // Sync edits/CRUD actions from parent notes state into paginated local state
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPaginatedNotes(prev => {
       const parentMap = new Map(notes.map(n => [n.id, n]));
       
@@ -807,7 +809,7 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({
   });
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-14rem)] min-h-[500px]">
+    <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-14rem)] min-h-125">
 
       {/* ── Left Sidebar (Note List) ── */}
       <div className={`w-full lg:w-80 flex flex-col bg-card border border-line rounded-2xl p-4 overflow-hidden h-full shrink-0 ${
@@ -914,7 +916,7 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({
                     }`}
                   >
                     {/* Active indicator */}
-                    {isActive && <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-primary" />}
+                    {isActive && <div className="absolute left-0 top-0 bottom-0 w-0.75 bg-primary" />}
 
                     <div className="flex items-start justify-between gap-1.5 mb-1">
                       <h4 className="text-xs font-bold text-ink truncate flex-1">

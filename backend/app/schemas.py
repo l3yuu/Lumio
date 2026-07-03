@@ -122,6 +122,7 @@ class ModuleOut(ModuleBase):
     id: int
     date: str
     user_id: int
+    shared_by_name: Optional[str] = None
     source_filename: Optional[str] = None
     has_source_file: bool = False
     last_score: Optional[str] = None

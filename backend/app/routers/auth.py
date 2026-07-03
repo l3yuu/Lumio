@@ -86,9 +86,11 @@ def resend_code(body: schemas.ResendVerificationRequest, background_tasks: Backg
 
     user = db.query(models.User).filter(models.User.email == body.email).first()
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        resend_limiter.record(resend_key)
+        return {"message": "If that email exists, a verification code has been sent"}
     if user.is_verified:
-        raise HTTPException(status_code=400, detail="Email already verified")
+        resend_limiter.record(resend_key)
+        return {"message": "If that email exists, a verification code has been sent"}
     code = generate_verification_code()
     user.verification_code = code
     db.commit()

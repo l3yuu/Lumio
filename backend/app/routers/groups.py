@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect, BackgroundTasks
 from sqlalchemy.orm import Session, joinedload
-from typing import List, Dict, Set, Any
+from typing import List, Dict, Set, Any, Optional
 import json
 import jwt
 from datetime import datetime
+from pydantic import BaseModel
 from ..database import get_db
 from .. import models, schemas, auth
 from ..config import settings
@@ -11,9 +12,102 @@ from ..time_utils import now_ph, now_ph_naive
 
 router = APIRouter(prefix="/api/groups", tags=["groups"])
 
+PUBLIC_GROUPS_CACHE = {}
+
+def _invalidate_public_groups():
+    PUBLIC_GROUPS_CACHE.clear()
+
+def _serialize_group(group, db: Session) -> dict:
+    """Serialize a group ORM object to dict with shared_by_name on each module."""
+    # Build user_id -> name cache from members + module owners
+    user_ids = {m.user_id for m in group.modules if m.user_id}
+    user_ids.update({mem.id for mem in group.members})
+    users = {}
+    if user_ids:
+        for u in db.query(models.User).filter(models.User.id.in_(user_ids)).all():
+            users[u.id] = u.name
+
+    def _dt(val):
+        if val is None:
+            return None
+        return val.isoformat() if hasattr(val, 'isoformat') else str(val)
+
+    modules_data = []
+    for m in group.modules:
+        modules_data.append({
+            "id": m.id,
+            "name": m.name,
+            "date": m.date,
+            "size": m.size,
+            "subject": m.subject,
+            "is_public": m.is_public,
+            "user_id": m.user_id,
+            "shared_by_name": users.get(m.user_id) if m.user_id else None,
+            "source_filename": m.source_filename,
+            "has_source_file": bool(m.source_filename),
+            "last_score": m.last_score,
+            "difficulty": m.difficulty,
+            "questions": [
+                {
+                    "id": q.id,
+                    "module_id": q.module_id,
+                    "question": q.question,
+                    "options": q.options,
+                    "correct_answer_index": q.correct_answer_index,
+                    "explanation": q.explanation,
+                    "hint": q.hint,
+                    "question_type": q.question_type,
+                    "reference": q.reference,
+                }
+                for q in m.questions
+            ],
+        })
+
+    return {
+        "id": group.id,
+        "name": group.name,
+        "creator_id": group.creator_id,
+        "is_public": group.is_public,
+        "members": [
+            {
+                "id": mem.id,
+                "name": mem.name,
+                "email": mem.email,
+                "avatar": mem.avatar,
+                "online": getattr(mem, 'online', False),
+                "is_premium": getattr(mem, 'is_premium', False),
+            }
+            for mem in group.members
+        ],
+        "modules": modules_data,
+        "notes": [
+            {
+                "id": n.id,
+                "user_id": n.user_id,
+                "title": n.title,
+                "content": n.content,
+                "subject": n.subject,
+                "is_pinned": n.is_pinned,
+                "created_at": _dt(n.created_at),
+                "updated_at": _dt(n.updated_at),
+            }
+            for n in group.notes
+        ],
+        "quiz_sessions": [
+            {
+                "id": s.id,
+                "module_name": s.module_name,
+                "date": s.date,
+                "avg_score": s.avg_score,
+                "rankings": s.rankings or [],
+            }
+            for s in group.quiz_sessions
+        ],
+    }
+
 # --- REST ENDPOINTS ---
 
-@router.get("", response_model=List[schemas.StudyGroupOut])
+@router.get("", response_model=None)
 def get_groups(
     skip: int = 0,
     limit: int = 10,
@@ -21,10 +115,11 @@ def get_groups(
     db: Session = Depends(get_db)
 ):
     # Returns groups that the current user is a member of with pagination
-    return db.query(models.StudyGroup).filter(
+    groups = db.query(models.StudyGroup).filter(
         models.StudyGroup.members.any(models.User.id == current_user.id),
         models.StudyGroup.is_banned == False
     ).order_by(models.StudyGroup.id.desc()).offset(skip).limit(limit).all()
+    return [_serialize_group(g, db) for g in groups]
 
 @router.get("/public", response_model=List[schemas.StudyGroupOut])
 def get_public_groups(
@@ -33,11 +128,17 @@ def get_public_groups(
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db)
 ):
-    return db.query(models.StudyGroup).filter(
+    key = (skip, limit)
+    if key in PUBLIC_GROUPS_CACHE:
+        return PUBLIC_GROUPS_CACHE[key]
+
+    results = db.query(models.StudyGroup).filter(
         models.StudyGroup.is_public == True,
         models.StudyGroup.is_banned == False,
         ~models.StudyGroup.members.any(models.User.id == current_user.id)
     ).order_by(models.StudyGroup.id.desc()).offset(skip).limit(limit).all()
+    PUBLIC_GROUPS_CACHE[key] = results
+    return results
 
 @router.post("/{group_id}/join", response_model=schemas.StudyGroupOut)
 def join_public_group(group_id: int, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
@@ -51,6 +152,7 @@ def join_public_group(group_id: int, current_user: models.User = Depends(auth.ge
     if current_user in group.members:
         raise HTTPException(status_code=400, detail="You are already a member of this group")
     group.members.append(current_user)
+    _invalidate_public_groups()
     db.commit()
     db.refresh(group)
     return group
@@ -107,6 +209,7 @@ def create_group(
             from ..email import send_group_invite_email
             send_group_invite_email(background_tasks, invited_user.email, invited_user.name, current_user.name, group_in.name)
             
+    _invalidate_public_groups()
     db.commit()
     db.refresh(db_group)
     return db_group
@@ -170,6 +273,7 @@ async def accept_invitation(
         related_type="group"
     )
     db.add(notif)
+    _invalidate_public_groups()
     db.commit()
     db.refresh(group)
 
@@ -216,6 +320,7 @@ async def join_group_via_link(
     is_new_member = current_user not in group.members
     if is_new_member:
         group.members.append(current_user)
+        _invalidate_public_groups()
         db.commit()
         db.refresh(group)
 
@@ -252,6 +357,7 @@ async def remove_group_member(
         raise HTTPException(status_code=404, detail="Member not found in this study group")
 
     group.members.remove(member_to_remove)
+    _invalidate_public_groups()
     db.commit()
     db.refresh(group)
 
@@ -307,6 +413,7 @@ async def update_group(
     group.name = group_in.name
     if group_in.is_public is not None:
         group.is_public = group_in.is_public
+    _invalidate_public_groups()
     db.commit()
     db.refresh(group)
 
@@ -315,7 +422,7 @@ async def update_group(
     return group
 
 
-@router.get("/{group_id}", response_model=schemas.StudyGroupOut)
+@router.get("/{group_id}", response_model=None)
 def get_group(group_id: int, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     group = db.query(models.StudyGroup).filter(models.StudyGroup.id == group_id).first()
     if not group:
@@ -325,7 +432,7 @@ def get_group(group_id: int, current_user: models.User = Depends(auth.get_curren
     # Verify membership
     if current_user not in group.members:
         raise HTTPException(status_code=403, detail="Not a member of this study group")
-    return group
+    return _serialize_group(group, db)
 
 @router.post("/{group_id}/invite", status_code=201)
 def invite_member(
@@ -386,9 +493,13 @@ def invite_member(
     return {"message": f"Invitation sent to {invitee.name}"}
 
 
+class LeaveGroupRequest(BaseModel):
+    new_owner_id: Optional[int] = None
+
 @router.post("/{group_id}/leave")
-def leave_group(
+async def leave_group(
     group_id: int,
+    body: Optional[LeaveGroupRequest] = None,
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -398,12 +509,25 @@ def leave_group(
     if current_user not in group.members:
         raise HTTPException(status_code=403, detail="You are not a member of this group")
 
+    # If the leaver is the owner and other members exist, require a new owner
+    if group.creator_id == current_user.id and len(group.members) > 1:
+        if not body or not body.new_owner_id:
+            raise HTTPException(
+                status_code=400,
+                detail="As the group owner, you must designate a new owner before leaving."
+            )
+        new_owner = db.query(models.User).filter(models.User.id == body.new_owner_id).first()
+        if not new_owner or new_owner not in group.members:
+            raise HTTPException(status_code=400, detail="New owner must be an existing member of this group")
+        group.creator_id = new_owner.id
+        await discussion_manager.broadcast_ownership_transferred(group_id, new_owner.id)
+
     group.members.remove(current_user)
 
-    # If no members left, delete the group entirely
     if len(group.members) == 0:
         db.delete(group)
 
+    _invalidate_public_groups()
     db.commit()
     return {"message": "You have left the group"}
 
@@ -556,6 +680,31 @@ def share_module(group_id: int, module_id: int, current_user: models.User = Depe
                 db.add(notif)
         db.commit()
         db.refresh(group)
+    return group
+
+
+# --- REMOVE MODULE FROM GROUP ---
+@router.delete("/{group_id}/remove-module/{module_id}", response_model=schemas.StudyGroupOut)
+def remove_module_from_group(group_id: int, module_id: int, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    group = db.query(models.StudyGroup).filter(models.StudyGroup.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Study group not found")
+    if current_user not in group.members:
+        raise HTTPException(status_code=403, detail="Not a member of this group")
+
+    module = db.query(models.Module).filter(models.Module.id == module_id).first()
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found")
+
+    # Group owner or the module sharer can remove it
+    if group.creator_id != current_user.id and module.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the group owner or module sharer can remove this module")
+
+    if module in group.modules:
+        group.modules.remove(module)
+        db.commit()
+        db.refresh(group)
+
     return group
 
 
