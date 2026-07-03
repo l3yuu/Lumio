@@ -719,7 +719,7 @@ function App() {
 
   // Heartbeat — keeps the current user marked as online every 60s
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
     const token = localStorage.getItem('token');
     if (!token) return;
     const ping = () =>
@@ -730,7 +730,7 @@ function App() {
     ping(); // immediate ping on login
     const id = setInterval(ping, 60_000);
     return () => clearInterval(id);
-  }, [user]);
+  }, [user?.id]);
 
   const handleAcceptInvitation = (invitationId: number) => {
     const token = localStorage.getItem('token');

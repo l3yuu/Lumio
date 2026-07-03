@@ -689,7 +689,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       })
       .catch(err => console.error('Error fetching notes:', err));
     }
-  }, [user]);
+  }, [user?.id]);
 
   useEffect(() => { localStorage.setItem('lumio_exams', JSON.stringify(exams)); }, [exams]);
 
@@ -1095,7 +1095,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       })
       .catch(err => console.error('Error fetching chat sessions from database:', err));
     }
-  }, [user]);
+  }, [user?.id]);
 
   // Synchronize chatSessions to localStorage
   useEffect(() => {
@@ -1820,7 +1820,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         />
       </div>
 
-      <div className={`overflow-y-auto overflow-x-hidden h-full w-full transition-[margin-right] duration-280 ease-in-out ${isAiSidebarOpen ? 'mr-[360px] max-lg:mr-0' : ''}`}>
+      <div className={`overflow-y-auto overflow-x-hidden h-full w-full transition-[margin-right] duration-280 ease-in-out ${isAiSidebarOpen ? 'mr-90 max-lg:mr-0' : ''}`}>
         {/* Render active inline tool filling the full scroll area (sidebar stays visible) */}
         {activeTool && (
           <AnimatePresence mode="wait">
