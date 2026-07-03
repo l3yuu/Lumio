@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sun, Moon, Menu, X, ChevronRight, Sparkles, Layers, Settings, Bell, FileText, Users, Calendar, History, Notebook } from 'lucide-react';
+import { Sun, Moon, Menu, X, ChevronRight, Sparkles, Layers, Settings, Bell, FileText, Users, Calendar, Globe, Notebook, Shield } from 'lucide-react';
 import type { User, View, AuthTab, DashboardTab, Module, Notification, GroupInvitation, StudyGroup } from '../../types';
 
 interface NavbarProps {
@@ -489,7 +489,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       {([
                         { tab: 'overview' as const, icon: <Layers size={18} />, label: 'Overview Panels' },
                         { tab: 'modules'  as const, icon: <FileText size={18} />, label: 'My Study Modules' },
-                        { tab: 'history'  as const, icon: <History size={18} />, label: 'Quiz History' },
+                        { tab: 'public-explorer' as const, icon: <Globe size={18} />, label: 'Public Explorer' },
                         { tab: 'notes'    as const, icon: <Notebook size={18} />, label: 'My Notes' },
                         { tab: 'groups'   as const, icon: <Users size={18} />, label: 'Collaborative Circles' },
                         { tab: 'tools'    as const, icon: <Sparkles size={18} />, label: 'Study Tools' },
@@ -515,6 +515,22 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                     {/* Settings pinned at bottom */}
                     <div className="mt-auto px-3 pb-3 border-t border-line pt-3">
+                      {user.role === 'superadmin' && (
+                        <button
+                          onClick={() => {
+                            const isAdminMode = dashboardTab.startsWith('admin');
+                            setView('dashboard');
+                            setDashboardTab(isAdminMode ? 'overview' : 'admin-overview');
+                            setActiveQuizModule(null);
+                            setSelectedGroupId(null);
+                            setMobileMenuOpen(false);
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-3 mb-1 rounded-lg border border-primary/20 hover:border-primary cursor-pointer text-left text-[0.95rem] font-medium bg-primary/10 hover:bg-primary/15 text-primary transition-all duration-150"
+                        >
+                          <Shield size={18} className="text-primary" />
+                          <span>{dashboardTab.startsWith('admin') ? 'Student View' : 'Admin Portal'}</span>
+                        </button>
+                      )}
                       <button
                         onClick={() => { setView('dashboard'); setDashboardTab('settings'); setActiveQuizModule(null); setSelectedGroupId(null); setMobileMenuOpen(false); }}
                         className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg border-0 cursor-pointer text-left text-[0.95rem] font-medium transition-all duration-150 border-l-2 ${

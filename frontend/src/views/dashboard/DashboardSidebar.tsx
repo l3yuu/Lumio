@@ -84,7 +84,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
     <motion.aside
       layout
       transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-      className={`flex md:flex-col max-md:flex-row md:gap-0.5 max-md:gap-2 h-full w-full max-md:h-auto bg-card max-md:bg-app border-line md:border-r max-md:border-r-0 md:border-b-0 max-md:border-b md:pt-5 md:pb-6 max-md:py-3 md:px-2.5 max-md:px-4 overflow-hidden md:box-border max-md:overflow-x-auto scrollbar-none ${isCollapsed ? 'md:py-6 md:items-center md:gap-2' : ''}`}
+      className={`flex md:flex-col max-md:flex-row md:gap-0.5 max-md:gap-2 h-full max-h-full min-h-0 w-full max-md:h-auto bg-card max-md:bg-app border-line md:border-r max-md:border-r-0 md:border-b-0 max-md:border-b md:pt-5 md:pb-6 max-md:py-3 md:px-2.5 max-md:px-4 overflow-x-auto overflow-y-hidden md:overflow-y-auto md:overflow-x-hidden md:box-border max-md:scrollbar-none md:scrollbar-thin ${isCollapsed ? 'md:py-6 md:items-center md:gap-2' : ''}`}
     >
       <div className={`px-2 pt-1 pb-4 mb-4 border-b border-line overflow-hidden transition-all duration-300 max-md:hidden ${isCollapsed ? 'md:max-h-0 md:mb-0 md:p-0 md:opacity-0 md:border-b-0 md:h-0' : 'max-h-20 opacity-100'}`}>
         <span className="text-[0.7rem] text-ink-muted font-semibold uppercase tracking-wider block mb-1">Account</span>

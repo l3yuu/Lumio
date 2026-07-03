@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, ChevronRight, X, Users, Mail, Check, Settings, Bell, MessageSquare, Send, Sparkles, Copy, MoreVertical, Trash2, Crown, Notebook } from 'lucide-react';
+import { Plus, ChevronRight, X, Users, Mail, Check, Settings, Bell, MessageSquare, Send, Sparkles, Copy, MoreVertical, Trash2, Crown, Notebook, Search } from 'lucide-react';
 import type { User, Module, Note, StudyGroup, GroupInvitation, StudyGroupResponse, ModuleResponse, QuizQuestionResponse, GroupQuizSessionResponse, GroupQuizRankResponse, GroupMember } from '../../types';
 import { API_BASE_URL, WS_BASE_URL } from '../../config';
 
@@ -165,6 +165,8 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
   const [hasMoreUserGroups, setHasMoreUserGroups] = useState(true);
   const [isFetchingUserGroups, setIsFetchingUserGroups] = useState(false);
 
+  const [searchQuery, setSearchQuery] = useState('');
+
   const fetchPublicGroups = React.useCallback((pageNum: number = 0, append: boolean = false) => {
     const token = localStorage.getItem('token');
     if (!token) return;
@@ -172,7 +174,12 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
     const limit = 10;
     const skip = pageNum * limit;
     
-    fetch(`${API_BASE_URL}/api/groups/public?skip=${skip}&limit=${limit}`, {
+    let url = `${API_BASE_URL}/api/groups/public?skip=${skip}&limit=${limit}`;
+    if (searchQuery.trim()) {
+      url += `&q=${encodeURIComponent(searchQuery.trim())}`;
+    }
+    
+    fetch(url, {
       headers: { 'Authorization': `Bearer ${token}` },
       cache: 'no-store'
     })
@@ -198,7 +205,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
       console.error('Error fetching public groups:', err);
       setIsFetchingPublicGroups(false);
     });
-  }, [mapStudyGroup]);
+  }, [mapStudyGroup, searchQuery]);
 
   const fetchUserGroups = React.useCallback((pageNum: number = 0, append: boolean = false) => {
     const token = localStorage.getItem('token');
@@ -207,7 +214,12 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
     const limit = 10;
     const skip = pageNum * limit;
     
-    fetch(`${API_BASE_URL}/api/groups?skip=${skip}&limit=${limit}`, {
+    let url = `${API_BASE_URL}/api/groups?skip=${skip}&limit=${limit}`;
+    if (searchQuery.trim()) {
+      url += `&q=${encodeURIComponent(searchQuery.trim())}`;
+    }
+    
+    fetch(url, {
       headers: { 'Authorization': `Bearer ${token}` },
       cache: 'no-store'
     })
@@ -230,7 +242,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
       console.error('Error fetching user groups:', err);
       setIsFetchingUserGroups(false);
     });
-  }, [mapStudyGroup]);
+  }, [mapStudyGroup, searchQuery]);
 
   // Re-fetch a single group from server and sync into parent state
   const fetchGroupById = React.useCallback((groupId: number) => {
@@ -249,18 +261,27 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
     .catch(err => console.error('Error refreshing group:', err));
   }, [mapStudyGroup, setGroups]);
 
-  // Initial loads
+  // Debounced initial loads and search query changes
   useEffect(() => {
-    publicGroupsPageRef.current = 0;
-    setTimeout(() => {
+    if (searchQuery.trim() === '') {
+      publicGroupsPageRef.current = 0;
+      userGroupsPageRef.current = 0;
+      setTimeout(() => {
+        fetchPublicGroups(0, false);
+        fetchUserGroups(0, false);
+      }, 0);
+      return;
+    }
+
+    const delayDebounce = setTimeout(() => {
+      publicGroupsPageRef.current = 0;
+      userGroupsPageRef.current = 0;
       fetchPublicGroups(0, false);
-    }, 0);
-    
-    userGroupsPageRef.current = 0;
-    setTimeout(() => {
       fetchUserGroups(0, false);
-    }, 0);
-  }, [fetchPublicGroups, fetchUserGroups]);
+    }, 300);
+
+    return () => clearTimeout(delayDebounce);
+  }, [searchQuery, fetchPublicGroups, fetchUserGroups]);
 
   // Sync edits/CRUD actions from parent groups state into paginated local state
   useEffect(() => {
@@ -1831,6 +1852,28 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
         <button onClick={() => setIsGroupModalOpen(true)} className="btn btn-primary max-md:w-full max-md:justify-center">
           <Plus size={18} /> Create Study Group
         </button>
+      </div>
+
+      {/* Search Bar */}
+      <div className="mb-6 flex gap-3 max-md:flex-col">
+        <div className="relative flex-1">
+          <input
+            type="text"
+            placeholder="Search study circles by name..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-10 py-2.5 bg-input border border-line rounded-xl text-ink text-sm outline-none focus:border-primary placeholder:text-ink-muted/50"
+          />
+          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-muted" />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 bg-transparent border-0 text-ink-muted hover:text-ink cursor-pointer p-0.5"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Invitations Inbox */}

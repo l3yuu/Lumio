@@ -25,23 +25,28 @@ def _invalidate_public_groups():
 def get_groups(
     skip: int = 0,
     limit: int = 10,
+    q: Optional[str] = None,
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db)
 ):
-    # Returns groups that the current user is a member of with pagination
-    return db.query(models.StudyGroup).filter(
+    # Returns groups that the current user is a member of with pagination and search
+    query = db.query(models.StudyGroup).filter(
         models.StudyGroup.members.any(models.User.id == current_user.id),
         models.StudyGroup.is_banned == False
-    ).order_by(models.StudyGroup.id.desc()).offset(skip).limit(limit).all()
+    )
+    if q:
+        query = query.filter(models.StudyGroup.name.ilike(f"%{q}%"))
+    return query.order_by(models.StudyGroup.id.desc()).offset(skip).limit(limit).all()
 
 @router.get("/public", response_model=schemas.PublicGroupsOut)
 def get_public_groups(
     skip: int = 0,
     limit: int = 10,
+    q: Optional[str] = None,
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db)
 ):
-    cache_key = f"groups:public:listings:{current_user.id}:{skip}:{limit}"
+    cache_key = f"groups:public:listings:{current_user.id}:{skip}:{limit}:{q or ''}"
     cached_groups = cache_get(cache_key)
     if cached_groups is not None:
         if isinstance(cached_groups, dict) and "results" in cached_groups:
@@ -54,6 +59,8 @@ def get_public_groups(
         models.StudyGroup.is_banned == False,
         ~models.StudyGroup.members.any(models.User.id == current_user.id)
     )
+    if q:
+        base_query = base_query.filter(models.StudyGroup.name.ilike(f"%{q}%"))
 
     total = base_query.count()
 
