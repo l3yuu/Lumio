@@ -11,13 +11,15 @@ router = APIRouter(
 
 @router.get("", response_model=List[schemas.NoteOut])
 def get_notes(
+    skip: int = 0,
+    limit: int = 10,
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get all notes of the current user ordered by pinned first then updated_at desc."""
+    """Get notes of the current user ordered by pinned first then updated_at desc with pagination."""
     return db.query(models.Note).filter(
         models.Note.user_id == current_user.id
-    ).order_by(models.Note.is_pinned.desc(), models.Note.updated_at.desc()).all()
+    ).order_by(models.Note.is_pinned.desc(), models.Note.updated_at.desc()).offset(skip).limit(limit).all()
 
 @router.post("", response_model=schemas.NoteOut, status_code=status.HTTP_201_CREATED)
 def create_note(

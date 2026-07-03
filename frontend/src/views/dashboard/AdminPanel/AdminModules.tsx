@@ -1,3 +1,4 @@
+import React from 'react';
 import { Search, Loader2, Trash2, FileText } from 'lucide-react';
 import type { AdminModule } from './types';
 
@@ -9,11 +10,14 @@ interface Props {
   onViewModule: (id: number) => void;
   onDeleteModule: (m: AdminModule) => void;
   onOpenSourceFile: (m: AdminModule) => void;
+  onScroll?: (e: React.UIEvent<HTMLDivElement>) => void;
+  isFetchingMore?: boolean;
 }
 
 export const AdminModules = ({
   modules, searchQuery, submittingId,
-  onSearchChange, onViewModule, onDeleteModule, onOpenSourceFile
+  onSearchChange, onViewModule, onDeleteModule, onOpenSourceFile,
+  onScroll, isFetchingMore
 }: Props) => {
   const filtered = modules.filter(m =>
     m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -36,7 +40,7 @@ export const AdminModules = ({
         />
       </div>
 
-      <div className="flex-1 overflow-auto">
+      <div onScroll={onScroll} className="flex-1 overflow-auto">
         <table className="w-full text-left border-collapse text-sm">
           <thead>
             <tr className="border-b border-line text-xs font-semibold text-ink-muted bg-input/20">
@@ -113,6 +117,11 @@ export const AdminModules = ({
             )}
           </tbody>
         </table>
+        {isFetchingMore && (
+          <div className="text-center py-4 text-xs text-ink-muted animate-pulse">
+            Loading more modules...
+          </div>
+        )}
       </div>
     </div>
   );

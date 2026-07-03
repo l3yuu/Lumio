@@ -28,6 +28,64 @@ const mapModule = (m: ModuleResponse): Module => ({
   isPublic: m.is_public || false
 });
 
+// Persistent client-side IndexedDB cache for PDF thumbnails
+class ThumbnailDB {
+  private dbName = 'LumioThumbnails';
+  private storeName = 'thumbnails';
+  private db: IDBDatabase | null = null;
+
+  async init(): Promise<IDBDatabase> {
+    if (this.db) return this.db;
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(this.dbName, 1);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains(this.storeName)) {
+          db.createObjectStore(this.storeName);
+        }
+      };
+      request.onsuccess = () => {
+        this.db = request.result;
+        resolve(this.db);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async get(key: number): Promise<string | null> {
+    try {
+      const db = await this.init();
+      return new Promise((resolve) => {
+        const transaction = db.transaction(this.storeName, 'readonly');
+        const store = transaction.objectStore(this.storeName);
+        const request = store.get(key);
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = () => resolve(null);
+      });
+    } catch {
+      return null;
+    }
+  }
+
+  async set(key: number, val: string): Promise<void> {
+    try {
+      const db = await this.init();
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction(this.storeName, 'readwrite');
+        const store = transaction.objectStore(this.storeName);
+        const request = store.put(val, key);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      });
+    } catch {
+      // Ignore errors (e.g. if IndexedDB is disabled/blocked in private browsing)
+    }
+  }
+}
+
+const thumbnailDB = new ThumbnailDB();
+const globalPdfThumbnailCache: { [moduleId: number]: string } = {};
+
 interface ModulesPanelProps {
   modules: Module[];
   user: User;
@@ -35,7 +93,6 @@ interface ModulesPanelProps {
   showToast: (type: 'success' | 'error', message: string) => void;
   selectedSubject: string;
   subjects: string[];
-  filteredModules: Module[];
   setSelectedSubject: (v: string) => void;
   startQuiz: (module: Module) => void;
   handleDeleteModule: (id: number) => void;
@@ -55,7 +112,7 @@ interface ModulesPanelProps {
 }
 
 export const ModulesPanel: React.FC<ModulesPanelProps> = ({
-  modules, user, setModules, showToast, selectedSubject, subjects, filteredModules,
+  modules, user, setModules, showToast, selectedSubject, subjects,
   setSelectedSubject, startQuiz, handleDeleteModule, setIsUploadOpen,
   moduleScores, onFileDropped, onCreateFolder, onMoveModule,
   onRenameFolder, onDeleteFolder, onAddExamToCalendar, exams, handleLinkExamToQuiz,
@@ -91,8 +148,23 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
   const [publicModules, setPublicModules] = useState<Module[]>([]);
   const [publicSearchQuery, setPublicSearchQuery] = useState('');
   const [isFetchingPublic, setIsFetchingPublic] = useState(false);
-  const [pdfThumbnails, setPdfThumbnails] = useState<{ [moduleId: number]: string }>({});
+  const [pdfThumbnails, setPdfThumbnails] = useState<{ [moduleId: number]: string }>(() => ({
+    ...globalPdfThumbnailCache
+  }));
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+
+  // User modules pagination state
+  const [userModulesList, setUserModulesList] = useState<Module[]>([]);
+  const userPageRef = React.useRef(0);
+  const [hasMoreUser, setHasMoreUser] = useState(true);
+  const [isFetchingUser, setIsFetchingUser] = useState(false);
+
+  // Public modules pagination state
+  const publicPageRef = React.useRef(0);
+  const [hasMorePublic, setHasMorePublic] = useState(true);
+
+  // Cache for source files: module.id -> cached object URL or text content
+  const fileCacheRef = React.useRef<{ [moduleId: number]: { blobUrl?: string; sourceContent?: string } }>({});
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const loadPdfJs = (): Promise<any> => {
@@ -117,6 +189,12 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
   };
 
   const generatePdfThumbnail = React.useCallback(async (moduleId: number): Promise<string> => {
+    // 1. Check persistent IndexedDB cache first
+    const cached = await thumbnailDB.get(moduleId);
+    if (cached) {
+      return cached;
+    }
+
     const token = localStorage.getItem('token');
     if (!token) throw new Error('Unauthorized');
 
@@ -144,6 +222,9 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
     const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
 
     pdf.destroy();
+
+    // 2. Save to persistent IndexedDB cache
+    await thumbnailDB.set(moduleId, dataUrl);
     return dataUrl;
   }, []);
 
@@ -155,36 +236,94 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
     if (viewMode === 'public') {
       publicModules.forEach((m) => {
         const isPdf = m.sourceFilename?.toLowerCase().endsWith('.pdf');
-        if (isPdf && !pdfThumbnails[m.id]) {
-          generatePdfThumbnail(m.id)
-            .then((dataUrl) => {
-              setPdfThumbnails((prev) => ({ ...prev, [m.id]: dataUrl }));
-            })
-            .catch((err) => {
-              console.error(`Failed to generate thumbnail for module ${m.id}:`, err);
-            });
+        if (isPdf) {
+          if (globalPdfThumbnailCache[m.id]) {
+            if (!pdfThumbnails[m.id]) {
+              setPdfThumbnails((prev) => ({ ...prev, [m.id]: globalPdfThumbnailCache[m.id] }));
+            }
+          } else if (!pdfThumbnails[m.id]) {
+            generatePdfThumbnail(m.id)
+              .then((dataUrl) => {
+                globalPdfThumbnailCache[m.id] = dataUrl;
+                setPdfThumbnails((prev) => ({ ...prev, [m.id]: dataUrl }));
+              })
+              .catch((err) => {
+                console.error(`Failed to generate thumbnail for module ${m.id}:`, err);
+              });
+          }
         }
       });
     }
   }, [publicModules, viewMode, pdfThumbnails, generatePdfThumbnail]);
 
-  const fetchPublicModules = (queryStr: string = '') => {
+  const fetchPublicModules = React.useCallback((queryStr: string = '', pageNum: number = 0, append: boolean = false) => {
     const token = localStorage.getItem('token');
     if (!token) return;
     setIsFetchingPublic(true);
-    fetch(`${API_BASE_URL}/api/modules/public?search=${encodeURIComponent(queryStr)}`, {
+    const limit = 10;
+    const skip = pageNum * limit;
+    fetch(`${API_BASE_URL}/api/modules/public?search=${encodeURIComponent(queryStr)}&skip=${skip}&limit=${limit}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
-    .then(res => res.json())
+    .then(res => res.ok ? res.json() : [])
     .then((data: ModuleResponse[]) => {
-      setPublicModules(data.map(mapModule));
+      const mapped = data.map(mapModule);
+      if (append) {
+        setPublicModules(prev => {
+          const existingIds = new Set(prev.map(x => x.id));
+          const filtered = mapped.filter(x => !existingIds.has(x.id));
+          return [...prev, ...filtered];
+        });
+      } else {
+        setPublicModules(mapped);
+      }
+      setHasMorePublic(data.length === limit);
       setIsFetchingPublic(false);
     })
     .catch(err => {
       console.error('Error fetching public modules:', err);
       setIsFetchingPublic(false);
     });
-  };
+  }, []);
+
+  const fetchUserModules = React.useCallback((pageNum: number = 0, append: boolean = false, currentSearch: string = searchQuery, currentSubject: string = selectedSubject) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    setIsFetchingUser(true);
+    const limit = 10;
+    const skip = pageNum * limit;
+    
+    let url = `${API_BASE_URL}/api/modules?skip=${skip}&limit=${limit}`;
+    if (currentSearch) {
+      url += `&search=${encodeURIComponent(currentSearch)}`;
+    }
+    if (currentSubject && currentSubject !== 'All') {
+      url += `&subject=${encodeURIComponent(currentSubject)}`;
+    }
+
+    fetch(url, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    .then(res => res.ok ? res.json() : [])
+    .then((data: ModuleResponse[]) => {
+      const mapped = data.map(mapModule);
+      if (append) {
+        setUserModulesList(prev => {
+          const existingIds = new Set(prev.map(x => x.id));
+          const filtered = mapped.filter(x => !existingIds.has(x.id));
+          return [...prev, ...filtered];
+        });
+      } else {
+        setUserModulesList(mapped);
+      }
+      setHasMoreUser(data.length === limit);
+      setIsFetchingUser(false);
+    })
+    .catch(err => {
+      console.error('Error fetching user modules:', err);
+      setIsFetchingUser(false);
+    });
+  }, [searchQuery, selectedSubject]);
 
   const handleCopyPublicModule = (m: Module) => {
     const token = localStorage.getItem('token');
@@ -240,12 +379,100 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
     setViewMode(initialViewMode);
   }
 
+  // Trigger fetches and reset page when viewMode changes
   React.useEffect(() => {
     if (viewMode === 'public') {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      fetchPublicModules(publicSearchQuery);
+      publicPageRef.current = 0;
+      setTimeout(() => {
+        fetchPublicModules(publicSearchQuery, 0, false);
+      }, 0);
+    } else {
+      userPageRef.current = 0;
+      setTimeout(() => {
+        fetchUserModules(0, false, searchQuery, selectedSubject);
+      }, 0);
     }
-  }, [viewMode, publicSearchQuery]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, fetchUserModules, fetchPublicModules]);
+
+  // Reset/fetch user modules when search or subject filters change
+  React.useEffect(() => {
+    if (viewMode !== 'public') {
+      userPageRef.current = 0;
+      setTimeout(() => {
+        fetchUserModules(0, false, searchQuery, selectedSubject);
+      }, 0);
+    }
+
+  }, [searchQuery, selectedSubject, viewMode, fetchUserModules]);
+
+  // Reset/fetch public modules when publicSearchQuery changes
+  React.useEffect(() => {
+    if (viewMode === 'public') {
+      publicPageRef.current = 0;
+      setTimeout(() => {
+        fetchPublicModules(publicSearchQuery, 0, false);
+      }, 0);
+    }
+
+  }, [publicSearchQuery, viewMode, fetchPublicModules]);
+
+  // Sync edits/CRUD actions from parent modules state into paginated local state
+  React.useEffect(() => {
+    setTimeout(() => {
+      setUserModulesList(prev => {
+        const parentMap = new Map(modules.map(m => [m.id, m]));
+        
+        const updated = prev
+          .filter(m => parentMap.has(m.id))
+          .map(m => parentMap.get(m.id)!);
+          
+        const existingIds = new Set(prev.map(m => m.id));
+        const newlyAdded = modules.filter(m => !existingIds.has(m.id));
+        
+        if (newlyAdded.length > 0) {
+          return [...newlyAdded, ...updated];
+        }
+        return updated;
+      });
+    }, 0);
+  }, [modules]);
+
+  // Scroll event listener for infinite scrolling
+  React.useEffect(() => {
+    const handleScroll = (e: Event) => {
+      const target = e.target;
+      if (!target) return;
+
+      const element = target as HTMLElement;
+      const isMainContainer = target === document || 
+                              target === document.documentElement || 
+                              (element.classList && element.classList.contains('overflow-y-auto') && !element.classList.contains('flex-1'));
+      if (!isMainContainer) return;
+
+      const threshold = 150;
+      const scrollHeight = element.scrollHeight || document.documentElement.scrollHeight;
+      const scrollTop = element.scrollTop !== undefined ? element.scrollTop : window.scrollY;
+      const clientHeight = element.clientHeight || window.innerHeight;
+      
+      if (scrollHeight - (scrollTop + clientHeight) <= threshold) {
+        if (viewMode === 'public') {
+          if (hasMorePublic && !isFetchingPublic) {
+            publicPageRef.current += 1;
+            fetchPublicModules(publicSearchQuery, publicPageRef.current, true);
+          }
+        } else if (viewMode === 'quizzes' || viewMode === 'exams') {
+          if (hasMoreUser && !isFetchingUser) {
+            userPageRef.current += 1;
+            fetchUserModules(userPageRef.current, true, searchQuery, selectedSubject);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { capture: true });
+    return () => window.removeEventListener('scroll', handleScroll, { capture: true });
+  }, [viewMode, hasMorePublic, isFetchingPublic, publicSearchQuery, hasMoreUser, isFetchingUser, searchQuery, selectedSubject, fetchUserModules, fetchPublicModules]);
 
   // Daily exam generation limit tracking
   const dailyExamLimit = user.is_premium ? 5 : 1;
@@ -383,14 +610,85 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
   const isExam = (m: Module) =>
     m.subject === 'Consolidated Exam' || (m.questionsCount >= 50 && !m.hasSourceFile);
 
-  const displayedModules = filteredModules
-    .filter(m => viewMode === 'quizzes' ? !isExam(m) : isExam(m))
-    .filter(m => m.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  const displayedModules = userModulesList
+    .filter(m => viewMode === 'quizzes' ? !isExam(m) : isExam(m));
   const [activeScoreModule, setActiveScoreModule] = useState<Module | null>(null);
 
   const handleOpenSourceInNewTab = (m: Module) => {
     const token = localStorage.getItem('token');
     if (!token) return;
+
+    const cached = fileCacheRef.current[m.id];
+
+    // If cached PDF blob URL exists
+    if (m.sourceFilename?.toLowerCase().endsWith('.pdf') && cached?.blobUrl) {
+      window.open(cached.blobUrl, '_blank');
+      return;
+    }
+
+    // If cached text/json source exists
+    if (!m.sourceFilename?.toLowerCase().endsWith('.pdf') && cached?.sourceContent) {
+      const newTab = window.open('', '_blank');
+      if (newTab) {
+        newTab.document.write(`
+          <html>
+            <head>
+              <title>${m.name} - Source File</title>
+              <style>
+                body {
+                  background: #181818;
+                  color: #e0e0e0;
+                  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                  margin: 0;
+                  padding: 24px;
+                  display: flex;
+                  flex-direction: column;
+                  align-items: center;
+                  min-height: 100vh;
+                }
+                .container {
+                  width: 100%;
+                  max-width: 900px;
+                  background: #202020;
+                  border: 1px solid #333;
+                  border-radius: 12px;
+                  padding: 40px;
+                  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+                  box-sizing: border-box;
+                }
+                h1 {
+                  font-size: 24px;
+                  margin-top: 0;
+                  margin-bottom: 8px;
+                  color: #fff;
+                }
+                .filename {
+                  font-size: 14px;
+                  color: #888;
+                  margin-bottom: 24px;
+                }
+                pre {
+                  white-space: pre-wrap;
+                  word-wrap: break-word;
+                  font-size: 14px;
+                  line-height: 1.6;
+                  margin: 0;
+                }
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <h1>${m.name}</h1>
+                <div class="filename">${m.sourceFilename || ''}</div>
+                <pre>${cached.sourceContent}</pre>
+              </div>
+            </body>
+          </html>
+        `);
+        newTab.document.close();
+      }
+      return;
+    }
 
     const newTab = window.open('', '_blank');
     if (newTab) {
@@ -468,6 +766,7 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
       })
       .then(blob => {
         const url = URL.createObjectURL(blob);
+        fileCacheRef.current[m.id] = { blobUrl: url };
         if (newTab) {
           newTab.location.href = url;
         }
@@ -479,6 +778,7 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
         .then(res => res.ok ? res.json() : null)
         .then(data => {
           if (data && newTab) {
+            fileCacheRef.current[m.id] = { sourceContent: data.source_content || '' };
             const loader = newTab.document.getElementById('loader');
             const content = newTab.document.getElementById('content');
             const pre = newTab.document.getElementById('pre');
@@ -498,6 +798,7 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         if (data && newTab) {
+          fileCacheRef.current[m.id] = { sourceContent: data.source_content || '' };
           const loader = newTab.document.getElementById('loader');
           const content = newTab.document.getElementById('content');
           const pre = newTab.document.getElementById('pre');
@@ -722,7 +1023,7 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
       {viewMode === 'public' ? (
         <div className="flex flex-col gap-5 mt-4">
           <div className="flex flex-col gap-2 bg-app/20 border border-line rounded-xl p-4">
-            <div className="relative w-full max-w-[400px]">
+            <div className="relative w-full max-w-100">
               <input
                 type="text"
                 placeholder="Search public modules..."
@@ -736,8 +1037,38 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
           </div>
 
           {isFetchingPublic ? (
-            <div className="text-center p-8 text-ink-muted">
-              <span className="inline-block animate-pulse">Loading public modules...</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mt-4">
+              {Array.from({ length: 8 }).map((_, index) => (
+                <div key={`skeleton-${index}`} className="flex flex-col bg-card border border-line rounded-2xl overflow-hidden animate-pulse select-none pointer-events-none">
+                  {/* Cover Area Skeleton */}
+                  <div className="relative aspect-4/3 w-full bg-app overflow-hidden border-b border-line flex items-center justify-center p-4">
+                    <div className="w-[70%] h-[85%] bg-white/5 dark:bg-black/10 rounded border border-line/20 p-3.5 flex flex-col justify-between text-left">
+                      <div className="flex flex-col gap-1.5">
+                        <div className="w-3/4 h-2.5 bg-line/30 rounded-sm" />
+                        <div className="w-full h-1 bg-line/10 rounded-sm" />
+                        <div className="w-4/5 h-1 bg-line/10 rounded-sm" />
+                        <div className="w-11/12 h-1 bg-line/10 rounded-sm" />
+                      </div>
+                      <div className="flex justify-between items-center mt-auto">
+                        <div className="w-1/3 h-1.5 bg-line/10 rounded-sm" />
+                        <div className="w-4 h-4 rounded-full bg-line/20" />
+                      </div>
+                    </div>
+                  </div>
+                  {/* Card Content Skeleton */}
+                  <div className="p-4 flex flex-col gap-2.5 flex-1 text-left">
+                    <div className="h-3.5 bg-line/25 rounded w-3/4" />
+                    <div className="flex flex-col gap-1.5">
+                      <div className="h-2.5 bg-line/10 rounded w-full" />
+                      <div className="h-2.5 bg-line/10 rounded w-5/6" />
+                    </div>
+                    <div className="flex justify-between items-center mt-auto pt-2 border-t border-line/20">
+                      <div className="h-2.5 bg-line/10 rounded w-1/4" />
+                      <div className="h-4 bg-line/15 rounded-full w-12" />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : publicModules.length === 0 ? (
             <div className="text-center p-12 text-ink-muted bg-app/20 border border-dashed border-line rounded-xl">
@@ -771,7 +1102,7 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
                     }}
                   >
                     {/* Cover Preview Area */}
-                    <div className="relative aspect-[4/3] w-full bg-app overflow-hidden border-b border-line flex items-center justify-center select-none">
+                    <div className="relative aspect-4/3 w-full bg-app overflow-hidden border-b border-line flex items-center justify-center select-none">
                       {pdfThumbnails[m.id] ? (
                         <img 
                           src={pdfThumbnails[m.id]} 
@@ -799,7 +1130,7 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
                         </div>
                       ) : (
                         /* Vibrant Gradient Cover preview */
-                        <div className={`w-full h-full bg-gradient-to-br ${gradientClass} flex flex-col p-4 justify-between text-left relative overflow-hidden`}>
+                        <div className={`w-full h-full bg-linear-to-br ${gradientClass} flex flex-col p-4 justify-between text-left relative overflow-hidden`}>
                           <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full blur-xl transform translate-x-4 -translate-y-4" />
                           <div className="text-white font-black text-sm line-clamp-4 leading-snug font-sans tracking-wide">
                             {m.name}
@@ -914,6 +1245,11 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
                   </div>
                 );
               })}
+            </div>
+          )}
+          {isFetchingPublic && publicModules.length > 0 && (
+            <div className="text-center py-4 text-xs text-ink-muted animate-pulse">
+              Loading more public modules...
             </div>
           )}
         </div>
@@ -1210,6 +1546,11 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
                   </div>
                 );
               })
+            )}
+            {isFetchingUser && userModulesList.length > 0 && (
+              <div className="text-center py-4 text-xs text-ink-muted animate-pulse">
+                Loading more study modules...
+              </div>
             )}
           </div>
         </>

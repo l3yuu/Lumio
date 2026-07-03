@@ -1,6 +1,6 @@
 import logging
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -8,6 +8,7 @@ from .. import schemas, models, auth
 from ..database import get_db
 from ..quiz_generator import condense_document
 from ..time_utils import today_ph_str
+from ..ratelimit import condenser_limiter
 
 logger = logging.getLogger("lumio.condenser")
 
@@ -16,9 +17,20 @@ router = APIRouter(prefix="/api/condenser", tags=["condenser"])
 @router.post("/condense", response_model=schemas.CondenserHistoryOut)
 async def condense_document_endpoint(
     body: schemas.CondenserRequest,
+    request: Request,
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db)
 ):
+    # Enforce request rate limit (10 per minute)
+    client_ip = request.client.host if request.client else "unknown"
+    limiter_key = f"condense:{client_ip}:{current_user.id}"
+    if condenser_limiter.is_limited(limiter_key):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many requests. Please try again in a minute."
+        )
+    condenser_limiter.record(limiter_key)
+
     if not body.text.strip():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

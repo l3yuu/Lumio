@@ -436,17 +436,26 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
             Didn't get it?{' '}
             <button
               type="button"
-              onClick={() => {
-                fetch(`${API_BASE_URL}/api/auth/resend-code`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ email: verifyEmail })
-                }).catch(() => {});
-                showToast('success', 'A new code has been sent!');
+              disabled={cooldownLeft > 0}
+              onClick={async () => {
+                try {
+                  const res = await fetch(`${API_BASE_URL}/api/auth/resend-code`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: verifyEmail })
+                  });
+                  if (!res.ok) {
+                    if (res.status === 429) setCooldownUntil(Date.now() + 30000);
+                    return;
+                  }
+                  showToast('success', 'A new code has been sent!');
+                } catch {
+                  // network error – silently ignore
+                }
               }}
-              className="bg-transparent border-0 text-primary font-medium cursor-pointer p-0"
+              className="bg-transparent border-0 text-primary font-medium cursor-pointer p-0 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Resend code
+              {cooldownLeft > 0 ? `Resend (${cooldownLeft}s)` : 'Resend code'}
             </button>
           </p>
         </div>

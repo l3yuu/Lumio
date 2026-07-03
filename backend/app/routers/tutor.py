@@ -26,6 +26,53 @@ def generate_mock_tutor_response(query: str) -> str:
     else:
         return f"I analyzed your study content, but couldn't find a specific section explaining '{query}'. Based on general knowledge, it is an academic concept related to your courses. Please upload more textbook files for detailed tutor guidance!"
 
+def search_relevant_context(query_str: str, modules: List[models.Module]) -> str:
+    import re
+    # Normalize query keywords
+    stopwords = {'what', 'is', 'the', 'and', 'for', 'are', 'about', 'how', 'why', 'who', 'where', 'when', 'with', 'explain', 'summarize', 'define'}
+    words = re.findall(r'\b\w{3,}\b', query_str.lower())
+    keywords = [w for w in words if w not in stopwords]
+    
+    if not keywords:
+        # Default fallback: return first 2000 chars of each of the first few modules
+        default_blocks = []
+        for m in modules:
+            if m.source_content:
+                default_blocks.append(f"Source Document: {m.name}\nContext:\n{m.source_content[:2000]}")
+        return "\n\n".join(default_blocks)[:12000]
+
+    matches = []
+    for m in modules:
+        if not m.source_content:
+            continue
+        # Normalize single newlines inside m.source_content to spaces to merge wrapped lines
+        normalized_content = re.sub(r'(?<!\n)\n(?![\n\r])', ' ', m.source_content)
+        paragraphs = [p.strip() for p in normalized_content.split('\n\n') if p.strip()]
+        for para in paragraphs:
+            score = sum(1 for kw in keywords if kw in para.lower())
+            if score > 0:
+                # Clean up bullets/whitespace
+                para_clean = para.replace("●", "\n• ").replace("○", "\n  - ").replace("•", "\n• ").replace("■", "\n• ")
+                para_clean = re.sub(r'\n+', '\n', para_clean).strip()
+                if para_clean and not para_clean.startswith("•") and not para_clean.startswith("-"):
+                    para_clean = "• " + para_clean
+                matches.append((score, m.name, para_clean))
+
+    if not matches:
+        return ""
+
+    # Sort matches by score descending, then length descending
+    matches.sort(key=lambda x: (x[0], len(x[2])), reverse=True)
+    
+    # Format top matches with their source module names
+    selected = matches[:6]
+    context_blocks = []
+    for score, mod_name, text in selected:
+        context_blocks.append(f"Source Document: {mod_name}\nContext:\n{text}")
+        
+    return "\n\n".join(context_blocks)
+
+
 @router.post("/ask", response_model=schemas.TutorResponse)
 def ask_tutor(
     body: schemas.TutorQuery,
@@ -74,61 +121,12 @@ def ask_tutor(
 
     # Retrieve textbook content from all user modules to construct study context
     modules = db.query(models.Module).filter(models.Module.user_id == current_user.id).all()
-    context_texts = [m.source_content for m in modules if m.source_content]
-    context = "\n\n".join(context_texts).strip()
-
-    # Search context textbooks locally as a fallback option
-    def search_local_context(query_str: str, full_context: str) -> str:
-        import re
-        # Normalize single newlines inside full_context to spaces to merge wrapped lines
-        normalized_context = re.sub(r'(?<!\n)\n(?![\n\r])', ' ', full_context)
-        paragraphs = [p.strip() for p in normalized_context.split('\n\n') if p.strip()]
-        
-        # Get keywords of length >= 3
-        words = re.findall(r'\b\w{3,}\b', query_str.lower())
-        # Filter out common stop words
-        stopwords = {'what', 'is', 'the', 'and', 'for', 'are', 'about', 'how', 'why', 'who', 'where', 'when', 'with', 'explain', 'summarize', 'define'}
-        keywords = [w for w in words if w not in stopwords]
-        if not keywords:
-            return ""
-            
-        def clean_paragraph_text(text: str) -> str:
-            # Replace bullet markers with clean list structures and newlines
-            text = text.replace("●", "\n• ")
-            text = text.replace("○", "\n  - ")
-            text = text.replace("•", "\n• ")
-            text = text.replace("■", "\n• ")
-            
-            # Clean up double newlines or empty bullet items
-            text = re.sub(r'\n+', '\n', text)
-            text = text.strip()
-            
-            # Ensure the paragraph begins with a bullet point for consistent list display
-            if text and not text.startswith("•") and not text.startswith("-"):
-                text = "• " + text
-                
-            return text
-
-        matches = []
-        for para in paragraphs:
-            # Score based on keyword presence
-            score = sum(1 for kw in keywords if kw in para.lower())
-            if score > 0:
-                matches.append((score, clean_paragraph_text(para)))
-                
-        if matches:
-            # Sort by match score descending, then length descending to prefer detailed explanations
-            matches.sort(key=lambda x: (x[0], len(x[1])), reverse=True)
-            best_matches = [m[1] for m in matches[:3]]
-            return "\n\n".join(best_matches)
-        return ""
-
-    local_explanation = search_local_context(body.query, context)
+    context = search_relevant_context(body.query, modules)
 
     api_key = settings.GEMINI_API_KEY
     if not api_key or api_key == "YOUR_GEMINI_API_KEY":
-        if local_explanation:
-            answer = local_explanation
+        if context:
+            answer = context
         else:
             answer = generate_mock_tutor_response(body.query)
     else:
@@ -136,16 +134,21 @@ def ask_tutor(
             from google import genai
             client = genai.Client(api_key=api_key)
             
-            # Construct a clear explanation prompt
+            # Construct a clear explanation prompt with strict hallucination limits and citation requests
             prompt = f"""
 You are an expert academic tutor.
 Explain the concept queried by the student.
-If the study context provided below is relevant, use it as the primary source for the explanation.
-Keep the explanation clear, educational, and structured using bullet points or simple paragraphs.
+
+Instructions to reduce hallucinations:
+1. Use the provided Study Context blocks below as your primary source of information.
+2. For every key fact, definition, or explanation you extract from a block, append its source document name as an inline citation at the end of the sentence or paragraph, e.g., `[Chapter 1 - Cell Biology]`.
+3. If the answer cannot be found or reasonably inferred from the provided Study Context, explain it using general academic knowledge but explicitly prefix your response with a disclaimer like: "*(Note: This explanation is based on general knowledge as it was not found in your uploaded materials)*".
+4. Keep the explanation clear, educational, and structured using bullet points or simple paragraphs.
+5. CRITICAL: DO NOT use markdown bold asterisks (`**`) or underline (`__`) formatting on any words or headings in your explanation. Ensure all text and headers are plain text, clean, and easy to read.
 
 Study Context from student's textbooks:
 ---
-{context[:12000]}
+{context}
 ---
 
 Student Query:
@@ -183,8 +186,8 @@ Student Query:
                 db.rollback()
         except Exception as e:
             print(f"Error querying Gemini API for tutor: {e}")
-            if local_explanation:
-                answer = local_explanation
+            if context:
+                answer = context
             else:
                 answer = generate_mock_tutor_response(body.query)
 

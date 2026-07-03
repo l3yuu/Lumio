@@ -1801,7 +1801,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const activeGroup = groups.find(g => g.id === selectedGroupId);
   const subjects = ['All', ...Array.from(new Set(modules.map(m => (m.subject || '').trim()).filter(Boolean))) as string[]];
-  const filteredModules = selectedSubject === 'All' ? modules : modules.filter(m => m.subject === selectedSubject);
 
   return (
     <div className={`grid max-lg:grid-cols-1 max-lg:grid-rows-[auto_1fr] h-[calc(100vh-58px)] overflow-hidden transition-[grid-template-columns] duration-280 ease-in-out ${
@@ -1926,7 +1925,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     showToast={showToast}
                     selectedSubject={selectedSubject}
                     subjects={['All', ...(user.folders || ['General'])]}
-                    filteredModules={filteredModules}
                     setSelectedSubject={setSelectedSubject}
                     startQuiz={startQuiz}
                     handleDeleteModule={handleDeleteModule}
@@ -1954,7 +1952,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     showToast={showToast}
                     selectedSubject={selectedSubject}
                     subjects={['All', ...(user.folders || ['General'])]}
-                    filteredModules={filteredModules}
                     setSelectedSubject={setSelectedSubject}
                     startQuiz={startQuiz}
                     handleDeleteModule={handleDeleteModule}

@@ -10,11 +10,14 @@ interface Props {
   onRoleChange: (userId: number, targetRole: string, userName: string) => void;
   onDeleteUser: (user: User) => void;
   onSuspend: (userId: number, isSuspended: boolean, userName: string) => void;
+  onScroll?: (e: React.UIEvent<HTMLDivElement>) => void;
+  isFetchingMore?: boolean;
 }
 
 export const AdminUsers = ({
   users, searchQuery, submittingId, currentUser,
-  onSearchChange, onRoleChange, onDeleteUser, onSuspend
+  onSearchChange, onRoleChange, onDeleteUser, onSuspend,
+  onScroll, isFetchingMore
 }: Props) => {
   const filtered = users.filter(u =>
     !u.email.toLowerCase().endsWith('@example.com') && (
@@ -37,7 +40,7 @@ export const AdminUsers = ({
         />
       </div>
 
-      <div className="flex-1 overflow-auto">
+      <div onScroll={onScroll} className="flex-1 overflow-auto">
         <table className="w-full text-left border-collapse text-sm">
           <thead>
             <tr className="border-b border-line text-xs font-semibold text-ink-muted bg-input/20">
@@ -152,6 +155,11 @@ export const AdminUsers = ({
             )}
           </tbody>
         </table>
+        {isFetchingMore && (
+          <div className="text-center py-4 text-xs text-ink-muted animate-pulse">
+            Loading more users...
+          </div>
+        )}
       </div>
     </div>
   );

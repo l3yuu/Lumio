@@ -14,6 +14,15 @@ logger = logging.getLogger("lumio.flashcards")
 
 router = APIRouter(prefix="/api/flashcards", tags=["flashcards"])
 
+USER_FLASHCARD_DECKS_CACHE = {}
+FLASHCARD_DECK_CACHE = {}
+
+def _invalidate_flashcard_caches(deck_id: int = None, user_id: int = None):
+    if user_id is not None:
+        USER_FLASHCARD_DECKS_CACHE.pop(user_id, None)
+    if deck_id is not None:
+        FLASHCARD_DECK_CACHE.pop(deck_id, None)
+
 
 @router.post("/generate", response_model=schemas.FlashcardDeckOut)
 async def generate_flashcards_endpoint(
@@ -88,6 +97,7 @@ async def generate_flashcards_endpoint(
         current_user.study_time = st
         flag_modified(current_user, "study_time")
         
+        _invalidate_flashcard_caches(user_id=current_user.id)
         db.commit()
         db.refresh(db_deck)
         
@@ -113,9 +123,15 @@ def get_flashcard_decks(
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db)
 ):
-    return db.query(models.FlashcardDeck).filter(
+    user_id = current_user.id
+    if user_id in USER_FLASHCARD_DECKS_CACHE:
+        return USER_FLASHCARD_DECKS_CACHE[user_id]
+
+    results = db.query(models.FlashcardDeck).filter(
         models.FlashcardDeck.user_id == current_user.id
     ).order_by(models.FlashcardDeck.created_at.desc()).all()
+    USER_FLASHCARD_DECKS_CACHE[user_id] = results
+    return results
 
 
 @router.get("/{deck_id}", response_model=schemas.FlashcardDeckOut)
@@ -124,6 +140,12 @@ def get_flashcard_deck(
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db)
 ):
+    if deck_id in FLASHCARD_DECK_CACHE:
+        deck = FLASHCARD_DECK_CACHE[deck_id]
+        if deck.user_id != current_user.id:
+            raise HTTPException(status_code=404, detail="Flashcard deck not found.")
+        return deck
+
     deck = db.query(models.FlashcardDeck).filter(
         models.FlashcardDeck.id == deck_id,
         models.FlashcardDeck.user_id == current_user.id
@@ -134,6 +156,7 @@ def get_flashcard_deck(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Flashcard deck not found."
         )
+    FLASHCARD_DECK_CACHE[deck_id] = deck
     return deck
 
 
@@ -154,6 +177,7 @@ def delete_flashcard_deck(
             detail="Flashcard deck not found."
         )
         
+    _invalidate_flashcard_caches(deck_id=deck.id, user_id=current_user.id)
     db.delete(deck)
     db.commit()
     return {"status": "success", "message": "Flashcard deck deleted."}

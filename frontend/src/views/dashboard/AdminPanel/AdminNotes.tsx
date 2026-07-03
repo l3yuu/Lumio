@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Search, RefreshCw, MessageSquare, Notebook } from 'lucide-react';
 import { API_BASE_URL } from '../../../config';
 
@@ -23,32 +23,75 @@ export const AdminNotes = () => {
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
+  const [hasMoreNotes, setHasMoreNotes] = useState(true);
+  const [isFetchingNotes, setIsFetchingNotes] = useState(false);
+  const notesPageRef = useRef(0);
+  const listContainerRef = useRef<HTMLDivElement>(null);
+
+  const fetchNotes = React.useCallback(async (pageNum: number = 0, append: boolean = false) => {
+    try {
+      const token = localStorage.getItem('token');
+      const baseUrl = API_BASE_URL.replace(/\/+$/, '');
+      const limit = 10;
+      const skip = pageNum * limit;
+      
+      const res = await fetch(`${baseUrl}/api/admin/notes?skip=${skip}&limit=${limit}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`HTTP ${res.status}: ${errText}`);
+      }
+      const data = await res.json();
+      if (append) {
+        setNotes(prev => {
+          const existingIds = new Set(prev.map(x => x.id));
+          return [...prev, ...data.filter((x: AdminNote) => !existingIds.has(x.id))];
+        });
+      } else {
+        setNotes(data);
+      }
+      setHasMoreNotes(data.length === limit);
+    } catch (err) {
+      console.error('Error fetching admin notes:', err);
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
-
-    const fetchNotes = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const baseUrl = API_BASE_URL.replace(/\/+$/, '');
-        const res = await fetch(`${baseUrl}/api/admin/notes`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (!res.ok) {
-          const errText = await res.text();
-          throw new Error(`HTTP ${res.status}: ${errText}`);
-        }
-        const data = await res.json();
-        if (!cancelled) setNotes(data);
-      } catch (err) {
-        console.error('Error fetching admin notes:', err);
-      } finally {
+    setTimeout(() => {
+      setLoading(true);
+      fetchNotes(0, false).finally(() => {
         if (!cancelled) setLoading(false);
+      });
+    }, 0);
+    notesPageRef.current = 0;
+    
+    return () => { cancelled = true; };
+  }, [refreshKey, fetchNotes]);
+
+  // Scroll listener
+  useEffect(() => {
+    const container = listContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const threshold = 100;
+      const totalHeight = container.scrollHeight;
+      const scrollPosition = container.clientHeight + container.scrollTop;
+      
+      if (totalHeight - scrollPosition <= threshold) {
+        if (hasMoreNotes && !isFetchingNotes) {
+          setIsFetchingNotes(true);
+          notesPageRef.current += 1;
+          fetchNotes(notesPageRef.current, true).finally(() => setIsFetchingNotes(false));
+        }
       }
     };
 
-    fetchNotes();
-    return () => { cancelled = true; };
-  }, [refreshKey]);
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [hasMoreNotes, isFetchingNotes, fetchNotes]);
 
   const uniqueUsers = [...new Set(notes.map(n => n.owner_email))];
 
@@ -128,7 +171,7 @@ export const AdminNotes = () => {
         )}
       </div>
 
-      <div className="flex-1 overflow-auto">
+      <div ref={listContainerRef} className="flex-1 overflow-auto">
         {loading ? (
           <div className="flex items-center justify-center py-16 text-ink-muted text-sm">
             <RefreshCw size={16} className="animate-spin mr-2" />
@@ -188,6 +231,11 @@ export const AdminNotes = () => {
                 )}
               </div>
             ))}
+          </div>
+        )}
+        {isFetchingNotes && notes.length > 0 && (
+          <div className="text-center py-4 text-xs text-ink-muted animate-pulse">
+            Loading more notes...
           </div>
         )}
       </div>

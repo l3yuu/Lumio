@@ -240,6 +240,38 @@ function App() {
   const [newModuleDifficulty, setNewModuleDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
   const [newModuleSubject, setNewModuleSubject] = useState('General');
   const [newModuleNumQuestions, setNewModuleNumQuestions] = useState<number>(10);
+  const [quizProgress, setQuizProgress] = useState(0);
+
+  useEffect(() => {
+    if (!isGeneratingQuiz) {
+      setTimeout(() => {
+        setQuizProgress(0);
+      }, 0);
+      return;
+    }
+
+    if (quizProgress >= 99) return;
+
+    const delay = quizProgress < 90 
+      ? Math.floor(Math.random() * 100) + 100
+      : Math.floor(Math.random() * 1000) + 1000;
+
+    const timer = setTimeout(() => {
+      setQuizProgress((prev) => {
+        if (prev >= 99) return prev;
+        if (prev < 90) {
+          const increment = Math.floor(Math.random() * 3) + 2;
+          const next = prev + increment;
+          return next > 90 ? 90 : next;
+        } else {
+          const next = prev + 1;
+          return next > 99 ? 99 : next;
+        }
+      });
+    }, delay);
+
+    return () => clearTimeout(timer);
+  }, [isGeneratingQuiz, quizProgress]);
 
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
@@ -932,35 +964,37 @@ function App() {
       return data;
     })
     .then(newModule => {
-      setModules([mapModule(newModule), ...modules]);
-      setNewModuleName('');
-      setNewModuleContent('');
-      setSelectedFile(null);
-      const isPremium = user?.role === 'premium' || user?.role === 'superadmin';
-      setNewModuleDifficulty(isPremium ? 'medium' : 'easy');
-      setNewModuleSubject('General');
-      setNewModuleNumQuestions(10);
-      setIsUploadOpen(false);
-      showToast('success', `Successfully generated module "${newModule.name}"!`);
+      setQuizProgress(100);
+      setTimeout(() => {
+        setModules([mapModule(newModule), ...modules]);
+        setNewModuleName('');
+        setNewModuleContent('');
+        setSelectedFile(null);
+        const isPremium = user?.role === 'premium' || user?.role === 'superadmin';
+        setNewModuleDifficulty(isPremium ? 'medium' : 'easy');
+        setNewModuleSubject('General');
+        setNewModuleNumQuestions(10);
+        setIsUploadOpen(false);
+        showToast('success', `Successfully generated module "${newModule.name}"!`);
+        setIsGeneratingQuiz(false);
 
-      // Refetch user profile to update quota state
-      const token = localStorage.getItem('token');
-      if (token) {
-        fetch(`${API_BASE_URL}/api/auth/me`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-        .then(res => res.ok ? res.json() : null)
-        .then(userData => {
-          if (userData) setUser(mapUser(userData));
-        })
-        .catch(err => console.error('Error refreshing user details:', err));
-      }
+        // Refetch user profile to update quota state
+        const token = localStorage.getItem('token');
+        if (token) {
+          fetch(`${API_BASE_URL}/api/auth/me`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          })
+          .then(res => res.ok ? res.json() : null)
+          .then(userData => {
+            if (userData) setUser(mapUser(userData));
+          })
+          .catch(err => console.error('Error refreshing user details:', err));
+        }
+      }, 600);
     })
     .catch(err => {
       console.error(err);
       alert(err.message || 'Error creating module on backend');
-    })
-    .finally(() => {
       setIsGeneratingQuiz(false);
     });
   };
@@ -1188,6 +1222,23 @@ function App() {
               <div className="bg-card border border-line rounded-2xl p-8 max-w-140 w-full shadow-lg max-h-[90vh] flex flex-col">
                 <h3 className="text-2xl mb-6 shrink-0">Upload Study Module</h3>
 
+                {/* Stepper Progress */}
+                <div className="flex gap-2 mb-6 shrink-0">
+                  <div className="h-1.5 flex-1 rounded-full bg-primary shadow-glow-primary-strong" />
+                  <div 
+                    className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
+                      isGeneratingQuiz 
+                        ? `bg-primary shadow-glow-primary-strong ${quizProgress < 100 ? 'animate-pulse-soft' : ''}` 
+                        : 'bg-line'
+                    }`} 
+                  />
+                  <div 
+                    className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
+                      quizProgress === 100 ? 'bg-primary shadow-glow-primary-strong' : 'bg-line'
+                    }`} 
+                  />
+                </div>
+
                 <form onSubmit={handleAddModule} className="flex flex-col flex-1 overflow-hidden">
                   <div className="flex-1 overflow-y-auto pr-1 min-h-0 space-y-4 pb-2">
                     {/* Daily Quota Indicator */}
@@ -1349,9 +1400,45 @@ function App() {
                               </button>
                             )}
                           </div>
-                          <span className="text-[0.75rem] text-primary font-medium">
-                            {isGeneratingQuiz ? 'Generating practice questions using AI...' : 'File attached successfully! Click "Generate Quiz" below to start.'}
+                          <div className="flex flex-col items-center gap-2.5 w-full mt-1.5">
+                            <span className="text-[0.75rem] text-primary font-medium flex items-center gap-1.5">
+                              {isGeneratingQuiz ? (
+                                <>
+                                  <Loader2 className="animate-spin text-primary shrink-0" size={12} />
+                                  <span>
+                                    {quizProgress === 100 
+                                      ? 'Quiz generated successfully!' 
+                                      : `Generating practice questions using AI... ${quizProgress}%`}
+                                  </span>
+                                </>
+                              ) : (
+                                'File attached successfully! Click "Generate Quiz" below to start.'
+                              )}
+                            </span>
+                            {isGeneratingQuiz && (
+                              <div className="w-full max-w-xs h-1.5 bg-line rounded-full overflow-hidden relative border border-line-strong">
+                                <div 
+                                  className="h-full bg-primary rounded-full transition-all duration-300 ease-out shadow-glow-primary-strong"
+                                  style={{ width: `${quizProgress}%` }}
+                                ></div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : isGeneratingQuiz ? (
+                        <div className="flex flex-col items-center gap-3 w-full py-4">
+                          <Loader2 className="animate-spin text-primary" size={32} />
+                          <span className="font-semibold text-[0.95rem] text-primary">
+                            {quizProgress === 100 
+                              ? 'Quiz generated successfully!' 
+                              : `Generating practice questions using AI... ${quizProgress}%`}
                           </span>
+                          <div className="w-full max-w-xs h-1.5 bg-line rounded-full overflow-hidden relative border border-line-strong">
+                            <div 
+                              className="h-full bg-primary rounded-full transition-all duration-300 ease-out shadow-glow-primary-strong"
+                              style={{ width: `${quizProgress}%` }}
+                            ></div>
+                          </div>
                         </div>
                       ) : (
                         <>

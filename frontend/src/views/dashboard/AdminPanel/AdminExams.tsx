@@ -1,3 +1,4 @@
+import React from 'react';
 import { Search, Loader2, Trash2 } from 'lucide-react';
 import type { AdminExam } from './types';
 
@@ -7,11 +8,14 @@ interface Props {
   submittingId: number | null;
   onSearchChange: (q: string) => void;
   onDeleteExam: (e: AdminExam) => void;
+  onScroll?: (e: React.UIEvent<HTMLDivElement>) => void;
+  isFetchingMore?: boolean;
 }
 
 export const AdminExams = ({
   exams, searchQuery, submittingId,
-  onSearchChange, onDeleteExam
+  onSearchChange, onDeleteExam,
+  onScroll, isFetchingMore
 }: Props) => {
   const filtered = exams.filter(e =>
     e.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -33,7 +37,7 @@ export const AdminExams = ({
         />
       </div>
 
-      <div className="flex-1 overflow-auto">
+      <div onScroll={onScroll} className="flex-1 overflow-auto">
         <table className="w-full text-left border-collapse text-sm">
           <thead>
             <tr className="border-b border-line text-xs font-semibold text-ink-muted bg-input/20">
@@ -113,6 +117,11 @@ export const AdminExams = ({
             )}
           </tbody>
         </table>
+        {isFetchingMore && (
+          <div className="text-center py-4 text-xs text-ink-muted animate-pulse">
+            Loading more exams...
+          </div>
+        )}
       </div>
     </div>
   );

@@ -310,16 +310,19 @@ export const AiTutorSidebar: React.FC<AiTutorSidebarProps> = ({
 
                 {/* Typing/Loading Indicator */}
                 {isAiLoading && (
-                  <div className="self-start max-w-[85%] flex flex-col items-start">
-                    <div className="py-3 px-4 rounded-2xl rounded-tl-sm bg-glass-strong border border-line flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                      <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                      <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                  <div className="self-start max-w-[85%] flex flex-col items-start gap-1">
+                    <div className="py-2.5 px-3.5 rounded-2xl rounded-tl-sm bg-glass-strong border border-line flex items-center gap-2 text-ink text-left text-[0.82rem] select-none">
+                      <Sparkles size={14} className="text-primary shrink-0 animate-pulse" />
+                      <span className="text-ink-muted mr-1">Tutor is thinking</span>
+                      <div className="flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                        <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                        <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                      </div>
                     </div>
                   </div>
                 )}
 
-                {/* Suggestions panel (only show if few messages in chat) */}
                 {chatMessages.length <= 1 && !isAiLoading && (
                   <div className="mt-4 flex flex-col gap-2">
                     <span className="text-[0.7rem] text-ink-muted font-bold uppercase tracking-wider pl-1 mb-1 text-left">Suggested Topics</span>

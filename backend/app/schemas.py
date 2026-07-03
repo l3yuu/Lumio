@@ -122,6 +122,7 @@ class ModuleOut(ModuleBase):
     id: int
     date: str
     user_id: int
+    shared_by_name: Optional[str] = None
     source_filename: Optional[str] = None
     has_source_file: bool = False
     last_score: Optional[str] = None
@@ -243,6 +244,10 @@ class StudyGroupOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+class PublicGroupsOut(BaseModel):
+    results: List[StudyGroupOut]
+    total: int
 
 class GroupInviteRequest(BaseModel):
     email: str
