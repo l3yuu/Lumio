@@ -20,8 +20,16 @@ def register(user_in: schemas.UserCreate, background_tasks: BackgroundTasks, req
         register_limiter.record(reg_key)
         raise HTTPException(status_code=400, detail="Email already registered")
     
+    from ..system_config import get_system_config
+    if get_system_config(db, "allow_registrations") == "false":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Registrations are currently closed by the administrator."
+        )
+    
+    require_verify = get_system_config(db, "require_email_verification") != "false"
     hashed_pwd = auth.get_password_hash(user_in.password)
-    code = generate_verification_code()
+    code = generate_verification_code() if require_verify else None
     is_first_user = db.query(models.User).count() == 0
     user_role = "superadmin" if is_first_user else "user"
     user = models.User(
@@ -31,16 +39,20 @@ def register(user_in: schemas.UserCreate, background_tasks: BackgroundTasks, req
         avatar=user_in.avatar or "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&h=150&q=80",
         school=user_in.school or "State University",
         verification_code=code,
+        is_verified=not require_verify,
         role=user_role
     )
     db.add(user)
     db.commit()
     db.refresh(user)
     
-    send_verification_email(background_tasks, user.email, user.name, code)
+    if require_verify:
+        send_verification_email(background_tasks, user.email, user.name, code)
+    else:
+        send_welcome_email(background_tasks, user.email, user.name)
     
     access_token = auth.create_access_token(data={"user_id": user.id, "email": user.email})
-    return {"access_token": access_token, "token_type": "bearer", "is_verified": False}
+    return {"access_token": access_token, "token_type": "bearer", "is_verified": not require_verify}
 
 @router.post("/verify")
 def verify(body: schemas.VerifyRequest, background_tasks: BackgroundTasks, request: Request, db: Session = Depends(get_db)):

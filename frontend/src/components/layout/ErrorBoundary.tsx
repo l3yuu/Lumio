@@ -38,7 +38,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 }
 
-export const MaintenancePage: React.FC<{ onReload?: () => void }> = ({ onReload }) => {
+export const MaintenancePage: React.FC<{ onReload?: () => void; onAdminLogin?: () => void }> = ({ onReload, onAdminLogin }) => {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-[#0a0a0a] text-[#f5f5f5] p-8 relative overflow-hidden">
       <div className="maintenance-bg-pattern" />
@@ -73,6 +73,17 @@ export const MaintenancePage: React.FC<{ onReload?: () => void }> = ({ onReload 
           <span>Need help? Contact us at </span>
           <a href="mailto:support.lumio@gmail.com">support.lumio@gmail.com</a>
         </div>
+
+        {onAdminLogin && (
+          <div className="mt-6 border-t border-white/[0.06] pt-5">
+            <button
+              onClick={onAdminLogin}
+              className="text-xs text-white/30 hover:text-primary transition-colors cursor-pointer bg-transparent border-none outline-none font-semibold underline"
+            >
+              Superadmin Access
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="relative z-10 mt-12 text-xs text-ink-ghost">

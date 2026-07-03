@@ -1,3 +1,4 @@
+from __future__ import annotations
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
 from datetime import datetime
@@ -94,6 +95,10 @@ class QuizQuestionBase(BaseModel):
     question: str
     options: List[str]
     correct_answer_index: int
+    explanation: Optional[str] = None
+    hint: Optional[str] = None
+    question_type: Optional[str] = "multiple_choice"
+    reference: Optional[str] = None
 
 class QuizQuestionOut(QuizQuestionBase):
     id: int
@@ -108,6 +113,7 @@ class ModuleBase(BaseModel):
     name: str
     subject: Optional[str] = None
     size: str
+    is_public: bool = False
 
 class ModuleCreate(ModuleBase):
     questions: List[QuizQuestionBase]
@@ -139,6 +145,7 @@ class ModuleScoreUpdate(BaseModel):
 class ModuleUpdate(BaseModel):
     subject: Optional[str] = None
     name: Optional[str] = None
+    is_public: Optional[bool] = None
 
 
 class FolderRename(BaseModel):
@@ -218,16 +225,20 @@ class QuizSessionOut(BaseModel):
 class StudyGroupCreate(BaseModel):
     name: str
     members: List[str] = []  # List of emails to add
+    is_public: bool = False
 
 class StudyGroupUpdate(BaseModel):
     name: str
+    is_public: Optional[bool] = None
 
 class StudyGroupOut(BaseModel):
     id: int
     name: str
     creator_id: Optional[int] = None
+    is_public: bool = False
     members: List[GroupMemberOut]
     modules: List[ModuleOut]
+    notes: List[NoteOut]
     quiz_sessions: List[QuizSessionOut]
 
     class Config:
@@ -458,5 +469,71 @@ class EssayGraderHistoryOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# --- QUIZ ATTEMPT SCHEMAS ---
+class QuizAttemptCreate(BaseModel):
+    title: str
+    attempt_type: str  # 'study_module', 'exam', 'group_quiz'
+    score: str         # e.g., "8/10"
+    percentage: int    # e.g., 80
+    date: str          # e.g., "Jun 16, 2026, 9:15 PM"
+
+class QuizAttemptOut(QuizAttemptCreate):
+    id: int
+    user_id: int
+
+    class Config:
+        from_attributes = True
+
+
+# --- NOTE SCHEMAS ---
+class NoteCreate(BaseModel):
+    title: str = "Untitled Note"
+    content: str = ""
+    subject: str = "General"
+
+class NoteUpdate(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+    subject: Optional[str] = None
+    is_pinned: Optional[bool] = None
+
+class NoteOut(BaseModel):
+    id: int
+    user_id: int
+    title: str
+    content: str
+    subject: str
+    is_pinned: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# --- SYSTEM CONFIG SCHEMAS ---
+class SystemConfigOut(BaseModel):
+    allow_registrations: bool
+    require_email_verification: bool
+    allow_circle_creation: bool
+    default_llm_model: str
+    ai_temperature: float
+    free_summaries_limit: int
+    pro_summaries_limit: int
+    maintenance_mode: bool
+
+class SystemConfigUpdate(BaseModel):
+    allow_registrations: Optional[bool] = None
+    require_email_verification: Optional[bool] = None
+    allow_circle_creation: Optional[bool] = None
+    default_llm_model: Optional[str] = None
+    ai_temperature: Optional[float] = None
+    free_summaries_limit: Optional[int] = None
+    pro_summaries_limit: Optional[int] = None
+    maintenance_mode: Optional[bool] = None
+
+
 
 

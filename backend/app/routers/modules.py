@@ -151,6 +151,29 @@ def create_module(
         difficulty=difficulty,
         num_questions=num_questions
     )
+
+    from ..system_config import get_system_config
+    model_name = get_system_config(db, "default_llm_model") or "gemini-2.5-flash"
+    try:
+        prompt_text = f"{name}: {(text_content or '')[:1800]}".strip()[:2000]
+        q_preview = "\n".join(
+            f"Q{i+1}: {q.get('question', '')[:120]}"
+            for i, q in enumerate((questions_data or [])[:5])
+        )
+        if len(questions_data or []) > 5:
+            q_preview += f"\n… (+{len(questions_data) - 5} more questions)"
+        response_text = f"Generated {len(questions_data or [])} questions for '{name}':\n{q_preview}"
+        db.add(models.AiUsageLog(
+            user_id=current_user.id,
+            feature="quiz",
+            model=model_name,
+            prompt=prompt_text,
+            response=response_text[:3000],
+            tokens_used=len(prompt_text) // 4
+        ))
+        db.commit()
+    except Exception:
+        db.rollback()
     
     # Format date nicely
     date_str = now_ph().strftime("%b %d, %Y")
@@ -189,6 +212,10 @@ def create_module(
             question=q["question"],
             options=q["options"],
             correct_answer_index=q["correct_answer_index"],
+            explanation=q.get("explanation"),
+            hint=q.get("hint"),
+            question_type=q.get("question_type", "multiple_choice"),
+            reference=q.get("reference"),
             module_id=db_module.id
         )
         db.add(db_question)
@@ -292,11 +319,8 @@ def get_module_source(
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db)
 ):
-    module = db.query(models.Module).filter(
-        models.Module.id == module_id,
-        models.Module.user_id == current_user.id
-    ).first()
-    if not module:
+    module = db.query(models.Module).filter(models.Module.id == module_id).first()
+    if not module or (module.user_id != current_user.id and not module.is_public):
         raise HTTPException(status_code=404, detail="Module not found")
     return schemas.ModuleSourceOut(
         id=module.id,
@@ -311,11 +335,8 @@ def get_module_file(
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db)
 ):
-    module = db.query(models.Module).filter(
-        models.Module.id == module_id,
-        models.Module.user_id == current_user.id
-    ).first()
-    if not module:
+    module = db.query(models.Module).filter(models.Module.id == module_id).first()
+    if not module or (module.user_id != current_user.id and not module.is_public):
         raise HTTPException(status_code=404, detail="Module not found")
     if module.source_file_data:
         return Response(
@@ -332,6 +353,71 @@ def get_module_file(
         filename=module.source_filename or "file",
         media_type=module.source_file_mime or get_source_media_type(module.source_filename)
     )
+
+
+@router.get("/public", response_model=List[schemas.ModuleOut])
+def get_public_modules(
+    search: Optional[str] = None,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    query = db.query(models.Module).filter(
+        models.Module.is_public == True
+    )
+    if search:
+        query = query.filter(
+            (models.Module.name.ilike(f"%{search}%")) |
+            (models.Module.subject.ilike(f"%{search}%"))
+        )
+    return query.order_by(models.Module.id.desc()).all()
+
+
+@router.post("/{module_id}/copy", response_model=schemas.ModuleOut)
+def copy_public_module(
+    module_id: int,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    source_module = db.query(models.Module).filter(
+        models.Module.id == module_id,
+        models.Module.is_public == True
+    ).first()
+    if not source_module:
+        raise HTTPException(status_code=404, detail="Public module not found")
+        
+    cloned_module = models.Module(
+        name=source_module.name,
+        date=today_ph_str(),
+        size=source_module.size,
+        subject=source_module.subject,
+        user_id=current_user.id,
+        source_content=source_module.source_content,
+        source_filename=source_module.source_filename,
+        source_file_path=source_module.source_file_path,
+        source_file_data=source_module.source_file_data,
+        source_file_mime=source_module.source_file_mime,
+        difficulty=source_module.difficulty,
+        is_public=False
+    )
+    db.add(cloned_module)
+    db.flush()
+    
+    for q in source_module.questions:
+        cloned_q = models.QuizQuestion(
+            question=q.question,
+            options=q.options,
+            correct_answer_index=q.correct_answer_index,
+            explanation=q.explanation,
+            hint=q.hint,
+            question_type=q.question_type,
+            reference=q.reference,
+            module_id=cloned_module.id
+        )
+        db.add(cloned_q)
+        
+    db.commit()
+    db.refresh(cloned_module)
+    return cloned_module
 
 
 @router.put("/{module_id}", response_model=schemas.ModuleOut)
@@ -352,6 +438,8 @@ def update_module(
         module.subject = body.subject
     if body.name is not None:
         module.name = body.name
+    if body.is_public is not None:
+        module.is_public = body.is_public
     db.commit()
     db.refresh(module)
     return module
@@ -482,6 +570,29 @@ def generate_consolidated_exam(
         num_questions=50
     )
 
+    from ..system_config import get_system_config
+    model_name = get_system_config(db, "default_llm_model") or "gemini-2.5-flash"
+    try:
+        prompt_text = f"{exam_name}: {combined_text[:1800]}".strip()[:2000]
+        q_preview = "\n".join(
+            f"Q{i+1}: {q.get('question', '')[:120]}"
+            for i, q in enumerate((questions_data or [])[:5])
+        )
+        if len(questions_data or []) > 5:
+            q_preview += f"\n… (+{len(questions_data) - 5} more questions)"
+        response_text = f"Generated {len(questions_data or [])} questions for '{exam_name}':\n{q_preview}"
+        db.add(models.AiUsageLog(
+            user_id=current_user.id,
+            feature="consolidated_exam",
+            model=model_name,
+            prompt=prompt_text,
+            response=response_text[:3000],
+            tokens_used=len(prompt_text) // 4
+        ))
+        db.commit()
+    except Exception:
+        db.rollback()
+
     # Format date and save
     date_str = now_ph().strftime("%b %d, %Y")
     db_module = models.Module(
@@ -502,6 +613,10 @@ def generate_consolidated_exam(
             question=q["question"],
             options=q["options"],
             correct_answer_index=q["correct_answer_index"],
+            explanation=q.get("explanation"),
+            hint=q.get("hint"),
+            question_type=q.get("question_type", "multiple_choice"),
+            reference=q.get("reference"),
             module_id=db_module.id
         )
         db.add(db_question)
@@ -509,4 +624,34 @@ def generate_consolidated_exam(
     db.commit()
     db.refresh(db_module)
     return db_module
+
+
+@router.post("/quiz-attempts", response_model=schemas.QuizAttemptOut)
+def record_quiz_attempt(
+    attempt: schemas.QuizAttemptCreate,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    db_attempt = models.QuizAttempt(
+        user_id=current_user.id,
+        title=attempt.title,
+        attempt_type=attempt.attempt_type,
+        score=attempt.score,
+        percentage=attempt.percentage,
+        date=attempt.date
+    )
+    db.add(db_attempt)
+    db.commit()
+    db.refresh(db_attempt)
+    return db_attempt
+
+
+@router.get("/quiz-attempts", response_model=List[schemas.QuizAttemptOut])
+def get_quiz_attempts(
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    return db.query(models.QuizAttempt).filter(
+        models.QuizAttempt.user_id == current_user.id
+    ).order_by(models.QuizAttempt.id.desc()).all()
 

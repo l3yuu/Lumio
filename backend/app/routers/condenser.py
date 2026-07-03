@@ -2,10 +2,12 @@ import logging
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 
 from .. import schemas, models, auth
 from ..database import get_db
 from ..quiz_generator import condense_document
+from ..time_utils import today_ph_str
 
 logger = logging.getLogger("lumio.condenser")
 
@@ -23,9 +25,52 @@ async def condense_document_endpoint(
             detail="Text content is required."
         )
 
+    # Enforce Daily Quota Limit: free vs pro configurations from DB
+    from ..system_config import get_system_config
+    try:
+        limit_key = "pro_summaries_limit" if current_user.is_premium else "free_summaries_limit"
+        limit = int(get_system_config(db, limit_key) or ("25" if current_user.is_premium else "5"))
+    except Exception:
+        limit = 25 if current_user.is_premium else 5
+
+    today_str = today_ph_str()
+    st = current_user.study_time or {}
+    if not isinstance(st, dict):
+        st = {}
+
+    quota_date = st.get("condenser_quota_date", "")
+    quota_used = st.get("condenser_quota_used", 0)
+
+    if quota_date != today_str:
+        st["condenser_quota_date"] = today_str
+        st["condenser_quota_used"] = 0
+        quota_used = 0
+
+    if quota_used >= limit:
+        account_type = "Pro" if current_user.is_premium else "Free"
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Daily limit reached. {account_type} accounts are limited to {limit} summaries per day."
+        )
+
     try:
         result = condense_document(body.text)
-        
+
+        model_name = get_system_config(db, "default_llm_model") or "gemini-2.5-flash"
+        try:
+            prompt_text = body.text[:2000]
+            db.add(models.AiUsageLog(
+                user_id=current_user.id,
+                feature="condenser",
+                model=model_name,
+                prompt=prompt_text,
+                response=result.get("summary", "")[:3000] if result else None,
+                tokens_used=len(prompt_text) // 4
+            ))
+            db.commit()
+        except Exception:
+            db.rollback()
+
         # Generate a nice title
         text_preview = body.text.strip()
         title = f"Summary: {text_preview[:30]}..." if len(text_preview) > 30 else f"Summary: {text_preview}"
@@ -39,10 +84,18 @@ async def condense_document_endpoint(
             vocabulary=result["vocabulary"]
         )
         db.add(db_history)
+
+        # Increment daily quota
+        st["condenser_quota_used"] = quota_used + 1
+        current_user.study_time = st
+        flag_modified(current_user, "study_time")
+        
         db.commit()
         db.refresh(db_history)
         
         return db_history
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Document condensing failed: {str(e)}")
         raise HTTPException(

@@ -494,3 +494,42 @@ def send_account_suspension_email(background_tasks: BackgroundTasks, user_email:
 
 def send_account_deletion_email(background_tasks: BackgroundTasks, user_email: str, user_name: str):
     background_tasks.add_task(send_account_deletion_email_sync, user_email, user_name)
+
+
+def send_gemini_unhealthy_email_sync(admin_email: str, admin_name: str, error_message: str):
+    subject = "ALERT: Lumio Gemini API Integration Unhealthy"
+    html_content = f"""
+    <html>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f9f9f9; padding: 20px;">
+        <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 30px; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+          <div style="text-align: center; margin-bottom: 25px;">
+            <h1 style="color: #e11d48; font-size: 2.2rem; margin: 0; font-weight: 800; letter-spacing: -1px;">Lumio Alert</h1>
+            <span style="font-size: 0.95rem; color: #64748b; font-weight: 500;">System Administrator Notification</span>
+          </div>
+          <h2 style="color: #1e293b; font-size: 1.5rem; margin-top: 0; margin-bottom: 15px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px;">Gemini API Error Detected</h2>
+          <p style="color: #334155; font-size: 1rem; margin-bottom: 20px;">Hi {admin_name},</p>
+          <p style="color: #334155; font-size: 1rem; margin-bottom: 20px;">During a system health check, the Gemini API integration was detected as <strong>unhealthy</strong>.</p>
+          <div style="background-color: #fff1f2; border: 1px solid #fda4af; padding: 15px; border-radius: 8px; margin-bottom: 25px; font-family: monospace; font-size: 0.9rem; color: #9f1239; word-break: break-all;">
+            {error_message}
+          </div>
+          <p style="color: #334155; font-size: 1rem; margin-bottom: 20px;">Please check your Gemini API key configuration and service status as soon as possible.</p>
+          <p style="color: #64748b; font-size: 0.85rem; border-top: 1px solid #f1f5f9; padding-top: 15px; margin-top: 25px; margin-bottom: 0;">Automated System Monitor,<br>The Lumio Team</p>
+        </div>
+      </body>
+    </html>
+    """
+    if settings.USE_CONSOLE_EMAIL or not _has_email_provider():
+        print("\n" + "="*80)
+        print(f"[CONSOLE MAIL SENDER] Gemini Unhealthy Alert triggered for: {admin_email}")
+        print(f"Recipient Name: {admin_name}")
+        print(f"Error Message: {error_message}")
+        print(f"Subject: {subject}")
+        print("="*80 + "\n")
+        return
+
+    _send_email(admin_email, subject, html_content, "Gemini unhealthy alert email")
+
+
+def send_gemini_unhealthy_email(background_tasks: BackgroundTasks, admin_email: str, admin_name: str, error_message: str):
+    background_tasks.add_task(send_gemini_unhealthy_email_sync, admin_email, admin_name, error_message)
+

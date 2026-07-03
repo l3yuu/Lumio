@@ -151,11 +151,36 @@ Study Context from student's textbooks:
 Student Query:
 "{body.query}"
 """
+            from ..system_config import get_system_config
+            model_name = get_system_config(db, "default_llm_model") or "gemini-2.5-flash"
+            try:
+                temp_val = float(get_system_config(db, "ai_temperature") or "0.2")
+            except Exception:
+                temp_val = 0.2
+
+            from google.genai import types
             response = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=prompt
+                model=model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    temperature=temp_val
+                )
             )
             answer = response.text if response.text else "No explanation generated. Try another query."
+
+            try:
+                prompt_text = body.query[:2000]
+                db.add(models.AiUsageLog(
+                    user_id=current_user.id,
+                    feature="tutor",
+                    model=model_name,
+                    prompt=prompt_text,
+                    response=answer[:3000] if answer else None,
+                    tokens_used=len(prompt_text) // 4
+                ))
+                db.commit()
+            except Exception:
+                db.rollback()
         except Exception as e:
             print(f"Error querying Gemini API for tutor: {e}")
             if local_explanation:

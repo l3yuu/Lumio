@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, Zap, AlertTriangle } from 'lucide-react';
-import type { User, Module, StudyGroup, GroupInvitation, GroupQuizSession, GroupQuizRank, DashboardTab, View, StudyQuest, ExamDeadline, ExamDeadlineResponse, StudyGroupResponse, Notification, ChatMessage, ChatSession, ExamQuizLink, ExamQuizAttempt, StudyTime } from '../../types';
+import type { User, Module, StudyGroup, GroupInvitation, GroupQuizSession, GroupQuizRank, DashboardTab, View, StudyQuest, ExamDeadline, ExamDeadlineResponse, StudyGroupResponse, Notification, ChatMessage, ChatSession, ExamQuizLink, ExamQuizAttempt, StudyTime, QuizAttempt, Note } from '../../types';
 import { API_BASE_URL } from '../../config';
 import { AiTutorSidebar } from './AiTutorSidebar';
 
@@ -13,6 +13,7 @@ import { SettingsPanel } from './SettingsPanel';
 import { QuizPanel } from './QuizPanel';
 import { CalendarPanel } from './CalendarPanel';
 import { NotificationsPanel } from './NotificationsPanel';
+import { NotesPanel } from './NotesPanel';
 import { AdminPanel } from './AdminPanel';
 import { FlashcardsTool } from '../tools/FlashcardsTool';
 import { EssayGraderPanel } from './EssayGraderPanel';
@@ -80,6 +81,33 @@ const getLocalDateString = (d: Date) => {
   const day = String(d.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
+
+const parsePercentage = (score: string): number => {
+  if (!score) return 100;
+  const parts = score.split('/');
+  if (parts.length === 2) {
+    const num = parseFloat(parts[0]);
+    const den = parseFloat(parts[1]);
+    if (!isNaN(num) && !isNaN(den) && den > 0) {
+      return Math.min(100, Math.max(0, Math.round((num / den) * 100)));
+    }
+  }
+  const numeric = parseFloat(score);
+  if (!isNaN(numeric)) {
+    if (numeric <= 100) return Math.round(numeric);
+  }
+  return 100; // default/fallback
+};
+
+interface QuizAttemptResponse {
+  id: number;
+  user_id: number;
+  title: string;
+  attempt_type: 'study_module' | 'exam' | 'group_quiz';
+  score: string;
+  percentage: number;
+  date: string;
+}
 
 type HeatmapEntry = { label: string; hours: number; level: number; date?: string };
 
@@ -222,6 +250,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [xp, setXp] = useState<number>(user.xp || 0);
   const [quizHistory, setQuizHistory] = useState<number[]>(user.quizHistory || []);
   const [insightsTab, setInsightsTab] = useState<'performance' | 'time'>('performance');
+  const [quizAttempts, setQuizAttempts] = useState<QuizAttempt[]>([]);
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [selectedNoteId, setSelectedNoteId] = useState<number | null>(null);
 
   const drawQuizHistoryPath = () => {
     if (quizHistory.length < 2) return null;
@@ -334,6 +365,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         questsDate: data.quests_date,
         lastCheckIn: data.last_check_in,
         folders: data.folders,
+        role: data.role || 'user',
+        is_premium: data.is_premium,
+        is_suspended: data.is_suspended,
+        stripe_subscription_status: data.stripe_subscription_status,
+        premium_expires_at: data.premium_expires_at,
       });
     })
     .catch(err => console.error('Error syncing profile:', err));
@@ -613,10 +649,128 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         setCompletedExams((data as ExamDeadlineResponse[]).map(mapExamResponse));
       })
       .catch(err => console.error('Error fetching completed exams:', err));
+
+      fetch(`${API_BASE_URL}/api/modules/quiz-attempts`, { headers })
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to fetch quiz attempts');
+        return res.json();
+      })
+      .then(data => {
+        const mapped: QuizAttempt[] = (data as QuizAttemptResponse[]).map(item => ({
+          id: item.id,
+          userId: item.user_id,
+          title: item.title,
+          attemptType: item.attempt_type as QuizAttempt['attemptType'],
+          score: item.score,
+          percentage: item.percentage,
+          date: item.date
+        }));
+        setQuizAttempts(mapped);
+      })
+      .catch(err => console.error('Error fetching quiz attempts:', err));
+
+      fetch(`${API_BASE_URL}/api/notes`, { headers })
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to fetch notes');
+        return res.json();
+      })
+      .then(data => {
+        const mapped: Note[] = (data as { id: number; user_id: number; title: string; content: string; subject: string; is_pinned: boolean; created_at: string; updated_at: string }[]).map(item => ({
+          id: item.id,
+          userId: item.user_id,
+          title: item.title,
+          content: item.content,
+          subject: item.subject,
+          isPinned: item.is_pinned,
+          createdAt: item.created_at,
+          updatedAt: item.updated_at
+        }));
+        setNotes(mapped);
+      })
+      .catch(err => console.error('Error fetching notes:', err));
     }
   }, [user]);
 
   useEffect(() => { localStorage.setItem('lumio_exams', JSON.stringify(exams)); }, [exams]);
+
+  const handleCreateNote = async (): Promise<number> => {
+    const token = localStorage.getItem('token');
+    if (!token) throw new Error('Not authenticated');
+    
+    const res = await fetch(`${API_BASE_URL}/api/notes`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    if (!res.ok) throw new Error('Failed to create note');
+    
+    const data = await res.json();
+    const newNote: Note = {
+      id: data.id,
+      userId: data.user_id,
+      title: data.title,
+      content: data.content,
+      subject: data.subject,
+      isPinned: data.is_pinned ?? false,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at
+    };
+    
+    setNotes(prev => [newNote, ...prev]);
+    return newNote.id;
+  };
+
+  const handleUpdateNote = async (id: number, updatedFields: Partial<Note>): Promise<void> => {
+    const token = localStorage.getItem('token');
+    if (!token) throw new Error('Not authenticated');
+    
+    const payload: { title?: string; content?: string; subject?: string; is_pinned?: boolean } = {};
+    if (updatedFields.title !== undefined) payload.title = updatedFields.title;
+    if (updatedFields.content !== undefined) payload.content = updatedFields.content;
+    if (updatedFields.subject !== undefined) payload.subject = updatedFields.subject;
+    if (updatedFields.isPinned !== undefined) payload.is_pinned = updatedFields.isPinned;
+    
+    const res = await fetch(`${API_BASE_URL}/api/notes/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error('Failed to update note');
+    
+    const data = await res.json();
+    const updatedNote: Note = {
+      id: data.id,
+      userId: data.user_id,
+      title: data.title,
+      content: data.content,
+      subject: data.subject,
+      isPinned: data.is_pinned ?? false,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at
+    };
+    
+    setNotes(prev => prev.map(n => n.id === id ? updatedNote : n));
+  };
+
+  const handleDeleteNote = async (id: number): Promise<void> => {
+    const token = localStorage.getItem('token');
+    if (!token) throw new Error('Not authenticated');
+    
+    const res = await fetch(`${API_BASE_URL}/api/notes/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    if (!res.ok) throw new Error('Failed to delete note');
+    
+    setNotes(prev => prev.filter(n => n.id !== id));
+  };
 
   const handleAddExam = (e: React.FormEvent) => {
     e.preventDefault();
@@ -776,6 +930,70 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       const scoreMsg = savedScore ? ` Score: ${savedScore}.` : '';
       showQuestToast(`Exam finished!${scoreMsg} +50 XP`, 50);
       showToast('success', 'Score logged!');
+
+      // Record exam attempt to history
+      const percentage = parsePercentage(savedScore || trimmedScore || "");
+      const attemptData = {
+        title: exam?.title || "Exam",
+        attempt_type: 'exam',
+        score: savedScore || trimmedScore || "Completed",
+        percentage: percentage,
+        date: new Date().toLocaleString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        })
+      };
+
+      const localToken = localStorage.getItem('token');
+      if (localToken) {
+        fetch(`${API_BASE_URL}/api/modules/quiz-attempts`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localToken}`
+          },
+          body: JSON.stringify(attemptData)
+        })
+        .then(res => {
+          if (!res.ok) throw new Error('Failed to record exam attempt');
+          return res.json();
+        })
+        .then(savedAttempt => {
+          const mapped: QuizAttempt = {
+            id: savedAttempt.id,
+            userId: savedAttempt.user_id,
+            title: savedAttempt.title,
+            attemptType: savedAttempt.attempt_type as QuizAttempt['attemptType'],
+            score: savedAttempt.score,
+            percentage: savedAttempt.percentage,
+            date: savedAttempt.date
+          };
+          setQuizAttempts(prev => [mapped, ...prev]);
+        })
+        .catch(err => console.error('Error recording exam attempt:', err));
+      } else {
+        const localAttempt: QuizAttempt = {
+          id: Date.now(),
+          userId: 0,
+          title: exam?.title || "Exam",
+          attemptType: 'exam',
+          score: savedScore || trimmedScore || "Completed",
+          percentage: percentage,
+          date: new Date().toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+          })
+        };
+        setQuizAttempts(prev => [localAttempt, ...prev]);
+      }
     };
 
     const token = localStorage.getItem('token');
@@ -924,7 +1142,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     .catch(err => console.error('Error syncing chat session:', err));
   };
   const [isGroupQuizMode, setIsGroupQuizMode] = useState(false);
-  const [selectedAnswers, setSelectedAnswers] = useState<{ [questionId: number]: number }>({});
+  const [selectedAnswers, setSelectedAnswers] = useState<{ [questionId: number]: number | string }>({});
   const [showQuizResults, setShowQuizResults] = useState(false);
   const [quizScore, setQuizScore] = useState(0);
   const [activeQuizSession, setActiveQuizSession] = useState<GroupQuizSession | null>(null);
@@ -1197,7 +1415,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     setActiveQuizSession(null);
   };
 
-  const handleSelectAnswer = (questionId: number, optionIndex: number) => {
+  const handleSelectAnswer = (questionId: number, optionIndex: number | string) => {
     if (showQuizResults) return;
     setSelectedAnswers({ ...selectedAnswers, [questionId]: optionIndex });
   };
@@ -1206,7 +1424,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     if (!activeQuizModule) return;
     let score = 0;
     activeQuizModule.questions.forEach((q) => {
-      if (selectedAnswers[q.id] === q.correctAnswerIndex) score += 1;
+      if (q.questionType === 'short_answer') {
+        const userAnswer = selectedAnswers[q.id];
+        const correctAnswer = q.options[q.correctAnswerIndex] || '';
+        if (
+          typeof userAnswer === 'string' &&
+          userAnswer.trim().toLowerCase() === correctAnswer.trim().toLowerCase()
+        ) {
+          score += 1;
+        }
+      } else {
+        if (selectedAnswers[q.id] === q.correctAnswerIndex) score += 1;
+      }
     });
     setQuizScore(score);
     setShowQuizResults(true);
@@ -1309,6 +1538,69 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         setGroups(groups.map(g => g.id === selectedGroupId ? { ...g, quizSessions: [newSession, ...g.quizSessions] } : g));
         setActiveQuizSession(newSession);
       }
+    }
+
+    // Record quiz attempt to history
+    const attemptData = {
+      title: activeQuizModule.name,
+      attempt_type: isGroupQuizMode ? 'group_quiz' : 'study_module',
+      score: `${score}/${activeQuizModule.questions.length}`,
+      percentage: Math.round((score / activeQuizModule.questions.length) * 100),
+      date: new Date().toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      })
+    };
+
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch(`${API_BASE_URL}/api/modules/quiz-attempts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(attemptData)
+      })
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to record quiz attempt');
+        return res.json();
+      })
+      .then(savedAttempt => {
+        const mapped: QuizAttempt = {
+          id: savedAttempt.id,
+          userId: savedAttempt.user_id,
+          title: savedAttempt.title,
+          attemptType: savedAttempt.attempt_type as QuizAttempt['attemptType'],
+          score: savedAttempt.score,
+          percentage: savedAttempt.percentage,
+          date: savedAttempt.date
+        };
+        setQuizAttempts(prev => [mapped, ...prev]);
+      })
+      .catch(err => console.error('Error recording quiz attempt:', err));
+    } else {
+      const localAttempt: QuizAttempt = {
+        id: Date.now(),
+        userId: 0,
+        title: activeQuizModule.name,
+        attemptType: isGroupQuizMode ? 'group_quiz' : 'study_module',
+        score: `${score}/${activeQuizModule.questions.length}`,
+        percentage: Math.round((score / activeQuizModule.questions.length) * 100),
+        date: new Date().toLocaleString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        })
+      };
+      setQuizAttempts(prev => [localAttempt, ...prev]);
     }
   };
 
@@ -1449,6 +1741,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       .then(data => {
         const mapped = (data as StudyGroupResponse[]).map(g => ({
           ...g,
+          isPublic: g.is_public ?? false,
           modules: g.modules ? g.modules.map(m => ({
             id: m.id,
             name: m.name,
@@ -1460,8 +1753,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               id: q.id,
               question: q.question,
               options: q.options,
-              correctAnswerIndex: q.correct_answer_index
+              correctAnswerIndex: q.correct_answer_index,
+              explanation: q.explanation,
+              hint: q.hint,
+              questionType: q.question_type,
+              reference: q.reference
             })) : []
+          })) : [],
+          notes: g.notes ? g.notes.map(n => ({
+            id: n.id,
+            userId: n.user_id,
+            title: n.title,
+            content: n.content,
+            subject: n.subject,
+            isPinned: n.is_pinned,
+            createdAt: n.created_at,
+            updatedAt: n.updated_at
           })) : [],
           quizSessions: g.quiz_sessions ? g.quiz_sessions.map(s => ({
             id: s.id,
@@ -1604,6 +1911,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     getActivityColor={getActivityColor}
                     handleStreakCheckIn={handleStreakCheckIn}
                     recentExamFinish={recentExamFinish}
+                    notifications={notifications}
+                    onMarkNotificationRead={onMarkNotificationRead}
+                    groups={groups}
+                    setSelectedGroupId={setSelectedGroupId}
                   />
                 )}
 
@@ -1629,6 +1940,36 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     exams={exams}
                     handleLinkExamToQuiz={handleLinkExamToQuiz}
                     onAddExamToCalendar={handleAddExamToCalendar}
+                    initialViewMode="quizzes"
+                    quizAttempts={quizAttempts}
+                    setView={setView}
+                  />
+                )}
+
+                {dashboardTab === 'public-explorer' && selectedGroupId === null && (
+                  <ModulesPanel
+                    modules={modules}
+                    user={user}
+                    setModules={setModules}
+                    showToast={showToast}
+                    selectedSubject={selectedSubject}
+                    subjects={['All', ...(user.folders || ['General'])]}
+                    filteredModules={filteredModules}
+                    setSelectedSubject={setSelectedSubject}
+                    startQuiz={startQuiz}
+                    handleDeleteModule={handleDeleteModule}
+                    setIsUploadOpen={setIsUploadOpen}
+                    moduleScores={moduleScores}
+                    onFileDropped={onFileDropped}
+                    onCreateFolder={handleCreateFolder}
+                    onMoveModule={handleMoveModule}
+                    onRenameFolder={handleRenameFolder}
+                    onDeleteFolder={handleDeleteFolder}
+                    exams={exams}
+                    handleLinkExamToQuiz={handleLinkExamToQuiz}
+                    onAddExamToCalendar={handleAddExamToCalendar}
+                    initialViewMode="public"
+                    setView={setView}
                   />
                 )}
 
@@ -1642,6 +1983,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     completeQuest={completeQuest}
                     setIsGroupModalOpen={setIsGroupModalOpen}
                     modules={modules}
+                    notes={notes}
                     setGroups={setGroups}
                     invitations={invitations}
                     onAcceptInvitation={onAcceptInvitation}
@@ -1659,6 +2001,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     completeQuest={completeQuest}
                     setIsGroupModalOpen={setIsGroupModalOpen}
                     modules={modules}
+                    notes={notes}
                     setGroups={setGroups}
                     invitations={invitations}
                     onAcceptInvitation={onAcceptInvitation}
@@ -1697,10 +2040,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     onMarkAsRead={onMarkNotificationRead}
                     onMarkAllAsRead={onMarkAllNotificationsRead}
                     onRefresh={onRefreshNotifications}
+                    groups={groups}
+                    setSelectedGroupId={setSelectedGroupId}
+                    setDashboardTab={handleSetDashboardTab}
                   />
                 )}
-
-                {dashboardTab === 'settings' && selectedGroupId === null && (
+                {dashboardTab === 'notes' && selectedGroupId === null && (
+                  <NotesPanel
+                    notes={notes}
+                    selectedNoteId={selectedNoteId}
+                    setSelectedNoteId={setSelectedNoteId}
+                    onCreateNote={handleCreateNote}
+                    onUpdateNote={handleUpdateNote}
+                    onDeleteNote={handleDeleteNote}
+                    folders={user.folders || ['General']}
+                  />
+                )}
+                {(dashboardTab === 'settings' || dashboardTab === 'admin-settings') && selectedGroupId === null && (
                   <SettingsPanel
                     user={user}
                     setUser={setUser}
@@ -1716,10 +2072,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     setNotifSounds={setNotifSounds}
                     setNotifEmails={setNotifEmails}
                     setView={setView}
+                    isSuperadminMode={dashboardTab === 'admin-settings'}
                   />
                 )}
 
-                {dashboardTab.startsWith('admin') && selectedGroupId === null && user.role === 'superadmin' && (
+                {dashboardTab.startsWith('admin') && dashboardTab !== 'admin-settings' && selectedGroupId === null && user.role === 'superadmin' && (
                   <AdminPanel user={user} currentTab={dashboardTab} setDashboardTab={handleSetDashboardTab} />
                 )}
               </motion.div>
@@ -1806,7 +2163,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <div className="flex flex-col gap-1 w-full text-left">
                       <h3 className="text-xl font-bold text-ink">Delete Study Module?</h3>
                       <p className="text-sm text-ink-muted leading-relaxed mt-2">
-                        Are you sure you want to delete <span className="font-semibold text-ink">"{moduleToDelete.name}"</span>? This will permanently remove the study module and all of its generated quiz questions. This action cannot be undone.
+                        Are you sure you want to delete the module <span className="font-semibold text-ink">"{moduleToDelete.name}"</span>? This will permanently remove the study module and all of its generated quiz questions. This action cannot be undone.
                       </p>
                     </div>
                   </div>

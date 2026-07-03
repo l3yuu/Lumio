@@ -9,7 +9,13 @@ if db_url.startswith("postgres://"):
 if db_url.startswith("sqlite"):
     engine = create_engine(db_url, connect_args={"check_same_thread": False})
 else:
-    engine = create_engine(db_url)
+    engine = create_engine(
+        db_url,
+        pool_size=10,
+        max_overflow=20,
+        pool_recycle=300,
+        pool_pre_ping=True
+    )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -32,6 +38,11 @@ def ensure_runtime_schema():
             statements.append("ALTER TABLE modules ADD COLUMN last_score VARCHAR(50)")
         if "difficulty" not in module_columns:
             statements.append("ALTER TABLE modules ADD COLUMN difficulty VARCHAR(20) DEFAULT 'medium'")
+        if "is_public" not in module_columns:
+            if engine.dialect.name == "postgresql":
+                statements.append("ALTER TABLE modules ADD COLUMN is_public BOOLEAN DEFAULT FALSE")
+            else:
+                statements.append("ALTER TABLE modules ADD COLUMN is_public INTEGER DEFAULT 0")
 
     if "exam_deadlines" in table_names:
         exam_columns = {column["name"] for column in inspector.get_columns("exam_deadlines")}
@@ -82,6 +93,73 @@ def ensure_runtime_schema():
                 statements.append("ALTER TABLE study_groups ADD COLUMN is_banned BOOLEAN DEFAULT FALSE")
             else:
                 statements.append("ALTER TABLE study_groups ADD COLUMN is_banned INTEGER DEFAULT 0")
+        if "is_public" not in group_columns:
+            if engine.dialect.name == "postgresql":
+                statements.append("ALTER TABLE study_groups ADD COLUMN is_public BOOLEAN DEFAULT FALSE")
+            else:
+                statements.append("ALTER TABLE study_groups ADD COLUMN is_public INTEGER DEFAULT 0")
+
+    # Add indexes on foreign keys to optimize query performance (joins and filters)
+    statements.append("CREATE INDEX IF NOT EXISTS idx_modules_user_id ON modules(user_id)")
+    statements.append("CREATE INDEX IF NOT EXISTS idx_quiz_questions_module_id ON quiz_questions(module_id)")
+    statements.append("CREATE INDEX IF NOT EXISTS idx_exam_deadlines_user_id ON exam_deadlines(user_id)")
+    statements.append("CREATE INDEX IF NOT EXISTS idx_study_groups_creator_id ON study_groups(creator_id)")
+    statements.append("CREATE INDEX IF NOT EXISTS idx_quiz_sessions_group_id ON quiz_sessions(group_id)")
+    statements.append("CREATE INDEX IF NOT EXISTS idx_group_posts_group_id ON group_posts(group_id)")
+    statements.append("CREATE INDEX IF NOT EXISTS idx_group_posts_user_id ON group_posts(user_id)")
+    statements.append("CREATE INDEX IF NOT EXISTS idx_quiz_attempts_user_id ON quiz_attempts(user_id)")
+    statements.append("CREATE INDEX IF NOT EXISTS idx_notes_user_id ON notes(user_id)")
+
+    if "notes" in table_names:
+        note_columns = {column["name"] for column in inspector.get_columns("notes")}
+        if "is_pinned" not in note_columns:
+            if engine.dialect.name == "postgresql":
+                statements.append("ALTER TABLE notes ADD COLUMN is_pinned BOOLEAN DEFAULT FALSE")
+            else:
+                statements.append("ALTER TABLE notes ADD COLUMN is_pinned INTEGER DEFAULT 0")
+
+    if "quiz_questions" in table_names:
+        qq_columns = {column["name"] for column in inspector.get_columns("quiz_questions")}
+        if "explanation" not in qq_columns:
+            statements.append("ALTER TABLE quiz_questions ADD COLUMN explanation TEXT")
+        if "hint" not in qq_columns:
+            statements.append("ALTER TABLE quiz_questions ADD COLUMN hint TEXT")
+        if "question_type" not in qq_columns:
+            statements.append("ALTER TABLE quiz_questions ADD COLUMN question_type VARCHAR(50) DEFAULT 'multiple_choice'")
+        if "reference" not in qq_columns:
+            statements.append("ALTER TABLE quiz_questions ADD COLUMN reference VARCHAR(255)")
+
+    if "ai_usage_logs" not in table_names:
+        create_sql = """
+CREATE TABLE IF NOT EXISTS ai_usage_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    feature VARCHAR(50) NOT NULL,
+    model VARCHAR(100),
+    prompt TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+"""
+        if engine.dialect.name == "postgresql":
+            create_sql = """
+CREATE TABLE IF NOT EXISTS ai_usage_logs (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    feature VARCHAR(50) NOT NULL,
+    model VARCHAR(100),
+    prompt TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+"""
+        statements.append(create_sql)
+    else:
+        ai_columns = {column["name"] for column in inspector.get_columns("ai_usage_logs")}
+        if "prompt" not in ai_columns:
+            statements.append("ALTER TABLE ai_usage_logs ADD COLUMN prompt TEXT")
+        if "response" not in ai_columns:
+            statements.append("ALTER TABLE ai_usage_logs ADD COLUMN response TEXT")
+        if "tokens_used" not in ai_columns:
+            statements.append("ALTER TABLE ai_usage_logs ADD COLUMN tokens_used INTEGER")
 
     if not statements:
         return

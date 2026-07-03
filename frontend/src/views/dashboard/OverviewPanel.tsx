@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Clock, Calendar, Award, Zap, Target, Trophy, Users, Flame, Layers, Plus, Trash2, CheckCircle2 } from 'lucide-react';
-import type { User, StudyQuest, ExamDeadline, DashboardTab } from '../../types';
+import { Sparkles, Clock, Calendar, Award, Zap, Target, Trophy, Users, Flame, Layers, Plus, Trash2, CheckCircle2, Share2, FileText, HelpCircle, X } from 'lucide-react';
+import type { User, StudyQuest, ExamDeadline, DashboardTab, Notification, StudyGroup } from '../../types';
 import { getCompanionMessage, type CompanionMood, type RecentExamFinish } from '../../utils/companionMessage';
 
 const asStudyHours = (value: number | string | number[] | undefined, fallback: number) =>
@@ -41,6 +41,10 @@ interface OverviewPanelProps {
   getActivityColor: (level: number) => string;
   handleStreakCheckIn: () => void;
   recentExamFinish?: RecentExamFinish | null;
+  notifications: Notification[];
+  onMarkNotificationRead?: (id: number) => void;
+  groups: StudyGroup[];
+  setSelectedGroupId: (id: number | null) => void;
 }
 
 export const OverviewPanel: React.FC<OverviewPanelProps> = ({
@@ -51,6 +55,7 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
   setNewExamPriority, setDashboardTab, setSelectedSubject,
   handleAddExam, handleDeleteExam, handleCompleteExam, getActivityColor,
   handleStreakCheckIn, recentExamFinish,
+  notifications, onMarkNotificationRead, groups, setSelectedGroupId,
 }) => {
   const [isCheckInOpen, setIsCheckInOpen] = React.useState(false);
   const [finishingExamId, setFinishingExamId] = React.useState<number | null>(null);
@@ -137,6 +142,102 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
           </div>
         </div>
       </motion.div>
+
+      {/* Shared quiz / notes notifications section */}
+      {(() => {
+        const sharedNotifications = notifications.filter(
+          (n) => !n.is_read && (n.type === 'module_shared' || n.type === 'note_shared')
+        );
+        if (sharedNotifications.length === 0) return null;
+
+        return (
+          <div className="flex flex-col gap-3 mb-2">
+            <AnimatePresence>
+              {sharedNotifications.map((notif) => {
+                const isModule = notif.type === 'module_shared';
+                const notifIcon = isModule ? (
+                  <HelpCircle size={18} className="text-purple-400" />
+                ) : (
+                  <FileText size={18} className="text-blue-400" />
+                );
+                
+                // Find matching group by checking if the shared note/module ID is inside any group
+                const group = groups.find((g) =>
+                  isModule
+                    ? g.modules?.some((m) => m.id === notif.related_id)
+                    : g.notes?.some((n) => n.id === notif.related_id)
+                );
+
+                return (
+                  <motion.div
+                    key={`shared-notif-${notif.id}`}
+                    initial={{ opacity: 0, height: 0, y: -10 }}
+                    animate={{ opacity: 1, height: 'auto', y: 0 }}
+                    exit={{ opacity: 0, height: 0, y: -10 }}
+                    transition={{ duration: 0.25 }}
+                    className="bg-card border border-primary-line/40 rounded-xl p-4 flex items-center justify-between gap-4 shadow-sm relative overflow-hidden"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(168, 85, 247, 0.02) 100%)',
+                      backdropFilter: 'blur(10px)',
+                    }}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="p-2.5 bg-primary-soft text-primary rounded-xl shrink-0">
+                        {notifIcon}
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="text-[0.9rem] font-bold text-ink flex items-center gap-2 m-0 leading-tight">
+                          {notif.title}
+                          <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0 animate-pulse"></span>
+                        </h4>
+                        {notif.message && (
+                          <p className="text-xs text-ink-muted mt-1 m-0 truncate max-w-full">
+                            {notif.message}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {group ? (
+                        <button
+                          onClick={() => {
+                            if (onMarkNotificationRead) onMarkNotificationRead(notif.id);
+                            setSelectedGroupId(group.id);
+                            setDashboardTab('groups');
+                          }}
+                          className="btn btn-primary px-3 py-1.5 text-xs font-semibold h-8 flex items-center gap-1 cursor-pointer"
+                        >
+                          <Share2 size={13} />
+                          {isModule ? 'Open Quiz' : 'Open Note'}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            if (onMarkNotificationRead) onMarkNotificationRead(notif.id);
+                            setDashboardTab('groups');
+                          }}
+                          className="btn btn-outline px-3 py-1.5 text-xs font-semibold h-8 flex items-center gap-1 cursor-pointer"
+                        >
+                          Go to Circles
+                        </button>
+                      )}
+                      <button
+                        onClick={() => {
+                          if (onMarkNotificationRead) onMarkNotificationRead(notif.id);
+                        }}
+                        className="p-1 bg-transparent border-0 text-ink-muted/50 hover:text-ink cursor-pointer rounded transition-colors"
+                        title="Dismiss"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
+          </div>
+        );
+      })()}
 
       <div className="grid grid-cols-[1.2fr_1fr] gap-6 mb-0 max-md:grid-cols-1 min-w-0">
         <div className="flex flex-col gap-6">

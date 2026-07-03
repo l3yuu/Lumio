@@ -183,6 +183,14 @@ jobs:
             echo "::error::RENDER_DEPLOY_HOOK_URL secret is missing! Please add it in your GitHub Repository Settings."
             exit 1
           fi
-          curl -f -X POST "$RENDER_DEPLOY_HOOK_URL"
+          status_code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$RENDER_DEPLOY_HOOK_URL")
+          if [ "$status_code" -eq 200 ] || [ "$status_code" -eq 201 ] || [ "$status_code" -eq 302 ]; then
+            echo "Deployment triggered successfully! (HTTP $status_code)"
+          elif [ "$status_code" -eq 409 ]; then
+            echo "Deployment is already in progress (Render returned 409 Conflict)."
+          else
+            echo "::error::Render deployment trigger failed with HTTP status: $status_code"
+            exit 1
+          fi
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}

@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine, Base, ensure_runtime_schema
-from app.routers import auth, modules, exams, groups, notifications, tutor, admin, payments, flashcards, condenser, essay_grader
+from app.routers import auth, modules, exams, groups, notifications, tutor, admin, payments, flashcards, condenser, essay_grader, notes
 
 # Create database tables automatically
 Base.metadata.create_all(bind=engine)
@@ -32,6 +32,60 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from fastapi import Request
+from fastapi.responses import JSONResponse
+import jwt
+from app.system_config import get_system_config_global
+from app.database import SessionLocal
+from app.models import User
+
+@app.middleware("http")
+async def maintenance_mode_middleware(request: Request, call_next):
+    # Check if maintenance mode is enabled in configurations
+    if get_system_config_global("maintenance_mode") == "true":
+        path = request.url.path
+        
+        # Bypass non-API paths, health endpoint, config endpoints, login and me checks
+        bypassed_paths = [
+            "/",
+            "/api/health",
+            "/api/admin/config",
+            "/api/auth/login",
+            "/api/auth/google",
+            "/api/auth/me"
+        ]
+        
+        if not path.startswith("/api") or path in bypassed_paths:
+            return await call_next(request)
+            
+        # Inspect authorization header to check if user is a superadmin
+        is_superadmin = False
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
+            try:
+                from app.config import settings
+                payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+                user_id = payload.get("user_id")
+                if user_id:
+                    db = SessionLocal()
+                    try:
+                        user = db.query(User).filter(User.id == user_id).first()
+                        if user and user.role == "superadmin":
+                            is_superadmin = True
+                    finally:
+                        db.close()
+            except Exception:
+                pass
+                
+        if not is_superadmin:
+            return JSONResponse(
+                status_code=503,
+                content={"detail": "System is currently undergoing scheduled maintenance. Only administrators can access the platform at this time."}
+            )
+
+    return await call_next(request)
+
 # Include routers
 app.include_router(auth.router)
 app.include_router(modules.router)
@@ -44,6 +98,7 @@ app.include_router(payments.router)
 app.include_router(flashcards.router)
 app.include_router(condenser.router)
 app.include_router(essay_grader.router)
+app.include_router(notes.router)
 
 
 import asyncio
@@ -92,7 +147,11 @@ async def root():
 
 @app.get("/api/health")
 async def health_check():
-    return {"status": "healthy", "version": "1.0.0"}
+    return {
+        "status": "healthy",
+        "version": "1.0.0",
+        "maintenance_mode": get_system_config_global("maintenance_mode") == "true"
+    }
 
 if __name__ == "__main__":
     import uvicorn

@@ -1,6 +1,6 @@
 import React from 'react';
-import { Bell, Check, CheckCheck, UserPlus, Share2, Trophy, X } from 'lucide-react';
-import type { Notification, GroupInvitation } from '../../types';
+import { Bell, Check, CheckCheck, UserPlus, Share2, Trophy, X, FileText, HelpCircle } from 'lucide-react';
+import type { Notification, GroupInvitation, StudyGroup, DashboardTab } from '../../types';
 
 interface NotificationsPanelProps {
   notifications: Notification[];
@@ -10,6 +10,9 @@ interface NotificationsPanelProps {
   onMarkAsRead: (id: number) => void;
   onMarkAllAsRead: () => void;
   onRefresh: () => void;
+  groups?: StudyGroup[];
+  setSelectedGroupId?: (id: number | null) => void;
+  setDashboardTab?: (tab: DashboardTab) => void;
 }
 
 const notifIcon = (type: string) => {
@@ -18,7 +21,9 @@ const notifIcon = (type: string) => {
     case 'group_invite_accepted':
       return <UserPlus size={16} className="text-blue-400" />;
     case 'module_shared':
-      return <Share2 size={16} className="text-purple-400" />;
+      return <HelpCircle size={16} className="text-purple-400" />;
+    case 'note_shared':
+      return <FileText size={16} className="text-blue-400" />;
     case 'quiz_completed':
       return <Trophy size={16} className="text-yellow-400" />;
     default:
@@ -48,6 +53,9 @@ export const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
   onMarkAsRead,
   onMarkAllAsRead,
   onRefresh,
+  groups = [],
+  setSelectedGroupId,
+  setDashboardTab,
 }) => {
   const unreadCount = notifications.filter(n => !n.is_read).length + invitations.length;
 
@@ -164,17 +172,42 @@ export const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
                   )}
                   <p className="text-[0.65rem] text-ink-muted/60 mt-1">{timeAgo(n.created_at)}</p>
                 </div>
-                {n.is_read ? (
-                  <CheckCheck size={14} className="text-ink-muted/40 mt-1 shrink-0" />
-                ) : (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onMarkAsRead(n.id); }}
-                    className="bg-transparent border-0 text-ink-muted/40 hover:text-primary cursor-pointer p-0.5 mt-0.5 shrink-0 transition-colors"
-                    title="Mark as read"
-                  >
-                    <Check size={14} />
-                  </button>
-                )}
+                <div className="flex items-center gap-2 shrink-0 self-center">
+                  {(n.type === 'module_shared' || n.type === 'note_shared') && setSelectedGroupId && setDashboardTab && (() => {
+                    const isModule = n.type === 'module_shared';
+                    const group = groups.find(g =>
+                      isModule
+                        ? g.modules?.some(m => m.id === n.related_id)
+                        : g.notes?.some(nt => nt.id === n.related_id)
+                    );
+                    if (!group) return null;
+                    return (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!n.is_read) onMarkAsRead(n.id);
+                          setSelectedGroupId(group.id);
+                          setDashboardTab('groups');
+                        }}
+                        className="inline-flex items-center gap-1 text-xs font-semibold bg-primary/10 text-primary border border-primary/20 px-2.5 py-1.5 rounded-lg cursor-pointer transition-all hover:bg-primary hover:text-ink-on-primary"
+                      >
+                        <Share2 size={12} />
+                        {isModule ? 'Open Quiz' : 'Open Note'}
+                      </button>
+                    );
+                  })()}
+                  {n.is_read ? (
+                    <CheckCheck size={14} className="text-ink-muted/40 shrink-0" />
+                  ) : (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onMarkAsRead(n.id); }}
+                      className="bg-transparent border-0 text-ink-muted/40 hover:text-primary cursor-pointer p-1 shrink-0 transition-colors"
+                      title="Mark as read"
+                    >
+                      <Check size={14} />
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>

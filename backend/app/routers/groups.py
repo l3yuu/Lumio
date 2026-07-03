@@ -18,6 +18,30 @@ def get_groups(current_user: models.User = Depends(auth.get_current_user), db: S
     # Returns groups that the current user is a member of
     return [g for g in current_user.joined_groups if not g.is_banned]
 
+@router.get("/public", response_model=List[schemas.StudyGroupOut])
+def get_public_groups(current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    return db.query(models.StudyGroup).filter(
+        models.StudyGroup.is_public == True,
+        models.StudyGroup.is_banned == False,
+        ~models.StudyGroup.members.any(models.User.id == current_user.id)
+    ).all()
+
+@router.post("/{group_id}/join", response_model=schemas.StudyGroupOut)
+def join_public_group(group_id: int, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    group = db.query(models.StudyGroup).filter(models.StudyGroup.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Study group not found")
+    if not group.is_public:
+        raise HTTPException(status_code=403, detail="This group is not public")
+    if group.is_banned:
+        raise HTTPException(status_code=403, detail="This study group has been banned")
+    if current_user in group.members:
+        raise HTTPException(status_code=400, detail="You are already a member of this group")
+    group.members.append(current_user)
+    db.commit()
+    db.refresh(group)
+    return group
+
 @router.post("", response_model=schemas.StudyGroupOut)
 def create_group(
     group_in: schemas.StudyGroupCreate,
@@ -25,6 +49,13 @@ def create_group(
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db)
 ):
+    from ..system_config import get_system_config
+    if get_system_config(db, "allow_circle_creation") == "false" and current_user.role != "superadmin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Study group (Circle) creation is currently disabled by the administrator."
+        )
+
     if not current_user.is_premium:
         created_groups_count = db.query(models.StudyGroup).filter(models.StudyGroup.creator_id == current_user.id).count()
         if created_groups_count >= 2:
@@ -33,7 +64,7 @@ def create_group(
                 detail="Free accounts are limited to creating 2 collaborative circles. Upgrade to Pro for unlimited circles."
             )
 
-    db_group = models.StudyGroup(name=group_in.name, creator_id=current_user.id)
+    db_group = models.StudyGroup(name=group_in.name, creator_id=current_user.id, is_public=group_in.is_public)
     db_group.members.append(current_user)
     db.add(db_group)
     db.flush()  # flush so db_group.id is available for invitations
@@ -258,9 +289,11 @@ async def update_group(
         raise HTTPException(status_code=404, detail="Study group not found")
 
     if group.creator_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Only the group owner can edit the group name")
+        raise HTTPException(status_code=403, detail="Only the group owner can edit the group")
 
     group.name = group_in.name
+    if group_in.is_public is not None:
+        group.is_public = group_in.is_public
     db.commit()
     db.refresh(group)
 
@@ -450,6 +483,36 @@ def get_group_notification_pref(
         group_id=group_id,
         enabled=pref.enabled if pref else True
     )
+
+
+@router.post("/{group_id}/share-note/{note_id}", response_model=schemas.StudyGroupOut)
+def share_note(group_id: int, note_id: int, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    group = db.query(models.StudyGroup).filter(models.StudyGroup.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Study group not found")
+    if current_user not in group.members:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    note = db.query(models.Note).filter(models.Note.id == note_id, models.Note.user_id == current_user.id).first()
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+
+    if note not in group.notes:
+        group.notes.append(note)
+        for member in group.members:
+            if member.id != current_user.id:
+                notif = models.Notification(
+                    user_id=member.id,
+                    type="note_shared",
+                    title=f"{current_user.name} shared a note",
+                    message=f"\"{note.title}\" shared in \"{group.name}\"",
+                    related_id=note.id,
+                    related_type="note"
+                )
+                db.add(notif)
+        db.commit()
+        db.refresh(group)
+    return group
 
 
 @router.post("/{group_id}/share-module/{module_id}", response_model=schemas.StudyGroupOut)
@@ -895,9 +958,20 @@ Shared Study Context:
 Student Question:
 "{query}"
 """
+                from ..system_config import get_system_config
+                model_name = get_system_config(db, "default_llm_model") or "gemini-2.5-flash"
+                try:
+                    temp_val = float(get_system_config(db, "ai_temperature") or "0.2")
+                except Exception:
+                    temp_val = 0.2
+
+                from google.genai import types
                 response = client.models.generate_content(
-                    model="gemini-2.5-flash",
-                    contents=prompt
+                    model=model_name,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        temperature=temp_val
+                    )
                 )
                 ai_answer = response.text if response.text else "I analyzed the shared materials but couldn't generate a clear explanation. Let's try another question!"
             except Exception as e:

@@ -73,16 +73,22 @@ const mapModule = (m: ModuleResponse): Module => ({
     id: q.id,
     question: q.question,
     options: q.options,
-    correctAnswerIndex: q.correct_answer_index
+    correctAnswerIndex: q.correct_answer_index,
+    explanation: q.explanation,
+    hint: q.hint,
+    questionType: q.question_type,
+    reference: q.reference
   })) : [],
   lastScore: m.last_score,
-  difficulty: m.difficulty
+  difficulty: m.difficulty,
+  isPublic: m.is_public || false
 });
 
 const mapGroup = (g: StudyGroupResponse): StudyGroup => ({
   id: g.id,
   name: g.name,
   creator_id: g.creator_id,
+  isPublic: g.is_public ?? false,
   members: (g.members || []).map(m => ({
     id: m.id,
     name: m.name,
@@ -92,6 +98,16 @@ const mapGroup = (g: StudyGroupResponse): StudyGroup => ({
     is_premium: m.is_premium,
   })),
   modules: g.modules ? g.modules.map(mapModule) : [],
+  notes: g.notes ? g.notes.map((n: { id: number; user_id: number; title: string; content: string; subject: string; is_pinned: boolean; created_at: string; updated_at: string }) => ({
+    id: n.id,
+    userId: n.user_id,
+    title: n.title,
+    content: n.content,
+    subject: n.subject,
+    isPinned: n.is_pinned,
+    createdAt: n.created_at,
+    updatedAt: n.updated_at
+  })) : [],
   quizSessions: g.quiz_sessions ? g.quiz_sessions.map((s: GroupQuizSessionResponse) => ({
     id: s.id,
     moduleName: s.module_name,
@@ -148,6 +164,44 @@ function App() {
   const [view, setView] = useState<View>('landing');
   const [authTab, setAuthTab] = useState<AuthTab>('login');
   const [user, setUser] = useState<User | null>(null);
+  const [isMaintenanceActive, setIsMaintenanceActive] = useState(false);
+
+  // 🛡️ Global Fetch Interceptor for Maintenance Mode (503)
+  useEffect(() => {
+    const originalFetch = window.fetch;
+    window.fetch = async (...args) => {
+      try {
+        const response = await originalFetch(...args);
+        if (response.status === 503) {
+          const clone = response.clone();
+          clone.json().then(data => {
+            if (data && data.detail && data.detail.includes("maintenance")) {
+              setIsMaintenanceActive(true);
+            }
+          }).catch(() => {});
+        }
+        return response;
+      } catch (error) {
+        return Promise.reject(error);
+      }
+    };
+
+    return () => {
+      window.fetch = originalFetch;
+    };
+  }, []);
+
+  // Check health and maintenance mode state on mount
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/health`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data && typeof data.maintenance_mode === 'boolean') {
+          setIsMaintenanceActive(data.maintenance_mode);
+        }
+      })
+      .catch(err => console.error('Error checking initial system health:', err));
+  }, []);
 
   // Global Toast State
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -190,6 +244,7 @@ function App() {
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupMember, setNewGroupMember] = useState('');
+  const [newGroupIsPublic, setNewGroupIsPublic] = useState(false);
 
   // Invitations
   const [invitations, setInvitations] = useState<GroupInvitation[]>([]);
@@ -317,6 +372,7 @@ function App() {
     {
       id: 1,
       name: 'Biology 101 Midterm Study Circle',
+      isPublic: false,
       members: [
         { name: 'Sarah Miller', email: 'sarah@example.com', online: true },
         { name: 'Alex Johnson', email: 'alex@example.com', online: true },
@@ -351,6 +407,7 @@ function App() {
           ]
         }
       ],
+      notes: [],
       quizSessions: [
         {
           id: 501,
@@ -368,6 +425,7 @@ function App() {
     {
       id: 2,
       name: 'Econ Major Core Team',
+      isPublic: false,
       members: [
         { name: 'David Vance', email: 'david@example.com', online: true },
         { name: 'Emma Watson', email: 'emma@example.com', online: false }
@@ -395,6 +453,7 @@ function App() {
           ]
         }
       ],
+      notes: [],
       quizSessions: []
     }
   ]);
@@ -524,7 +583,12 @@ function App() {
         // Superadmins go to the admin overview by default
         if (mappedUser.role === 'superadmin') {
           setDashboardTab('admin-overview');
+        } else {
+          setDashboardTab('overview');
         }
+        setSelectedGroupId(null);
+        setActiveQuizModule(null);
+        setIsAiSidebarOpen(false);
 
         // Fetch modules
         fetch(`${API_BASE_URL}/api/modules`, {
@@ -580,7 +644,12 @@ function App() {
     // Superadmins go to the admin overview by default
     if (userData.role === 'superadmin') {
       setDashboardTab('admin-overview');
+    } else {
+      setDashboardTab('overview');
     }
+    setSelectedGroupId(null);
+    setActiveQuizModule(null);
+    setIsAiSidebarOpen(false);
     
     // Fetch modules
     fetch(`${API_BASE_URL}/api/modules`, {
@@ -761,7 +830,12 @@ function App() {
     localStorage.removeItem('token');
     localStorage.removeItem('lumio-module-scores');
     setUser(null);
+    setIsMaintenanceActive(false);
     setView('landing');
+    setDashboardTab('overview');
+    setSelectedGroupId(null);
+    setActiveQuizModule(null);
+    setIsAiSidebarOpen(false);
   };
 
   const handleFileSelection = (file: File) => {
@@ -910,7 +984,8 @@ function App() {
 
     const payload = {
       name: newGroupName,
-      members: newGroupMember ? [newGroupMember] : []
+      members: newGroupMember ? [newGroupMember] : [],
+      is_public: newGroupIsPublic
     };
 
     fetch(`${API_BASE_URL}/api/groups`, {
@@ -930,6 +1005,7 @@ function App() {
       setGroups([mapGroup(newGroup), ...groups]);
       setNewGroupName('');
       setNewGroupMember('');
+      setNewGroupIsPublic(false);
       setIsGroupModalOpen(false);
       showToast('success', `Successfully created group "${newGroup.name}"!`);
     })
@@ -947,8 +1023,14 @@ function App() {
   ];
 
   return (
-    MAINTENANCE_MODE
-      ? <MaintenancePage onReload={() => window.location.reload()} />
+    (MAINTENANCE_MODE || (isMaintenanceActive && user?.role !== 'superadmin' && view !== 'auth'))
+      ? <MaintenancePage 
+          onReload={() => window.location.reload()} 
+          onAdminLogin={() => {
+            setView('auth');
+            setAuthTab('login');
+          }}
+        />
       : <div className={`flex flex-col ${view === 'dashboard' ? 'h-screen overflow-hidden pt-14.5' : view === 'auth' ? 'h-screen' : 'pt-14.5 min-h-screen'}`}>
         {view !== 'auth' && (
           <Navbar
@@ -978,6 +1060,7 @@ function App() {
             onPwaInstall={handlePwaInstall}
             showPwaBanner={showPwaBanner}
             onDismissPwaBanner={handleDismissPwaBanner}
+            groups={groups}
           />
         )}
 
@@ -1352,6 +1435,24 @@ function App() {
                     value={newGroupMember}
                     onChange={(e) => setNewGroupMember(e.target.value)}
                   />
+                </div>
+
+                <div className="flex items-center justify-between p-3 bg-app border border-line rounded-lg mb-4">
+                  <div>
+                    <p className="text-sm font-semibold text-ink">Public Group</p>
+                    <p className="text-xs text-ink-muted mt-0.5">Anyone can discover and join this group</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setNewGroupIsPublic(!newGroupIsPublic)}
+                    className={`relative w-11 h-6 rounded-full transition-all duration-200 cursor-pointer shrink-0 ${
+                      newGroupIsPublic ? 'bg-primary' : 'bg-input border border-line'
+                    }`}
+                  >
+                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-all duration-200 ${
+                      newGroupIsPublic ? 'translate-x-5' : 'translate-x-0'
+                    }`} />
+                  </button>
                 </div>
 
                 <div className="flex gap-4 justify-end mt-6">

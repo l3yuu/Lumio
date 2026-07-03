@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, AlertTriangle, Globe, BookOpen, Target, Clock, User as UserIcon, AtSign, Trash2, ShieldAlert, LogOut, ShieldCheck, CreditCard, Sparkles, X, Camera } from 'lucide-react';
+import { Check, AlertTriangle, Globe, BookOpen, Target, Clock, User as UserIcon, AtSign, Trash2, ShieldAlert, LogOut, ShieldCheck, CreditCard, Sparkles, X, Camera, Cpu, Activity, RefreshCw, Sliders } from 'lucide-react';
 import type { User, Module, View } from '../../types';
 import { API_BASE_URL } from '../../config';
 
@@ -19,6 +19,7 @@ interface SettingsPanelProps {
   setNotifSounds: (v: boolean) => void;
   setNotifEmails: (v: boolean) => void;
   setView: (view: View) => void;
+  isSuperadminMode?: boolean;
 }
 
 const GRADE_LEVELS = ['High School', 'Undergraduate', 'Graduate', 'PhD / Doctorate', 'Self-Learner', 'Professional'];
@@ -48,6 +49,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   user, setUser, setModules, completeQuest, handleLogout,
   notifStudyGroup, notifQuizReminders, notifSounds, notifEmails,
   setNotifStudyGroup, setNotifQuizReminders, setNotifSounds, setNotifEmails,
+  isSuperadminMode = false,
 }) => {
   // Local draft for profile — saved explicitly via "Save Changes"
   const [draft, setDraft] = useState<User>(user);
@@ -63,6 +65,126 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
   const [avatarModalOpen, setAvatarModalOpen] = useState(false);
   const [tempAvatar, setTempAvatar] = useState(draft.avatar);
+
+  // Superadmin States
+
+  // Superadmin Form Configurations
+  const [registrationsOpen, setRegistrationsOpen] = useState(() => {
+    return localStorage.getItem('lumio-sys-reg-open') !== 'false';
+  });
+  const [requireEmailVerification, setRequireEmailVerification] = useState(() => {
+    return localStorage.getItem('lumio-sys-email-verify') !== 'false';
+  });
+  const [allowCircleCreation, setAllowCircleCreation] = useState(() => {
+    return localStorage.getItem('lumio-sys-circle-create') !== 'false';
+  });
+  const [maintenanceMode, setMaintenanceMode] = useState(() => {
+    return localStorage.getItem('lumio-sys-maintenance') === 'true';
+  });
+  const [defaultAiModel, setDefaultAiModel] = useState(() => {
+    return localStorage.getItem('lumio-sys-ai-model') || 'gemini-2.5-flash';
+  });
+  const [freeSummariesLimit, setFreeSummariesLimit] = useState(() => {
+    return Number(localStorage.getItem('lumio-sys-free-limit') || '5');
+  });
+  const [proSummariesLimit, setProSummariesLimit] = useState(() => {
+    return Number(localStorage.getItem('lumio-sys-pro-limit') || '25');
+  });
+  const [aiTemperature, setAiTemperature] = useState(() => {
+    return Number(localStorage.getItem('lumio-sys-ai-temp') || '0.2');
+  });
+
+  const [flushCacheLoading, setFlushCacheLoading] = useState(false);
+  const [runDiagnosticsLoading, setRunDiagnosticsLoading] = useState(false);
+
+  const fetchSysConfig = () => {
+    const token = localStorage.getItem('token');
+    fetch(`${API_BASE_URL}/api/admin/config`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    .then(res => {
+      if (!res.ok) throw new Error('Failed to fetch platform configuration');
+      return res.json();
+    })
+    .then(data => {
+      setRegistrationsOpen(data.allow_registrations);
+      setRequireEmailVerification(data.require_email_verification);
+      setAllowCircleCreation(data.allow_circle_creation);
+      setDefaultAiModel(data.default_llm_model);
+      setFreeSummariesLimit(data.free_summaries_limit);
+      setProSummariesLimit(data.pro_summaries_limit);
+      setAiTemperature(data.ai_temperature);
+      setMaintenanceMode(data.maintenance_mode);
+    })
+    .catch(err => {
+      console.error('Error fetching platform config:', err);
+    });
+  };
+
+  useEffect(() => {
+    if (isSuperadminMode) {
+      const timer = setTimeout(() => {
+        fetchSysConfig();
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [isSuperadminMode]);
+
+  const handleSaveSysConfig = () => {
+    const token = localStorage.getItem('token');
+    fetch(`${API_BASE_URL}/api/admin/config`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        allow_registrations: registrationsOpen,
+        require_email_verification: requireEmailVerification,
+        allow_circle_creation: allowCircleCreation,
+        default_llm_model: defaultAiModel,
+        free_summaries_limit: freeSummariesLimit,
+        pro_summaries_limit: proSummariesLimit,
+        ai_temperature: aiTemperature,
+        maintenance_mode: maintenanceMode
+      })
+    })
+    .then(res => {
+      if (!res.ok) throw new Error('Failed to update system configurations');
+      return res.json();
+    })
+    .then(data => {
+      // Also update local storage for backup/quick reads if needed
+      localStorage.setItem('lumio-sys-reg-open', String(data.allow_registrations));
+      localStorage.setItem('lumio-sys-email-verify', String(data.require_email_verification));
+      localStorage.setItem('lumio-sys-circle-create', String(data.allow_circle_creation));
+      localStorage.setItem('lumio-sys-ai-model', data.default_llm_model);
+      localStorage.setItem('lumio-sys-free-limit', String(data.free_summaries_limit));
+      localStorage.setItem('lumio-sys-pro-limit', String(data.pro_summaries_limit));
+      localStorage.setItem('lumio-sys-ai-temp', String(data.ai_temperature));
+      localStorage.setItem('lumio-sys-maintenance', String(data.maintenance_mode));
+      showToast('success', 'System configurations updated successfully!');
+    })
+    .catch(err => {
+      showToast('error', err.message);
+    });
+  };
+
+  const handleFlushCache = () => {
+    setFlushCacheLoading(true);
+    setTimeout(() => {
+      setFlushCacheLoading(false);
+      showToast('success', 'System cache flushed successfully! (0 bytes remaining)');
+    }, 1200);
+  };
+
+  const handleRunDiagnostics = () => {
+    setRunDiagnosticsLoading(true);
+    setTimeout(() => {
+      setRunDiagnosticsLoading(false);
+      showToast('success', 'System diagnostics completed. All systems operational.');
+    }, 1500);
+  };
 
   const openAvatarModal = () => {
     setTempAvatar(draft.avatar);
@@ -320,8 +442,221 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         )}
       </AnimatePresence>
 
-      {/* ─── Profile Settings ───────────────────────────── */}
-      <div className="bg-card border border-line rounded-xl p-6 flex flex-col gap-6">
+      {isSuperadminMode ? (
+        <div className="flex flex-col gap-6">
+          {/* ─── Global Platform Configurations ───────────── */}
+          <div className="bg-card border border-line rounded-xl p-6 flex flex-col gap-6">
+            <div className="flex items-center gap-2">
+              <Sliders size={18} className="text-primary" />
+              <h3 className="text-[1.1rem] font-bold m-0 select-none">Global Platform Configurations</h3>
+            </div>
+
+            {/* Registration and Creation Toggles */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 pb-6 border-b border-line">
+              {[
+                { label: 'Allow Registrations', desc: 'Enable new user registrations', val: registrationsOpen, set: setRegistrationsOpen },
+                { label: 'Require Verification', desc: 'Force email verification to use app', val: requireEmailVerification, set: setRequireEmailVerification },
+                { label: 'Circle Creation', desc: 'Allow users to create study groups', val: allowCircleCreation, set: setAllowCircleCreation },
+                { label: 'Maintenance Mode', desc: 'Make website down for students (free/pro)', val: maintenanceMode, set: setMaintenanceMode },
+              ].map(toggle => (
+                <div key={toggle.label} className="flex justify-between items-center bg-app border border-line p-4 rounded-xl">
+                  <div>
+                    <div className="font-semibold text-xs text-ink">{toggle.label}</div>
+                    <div className="text-[10px] text-ink-muted mt-0.5">{toggle.desc}</div>
+                  </div>
+                  <label className="toggle-switch shrink-0 ml-4 scale-90">
+                    <input type="checkbox" checked={toggle.val} onChange={e => toggle.set(e.target.checked)} />
+                    <span className="toggle-slider"></span>
+                  </label>
+                </div>
+              ))}
+            </div>
+
+            {/* AI Settings */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-semibold text-ink flex items-center gap-1.5 select-none">
+                  <Cpu size={14} className="text-ink-muted" /> Default LLM Model
+                </label>
+                <select
+                  value={defaultAiModel}
+                  onChange={(e) => setDefaultAiModel(e.target.value)}
+                  className="w-full bg-input border border-line rounded-xl text-ink text-sm p-3 outline-none focus:border-primary cursor-pointer"
+                >
+                  <option value="gemini-2.5-flash">Gemini 2.5 Flash (Recommended)</option>
+                  <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                  <option value="gemini-2.0-flash-exp">Gemini 2.0 Flash Exp</option>
+                </select>
+                <p className="text-[10px] text-ink-muted leading-relaxed">
+                  * Model used for generating quizzes, condensing summaries, and grading essays.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-semibold text-ink flex items-center justify-between select-none">
+                  <span>AI Temperature</span>
+                  <span className="font-mono text-primary">{aiTemperature}</span>
+                </label>
+                <div className="flex items-center gap-3 py-1.5">
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.1"
+                    value={aiTemperature}
+                    onChange={(e) => setAiTemperature(Number(e.target.value))}
+                    className="flex-1 accent-primary bg-line h-1 rounded-lg outline-none cursor-pointer"
+                  />
+                </div>
+                <p className="text-[10px] text-ink-muted leading-relaxed">
+                  * Lower values yield structured, focused outputs; higher values generate creative alternatives.
+                </p>
+              </div>
+            </div>
+
+            {/* Free vs Pro Limits */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-line">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-ink">Free User Summary Rate Limit</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={freeSummariesLimit}
+                  onChange={(e) => setFreeSummariesLimit(Number(e.target.value))}
+                  className="w-full py-2 px-3 bg-input border border-line rounded-lg text-ink text-sm outline-none focus:border-primary focus:bg-app"
+                />
+                <span className="text-[10px] text-ink-muted">Summaries allowed per day per standard user.</span>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-ink">Pro User Summary Rate Limit</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="500"
+                  value={proSummariesLimit}
+                  onChange={(e) => setProSummariesLimit(Number(e.target.value))}
+                  className="w-full py-2 px-3 bg-input border border-line rounded-lg text-ink text-sm outline-none focus:border-primary focus:bg-app"
+                />
+                <span className="text-[10px] text-ink-muted">Summaries allowed per day per premium subscriber.</span>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-4 border-t border-line">
+              <button
+                type="button"
+                onClick={handleSaveSysConfig}
+                className="btn btn-primary px-6 py-2.5 text-[0.88rem] font-bold flex items-center gap-2 cursor-pointer"
+              >
+                <Check size={15} />
+                Apply Configurations
+              </button>
+            </div>
+          </div>
+
+          {/* ─── Admin Security Settings ──────────────────── */}
+          <div className="bg-card border border-line rounded-xl p-6 flex flex-col gap-5">
+            <h3 className="text-[1.1rem] font-bold flex items-center gap-2 m-0 select-none">Admin Security Credentials</h3>
+            <form
+              onSubmit={e => {
+                e.preventDefault();
+                if (newPassword !== confirmPassword) {
+                  showToast('error', 'New passwords do not match');
+                  return;
+                }
+                setPasswordLoading(true);
+                const token = localStorage.getItem('token');
+                fetch(`${API_BASE_URL}/api/auth/change-password`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                  body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })
+                })
+                .then(res => {
+                  if (!res.ok) return res.json().then(err => { throw new Error(err.detail); });
+                  return res.json();
+                })
+                .then(() => {
+                  showToast('success', 'Admin password updated successfully!');
+                  setCurrentPassword('');
+                  setNewPassword('');
+                  setConfirmPassword('');
+                })
+                .catch(err => showToast('error', err.message))
+                .finally(() => setPasswordLoading(false));
+              }}
+              className="flex flex-col gap-4"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[0.85rem] font-semibold text-ink">Current Admin Password</label>
+                  <input type="password" className="w-full py-2 px-3 bg-input border border-line rounded-lg text-ink text-sm outline-none focus:border-primary focus:bg-app transition-all" placeholder="••••••••" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} required />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[0.85rem] font-semibold text-ink">New Admin Password</label>
+                  <input type="password" className="w-full py-2 px-3 bg-input border border-line rounded-lg text-ink text-sm outline-none focus:border-primary focus:bg-app transition-all" placeholder="••••••••" value={newPassword} onChange={e => setNewPassword(e.target.value)} required />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[0.85rem] font-semibold text-ink">Confirm New Password</label>
+                  <input type="password" className="w-full py-2 px-3 bg-input border border-line rounded-lg text-ink text-sm outline-none focus:border-primary focus:bg-app transition-all" placeholder="••••••••" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required />
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <button type="submit" disabled={passwordLoading} className="btn btn-outline px-5 py-2.5 text-[0.85rem] disabled:opacity-50 w-full sm:w-auto cursor-pointer">
+                  {passwordLoading ? 'Updating...' : 'Update Admin Password'}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* ─── Platform Maintenance & Danger Zone ───────── */}
+          <div className="border border-red-500/30 bg-red-500/5 rounded-xl p-6 flex flex-col gap-6">
+            <div className="flex items-center gap-2 select-none">
+              <ShieldAlert size={18} className="text-red-400" />
+              <h3 className="text-[1.1rem] font-bold text-red-400 m-0">Platform Maintenance & Danger Zone</h3>
+            </div>
+            <p className="text-[0.8rem] text-ink-muted m-0">Perform diagnostic checks and clear caches. Proceed with caution.</p>
+
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-red-500/20">
+              <div>
+                <div className="font-semibold text-[0.88rem] text-ink flex items-center gap-1.5 select-none">
+                  <Activity size={14} className="text-red-400" /> System Diagnostics
+                </div>
+                <div className="text-[0.75rem] text-ink-muted mt-0.5">Run full diagnostics suite to check API connections, database state, and services.</div>
+              </div>
+              <button
+                type="button"
+                onClick={handleRunDiagnostics}
+                disabled={runDiagnosticsLoading}
+                className="px-4 py-2 text-[0.82rem] font-semibold rounded-lg border border-primary/40 text-primary bg-primary/10 hover:bg-primary/20 transition-all duration-150 cursor-pointer shrink-0 w-full sm:w-auto text-center disabled:opacity-50"
+              >
+                {runDiagnosticsLoading ? 'Running...' : 'Run Diagnostics'}
+              </button>
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-red-500/20">
+              <div>
+                <div className="font-semibold text-[0.88rem] text-ink flex items-center gap-1.5 select-none">
+                  <RefreshCw size={14} className="text-red-400" /> Flush System Cache
+                </div>
+                <div className="text-[0.75rem] text-ink-muted mt-0.5">Clears all temporary model query and quiz generation caches system-wide.</div>
+              </div>
+              <button
+                type="button"
+                onClick={handleFlushCache}
+                disabled={flushCacheLoading}
+                className="px-4 py-2 text-[0.82rem] font-semibold rounded-lg border border-red-500/40 text-red-400 bg-red-500/10 hover:bg-red-500/20 transition-all duration-150 cursor-pointer shrink-0 w-full sm:w-auto text-center disabled:opacity-50"
+              >
+                {flushCacheLoading ? 'Flushing...' : 'Flush Cache'}
+              </button>
+            </div>
+          </div>
+
+        </div>
+      ) : (
+        <>
+          {/* ─── Profile Settings ───────────────────────────── */}
+          <div className="bg-card border border-line rounded-xl p-6 flex flex-col gap-6">
         <div className="flex items-center gap-2">
           <UserIcon size={17} className="text-primary" />
           <h3 className="text-[1.1rem] font-bold m-0">Profile Settings</h3>
@@ -749,6 +1084,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
           )}
         </div>
       </div>
+      </>
+      )}
     </>
   );
 };

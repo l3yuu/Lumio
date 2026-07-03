@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, ChevronRight, X, Users, Mail, Check, Settings, Bell, MessageSquare, Send, Sparkles, Copy, MoreVertical, Trash2, Crown } from 'lucide-react';
-import type { User, Module, StudyGroup, GroupInvitation, StudyGroupResponse, ModuleResponse, QuizQuestionResponse, GroupQuizSessionResponse, GroupQuizRankResponse, GroupMember } from '../../types';
+import { Plus, ChevronRight, X, Users, Mail, Check, Settings, Bell, MessageSquare, Send, Sparkles, Copy, MoreVertical, Trash2, Crown, Notebook } from 'lucide-react';
+import type { User, Module, Note, StudyGroup, GroupInvitation, StudyGroupResponse, ModuleResponse, QuizQuestionResponse, GroupQuizSessionResponse, GroupQuizRankResponse, GroupMember } from '../../types';
 import { API_BASE_URL, WS_BASE_URL } from '../../config';
 
 interface GroupsPanelProps {
@@ -12,6 +12,7 @@ interface GroupsPanelProps {
   completeQuest: (actionType: 'study_group') => void;
   setIsGroupModalOpen: (v: boolean) => void;
   modules: Module[];
+  notes: Note[];
   setGroups: React.Dispatch<React.SetStateAction<StudyGroup[]>>;
   invitations: GroupInvitation[];
   onAcceptInvitation: (id: number) => void;
@@ -27,6 +28,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
   completeQuest,
   setIsGroupModalOpen,
   modules,
+  notes,
   setGroups,
   invitations,
   onAcceptInvitation,
@@ -37,11 +39,16 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [selectedModuleId, setSelectedModuleId] = useState('');
   const [isSharing, setIsSharing] = useState(false);
+  const [isNoteShareModalOpen, setIsNoteShareModalOpen] = useState(false);
+  const [selectedNoteId, setSelectedNoteId] = useState<number | null>(null);
+  const [isNoteSharing, setIsNoteSharing] = useState(false);
+  const [viewingSharedNote, setViewingSharedNote] = useState<Note | null>(null);
   const [isInviting, setIsInviting] = useState(false);
   const [inviteError, setInviteError] = useState('');
   const [isLeaving, setIsLeaving] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
+  const [isMembersModalOpen, setIsMembersModalOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameError, setRenameError] = useState('');
@@ -86,6 +93,155 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
     }
   }, [selectedGroupId, groups]);
 
+  const [publicGroups, setPublicGroups] = useState<StudyGroup[]>([]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch(`${API_BASE_URL}/api/groups/public`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      .then(res => res.json())
+      .then(data => {
+        setPublicGroups(data.map((g: StudyGroupResponse) => ({
+          id: g.id,
+          name: g.name,
+          creator_id: g.creator_id,
+          isPublic: g.is_public ?? false,
+          members: (g.members || []).map((m: GroupMember) => ({
+            id: m.id,
+            name: m.name,
+            email: m.email,
+            avatar: m.avatar,
+            online: m.online,
+            is_premium: m.is_premium,
+          })),
+          modules: g.modules ? g.modules.map((m: ModuleResponse) => ({
+            id: m.id,
+            name: m.name,
+            date: m.date,
+            size: m.size,
+            subject: m.subject || 'General',
+            questionsCount: m.questionsCount !== undefined ? m.questionsCount : (m.questions ? m.questions.length : 0),
+            questions: m.questions ? m.questions.map((q: QuizQuestionResponse) => ({
+              id: q.id,
+              question: q.question,
+              options: q.options,
+              correctAnswerIndex: q.correct_answer_index,
+              explanation: q.explanation,
+              hint: q.hint,
+              questionType: q.question_type,
+              reference: q.reference
+            })) : []
+          })) : [],
+          notes: g.notes ? g.notes.map((n: { id: number; user_id: number; title: string; content: string; subject: string; is_pinned: boolean; created_at: string; updated_at: string }) => ({
+            id: n.id,
+            userId: n.user_id,
+            title: n.title,
+            content: n.content,
+            subject: n.subject,
+            isPinned: n.is_pinned,
+            createdAt: n.created_at,
+            updatedAt: n.updated_at
+          })) : [],
+          quizSessions: g.quiz_sessions ? g.quiz_sessions.map((s: GroupQuizSessionResponse) => ({
+            id: s.id,
+            moduleName: s.module_name,
+            date: s.date,
+            avgScore: s.avg_score,
+            rankings: s.rankings ? s.rankings.map((r: GroupQuizRankResponse) => ({
+              name: r.name,
+              score: r.score,
+              percentage: r.percentage,
+              time: r.time,
+              isUser: r.is_user
+            })) : []
+          })) : []
+        })));
+      })
+      .catch(() => {});
+    }
+  }, []);
+
+  const handleJoinPublicGroup = (groupId: number) => {
+    if (isJoiningGroup !== null) return;
+    setIsJoiningGroup(groupId);
+    const token = localStorage.getItem('token');
+    if (!token) { setIsJoiningGroup(null); return; }
+
+    fetch(`${API_BASE_URL}/api/groups/${groupId}/join`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    .then(async res => {
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.detail || 'Failed to join group');
+      return data as StudyGroupResponse;
+    })
+    .then(group => {
+      setPublicGroups(prev => prev.filter(g => g.id !== groupId));
+      setGroups(prev => [{
+        id: group.id,
+        name: group.name,
+        creator_id: group.creator_id,
+        isPublic: group.is_public ?? false,
+        members: (group.members || []).map((m: GroupMember) => ({
+          id: m.id, name: m.name, email: m.email, avatar: m.avatar, online: m.online, is_premium: m.is_premium,
+        })),
+        modules: group.modules ? group.modules.map((m: ModuleResponse) => ({
+          id: m.id, name: m.name, date: m.date, size: m.size, subject: m.subject || 'General',
+          questionsCount: m.questionsCount !== undefined ? m.questionsCount : (m.questions ? m.questions.length : 0),
+          questions: m.questions ? m.questions.map((q: QuizQuestionResponse) => ({
+            id: q.id, question: q.question, options: q.options, correctAnswerIndex: q.correct_answer_index,
+            explanation: q.explanation, hint: q.hint, questionType: q.question_type, reference: q.reference
+          })) : []
+        })) : [],
+        notes: group.notes ? group.notes.map((n: { id: number; user_id: number; title: string; content: string; subject: string; is_pinned: boolean; created_at: string; updated_at: string }) => ({
+          id: n.id, userId: n.user_id, title: n.title, content: n.content, subject: n.subject,
+          isPinned: n.is_pinned, createdAt: n.created_at, updatedAt: n.updated_at
+        })) : [],
+        quizSessions: group.quiz_sessions ? group.quiz_sessions.map((s: GroupQuizSessionResponse) => ({
+          id: s.id, moduleName: s.module_name, date: s.date, avgScore: s.avg_score,
+          rankings: s.rankings ? s.rankings.map((r: GroupQuizRankResponse) => ({
+            name: r.name, score: r.score, percentage: r.percentage, time: r.time, isUser: r.is_user
+          })) : []
+        })) : []
+      }, ...prev]);
+    })
+    .catch(err => alert(err.message))
+    .finally(() => setIsJoiningGroup(null));
+  };
+  const [isTogglingVisibility, setIsTogglingVisibility] = useState(false);
+  const [isJoiningGroup, setIsJoiningGroup] = useState<number | null>(null);
+
+  const handleToggleGroupVisibility = () => {
+    if (selectedGroupId === null || isTogglingVisibility) return;
+    const currentGroup = groups.find(g => g.id === selectedGroupId);
+    if (!currentGroup) return;
+    setIsTogglingVisibility(true);
+    const token = localStorage.getItem('token');
+    if (!token) { setIsTogglingVisibility(false); return; }
+
+    fetch(`${API_BASE_URL}/api/groups/${selectedGroupId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ name: currentGroup.name, is_public: !currentGroup.isPublic })
+    })
+    .then(async res => {
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.detail || 'Failed to update group visibility');
+      return data as StudyGroupResponse;
+    })
+    .then((updatedGroup: StudyGroupResponse) => {
+      setGroups(prev => prev.map(g => g.id === updatedGroup.id ? { ...g, isPublic: updatedGroup.is_public ?? false } : g));
+    })
+    .catch(err => alert(err.message))
+    .finally(() => setIsTogglingVisibility(false));
+  };
+
   const handleRenameGroup = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newGroupName.trim() || selectedGroupId === null) return;
@@ -113,6 +269,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
         id: updatedGroup.id,
         name: updatedGroup.name,
         creator_id: updatedGroup.creator_id,
+        isPublic: updatedGroup.is_public ?? false,
         members: (updatedGroup.members || []).map(m => ({
           id: m.id,
           name: m.name,
@@ -132,8 +289,22 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
             id: q.id,
             question: q.question,
             options: q.options,
-            correctAnswerIndex: q.correct_answer_index
+            correctAnswerIndex: q.correct_answer_index,
+            explanation: q.explanation,
+            hint: q.hint,
+            questionType: q.question_type,
+            reference: q.reference
           })) : []
+        })) : [],
+        notes: updatedGroup.notes ? updatedGroup.notes.map((n: { id: number; user_id: number; title: string; content: string; subject: string; is_pinned: boolean; created_at: string; updated_at: string }) => ({
+          id: n.id,
+          userId: n.user_id,
+          title: n.title,
+          content: n.content,
+          subject: n.subject,
+          isPinned: n.is_pinned,
+          createdAt: n.created_at,
+          updatedAt: n.updated_at
         })) : [],
         quizSessions: updatedGroup.quiz_sessions ? updatedGroup.quiz_sessions.map((s: GroupQuizSessionResponse) => ({
           id: s.id,
@@ -493,6 +664,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
         id: updatedGroup.id,
         name: updatedGroup.name,
         creator_id: updatedGroup.creator_id,
+        isPublic: updatedGroup.is_public ?? false,
         members: (updatedGroup.members || []).map((m: GroupMember) => ({
           id: m.id,
           name: m.name,
@@ -512,8 +684,22 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
             id: q.id,
             question: q.question,
             options: q.options,
-            correctAnswerIndex: q.correct_answer_index
+            correctAnswerIndex: q.correct_answer_index,
+            explanation: q.explanation,
+            hint: q.hint,
+            questionType: q.question_type,
+            reference: q.reference
           })) : []
+        })) : [],
+        notes: updatedGroup.notes ? updatedGroup.notes.map((n: { id: number; user_id: number; title: string; content: string; subject: string; is_pinned: boolean; created_at: string; updated_at: string }) => ({
+          id: n.id,
+          userId: n.user_id,
+          title: n.title,
+          content: n.content,
+          subject: n.subject,
+          isPinned: n.is_pinned,
+          createdAt: n.created_at,
+          updatedAt: n.updated_at
         })) : [],
         quizSessions: updatedGroup.quiz_sessions ? updatedGroup.quiz_sessions.map((s: GroupQuizSessionResponse) => ({
           id: s.id,
@@ -558,6 +744,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
         id: updatedGroup.id,
         name: updatedGroup.name,
         creator_id: updatedGroup.creator_id,
+        isPublic: updatedGroup.is_public ?? false,
         members: (updatedGroup.members || []).map((m: GroupMember) => ({
           id: m.id,
           name: m.name,
@@ -577,8 +764,22 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
             id: q.id,
             question: q.question,
             options: q.options,
-            correctAnswerIndex: q.correct_answer_index
+            correctAnswerIndex: q.correct_answer_index,
+            explanation: q.explanation,
+            hint: q.hint,
+            questionType: q.question_type,
+            reference: q.reference
           })) : []
+        })) : [],
+        notes: updatedGroup.notes ? updatedGroup.notes.map((n: { id: number; user_id: number; title: string; content: string; subject: string; is_pinned: boolean; created_at: string; updated_at: string }) => ({
+          id: n.id,
+          userId: n.user_id,
+          title: n.title,
+          content: n.content,
+          subject: n.subject,
+          isPinned: n.is_pinned,
+          createdAt: n.created_at,
+          updatedAt: n.updated_at
         })) : [],
         quizSessions: updatedGroup.quiz_sessions ? updatedGroup.quiz_sessions.map((s: GroupQuizSessionResponse) => ({
           id: s.id,
@@ -626,6 +827,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
       const mapped: StudyGroup = {
         id: updatedGroup.id,
         name: updatedGroup.name,
+        isPublic: updatedGroup.is_public ?? false,
         members: updatedGroup.members || [],
         modules: updatedGroup.modules ? updatedGroup.modules.map((m: ModuleResponse) => ({
           id: m.id,
@@ -638,8 +840,22 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
             id: q.id,
             question: q.question,
             options: q.options,
-            correctAnswerIndex: q.correct_answer_index
+            correctAnswerIndex: q.correct_answer_index,
+            explanation: q.explanation,
+            hint: q.hint,
+            questionType: q.question_type,
+            reference: q.reference
           })) : []
+        })) : [],
+        notes: updatedGroup.notes ? updatedGroup.notes.map((n: { id: number; user_id: number; title: string; content: string; subject: string; is_pinned: boolean; created_at: string; updated_at: string }) => ({
+          id: n.id,
+          userId: n.user_id,
+          title: n.title,
+          content: n.content,
+          subject: n.subject,
+          isPinned: n.is_pinned,
+          createdAt: n.created_at,
+          updatedAt: n.updated_at
         })) : [],
         quizSessions: updatedGroup.quiz_sessions ? updatedGroup.quiz_sessions.map((s: GroupQuizSessionResponse) => ({
           id: s.id,
@@ -668,6 +884,84 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
     });
   };
 
+  const handleShareNote = () => {
+    if (selectedNoteId === null || isNoteSharing) return;
+    const activeGroup = groups.find(g => g.id === selectedGroupId);
+    if (!activeGroup) return;
+
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    setIsNoteSharing(true);
+    fetch(`${API_BASE_URL}/api/groups/${activeGroup.id}/share-note/${selectedNoteId}`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    .then(async res => {
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.detail || 'Failed to share note with group');
+      return data;
+    })
+    .then((updatedGroup: StudyGroupResponse) => {
+      const mapped: StudyGroup = {
+        id: updatedGroup.id,
+        name: updatedGroup.name,
+        creator_id: updatedGroup.creator_id,
+        isPublic: updatedGroup.is_public ?? false,
+        members: updatedGroup.members || [],
+        modules: updatedGroup.modules ? updatedGroup.modules.map((m: ModuleResponse) => ({
+          id: m.id,
+          name: m.name,
+          date: m.date,
+          size: m.size,
+          subject: m.subject || 'General',
+          questionsCount: m.questionsCount !== undefined ? m.questionsCount : (m.questions ? m.questions.length : 0),
+          questions: m.questions ? m.questions.map((q: QuizQuestionResponse) => ({
+            id: q.id,
+            question: q.question,
+            options: q.options,
+            correctAnswerIndex: q.correct_answer_index,
+            explanation: q.explanation,
+            hint: q.hint,
+            questionType: q.question_type,
+            reference: q.reference
+          })) : []
+        })) : [],
+        notes: updatedGroup.notes ? updatedGroup.notes.map((n: { id: number; user_id: number; title: string; content: string; subject: string; is_pinned: boolean; created_at: string; updated_at: string }) => ({
+          id: n.id,
+          userId: n.user_id,
+          title: n.title,
+          content: n.content,
+          subject: n.subject,
+          isPinned: n.is_pinned,
+          createdAt: n.created_at,
+          updatedAt: n.updated_at
+        })) : [],
+        quizSessions: updatedGroup.quiz_sessions ? updatedGroup.quiz_sessions.map((s: GroupQuizSessionResponse) => ({
+          id: s.id,
+          moduleName: s.module_name,
+          date: s.date,
+          avgScore: s.avg_score,
+          rankings: s.rankings ? s.rankings.map((r: GroupQuizRankResponse) => ({
+            name: r.name,
+            score: r.score,
+            percentage: r.percentage,
+            time: r.time,
+            isUser: r.is_user
+          })) : []
+        })) : []
+      };
+      setGroups(groups.map(g => g.id === mapped.id ? mapped : g));
+      setSelectedNoteId(null);
+      setIsNoteShareModalOpen(false);
+    })
+    .catch(err => {
+      console.error(err);
+      alert(err.message || 'Error sharing note');
+    })
+    .finally(() => setIsNoteSharing(false));
+  };
+
   if (selectedGroupId !== null) {
     const activeGroup = groups.find(g => g.id === selectedGroupId);
     if (!activeGroup) return null;
@@ -687,6 +981,13 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
             <div className="flex flex-col items-end gap-2 text-right max-md:items-start max-md:text-left max-md:w-full">
               <div className="flex items-center gap-2">
                 <span className="inline-flex items-center gap-1 text-[0.7rem] font-bold uppercase tracking-wider py-1 px-2.5 rounded-full border bg-primary-soft text-primary border-primary-line">Group Active</span>
+                <button
+                  onClick={() => setIsMembersModalOpen(true)}
+                  className="p-1.5 rounded-lg border transition-all duration-200 bg-transparent border-line text-ink-muted hover:bg-glass hover:text-ink"
+                  title="Group Members"
+                >
+                  <Users size={14} />
+                </button>
                 <button
                   onClick={() => setGroupSettingsOpen(!groupSettingsOpen)}
                   className={`p-1.5 rounded-lg border transition-all duration-200 ${groupSettingsOpen ? 'bg-primary text-ink-on-primary border-primary' : 'bg-transparent border-line text-ink-muted hover:bg-glass hover:text-ink'}`}
@@ -827,6 +1128,27 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
                 </div>
               )}
 
+              {/* Group Visibility (Owner only) */}
+              {isCurrentUserOwner && (
+                <div className="flex items-center justify-between p-4 bg-app border border-line rounded-lg max-md:flex-col max-md:items-stretch max-md:gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-ink">Public Group</p>
+                    <p className="text-xs text-ink-muted mt-0.5">Anyone can discover and join this group</p>
+                  </div>
+                  <button
+                    onClick={handleToggleGroupVisibility}
+                    disabled={isTogglingVisibility}
+                    className={`relative w-11 h-6 rounded-full transition-all duration-200 cursor-pointer shrink-0 self-end max-md:self-start ${
+                      activeGroup.isPublic ? 'bg-primary' : 'bg-input border border-line'
+                    } ${isTogglingVisibility ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  >
+                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-all duration-200 ${
+                      activeGroup.isPublic ? 'translate-x-5' : 'translate-x-0'
+                    }`} />
+                  </button>
+                </div>
+              )}
+
               {/* Notification Toggle */}
               <div className="flex items-center justify-between p-4 bg-app border border-line rounded-lg max-md:flex-col max-md:items-stretch max-md:gap-3">
                 <div className="flex items-center gap-3 min-w-0">
@@ -847,121 +1169,6 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
                     groupNotifsEnabled ? 'translate-x-5' : 'translate-x-0'
                   }`} />
                 </button>
-              </div>
-
-              {/* Member List */}
-              <div className="p-4 bg-app border border-line rounded-lg">
-                <p className="text-sm font-semibold text-ink mb-3 flex items-center gap-2">
-                  <Users size={16} /> Members ({activeGroup.members.length})
-                </p>
-                <div className="flex flex-col gap-2">
-                  {/* Current user */}
-                  <div className="flex items-center gap-3 py-2 px-3 bg-card rounded-lg">
-                    <div className="relative">
-                      {user.avatar ? (
-                        <img src={user.avatar} alt={user.name} referrerPolicy="no-referrer"
-                          className="w-8 h-8 rounded-full object-cover border-2 border-primary" />
-                      ) : (
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold bg-primary text-ink-on-primary border-2 border-primary">
-                          {user.name.charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                      <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-app" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-ink truncate flex items-center gap-1.5">
-                        <span className="truncate">{user.name}</span>
-                        <span className="text-xs text-ink-muted font-normal shrink-0">(You)</span>
-                        {user.is_premium && (
-                          <span className="text-[0.6rem] font-extrabold bg-primary/20 text-primary border border-primary/30 px-1.5 py-0.5 rounded-full uppercase tracking-wider leading-none shrink-0">
-                            Pro
-                          </span>
-                        )}
-                        {isCurrentUserOwner && (
-                          <span className="text-[0.6rem] font-bold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded uppercase tracking-wider leading-none shrink-0">Owner</span>
-                        )}
-                      </p>
-                      <p className="text-xs text-ink-muted truncate">{user.email}</p>
-                    </div>
-                  </div>
-                  {/* Other members (excluding current user) */}
-                  {activeGroup.members.filter(m => m.email !== user.email).map((m, idx) => (
-                    <div key={idx} className="flex items-center gap-3 py-2 px-3 bg-card rounded-lg">
-                      <div className="relative">
-                        {m.avatar ? (
-                          <img src={m.avatar} alt={m.name} referrerPolicy="no-referrer"
-                            className="w-8 h-8 rounded-full object-cover border-2 border-card" />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold bg-glass-strong border-2 border-card text-ink">
-                            {m.name.charAt(0).toUpperCase()}
-                          </div>
-                        )}
-                        <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-app ${
-                          m.online ? 'bg-emerald-400' : 'bg-zinc-500'
-                        }`} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-ink truncate flex items-center gap-1.5">
-                          <span className="truncate">{m.name}</span>
-                          {m.is_premium && (
-                            <span className="text-[0.6rem] font-extrabold bg-primary/20 text-primary border border-primary/30 px-1.5 py-0.5 rounded-full uppercase tracking-wider leading-none shrink-0">
-                              Pro
-                            </span>
-                          )}
-                          {activeGroup.creator_id === m.id && (
-                            <span className="text-[0.6rem] font-bold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded uppercase tracking-wider leading-none shrink-0">Owner</span>
-                          )}
-                        </p>
-                        <p className="text-xs text-ink-muted truncate">{m.email}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {isCurrentUserOwner && m.id && (
-                          <div className="relative">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setOpenMenuMemberId(openMenuMemberId === m.id ? null : m.id ?? null);
-                              }}
-                              disabled={isRemovingMemberId === m.id}
-                              className="inline-flex items-center justify-center p-1.5 rounded hover:bg-glass text-ink-muted hover:text-ink transition-all cursor-pointer border border-line"
-                              title="More Options"
-                            >
-                              <MoreVertical size={16} />
-                            </button>
-                             {openMenuMemberId === m.id && (
-                              <div
-                                className="absolute right-0 top-full mt-1 w-44 bg-card border border-line rounded-lg shadow-lg py-1 z-20"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setTransferConfirmMember({ id: m.id!, name: m.name });
-                                    setOpenMenuMemberId(null);
-                                  }}
-                                  className="w-full text-left px-3 py-2 text-xs text-amber-400 hover:bg-amber-500/10 transition-colors font-semibold flex items-center gap-1.5 cursor-pointer border-b border-line"
-                                >
-                                  <Crown size={12} /> Transfer Ownership
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setRemoveConfirmMember({ id: m.id!, name: m.name });
-                                    setOpenMenuMemberId(null);
-                                  }}
-                                  className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors font-semibold flex items-center gap-1.5 cursor-pointer"
-                                >
-                                  <Trash2 size={12} /> Remove Member
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
               </div>
 
               {/* Leave Group */}
@@ -1024,6 +1231,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
             </div>
 
             {activeTab === 'study' ? (
+              <>
               <div className="grid grid-cols-2 gap-6 max-md:grid-cols-1">
                 <div className="bg-card border border-line rounded-xl p-5 max-md:p-4">
                   <div className="flex justify-between items-center mb-5 max-md:flex-col max-md:items-stretch max-md:gap-3">
@@ -1076,6 +1284,45 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
                   )}
                 </div>
               </div>
+
+              {/* Shared Notes */}
+              <div className="bg-card border border-line rounded-xl p-5 max-md:p-4 mt-6">
+                <div className="flex justify-between items-center mb-5 max-md:flex-col max-md:items-stretch max-md:gap-3">
+                  <h3 className="text-[1.15rem] flex items-center gap-2 m-0"><Notebook size={18} className="text-primary" /> Shared Notes</h3>
+                  <button
+                    type="button"
+                    onClick={() => setIsNoteShareModalOpen(true)}
+                    className="inline-flex items-center justify-center gap-1 py-1.5 px-3 rounded-lg font-semibold text-xs transition-all duration-200 cursor-pointer bg-transparent border border-line text-ink hover:bg-input hover:border-line-strong select-none max-md:w-full"
+                  >
+                    <Plus size={12} /> Share Note
+                  </button>
+                </div>
+                {(activeGroup.notes || []).length === 0 ? (
+                  <div className="text-center p-8 text-ink-muted">No shared notes yet. Share a note to collaborate with your group!</div>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {activeGroup.notes.map((n) => (
+                      <div className="bg-app border border-line rounded-lg p-4 max-md:p-3.5 cursor-pointer hover:bg-input transition-colors duration-150" key={n.id} onClick={() => setViewingSharedNote(n)}>
+                        <div className="flex justify-between items-start gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-sm max-md:text-[0.9rem] text-left wrap-break-word leading-snug">{n.title}</span>
+                              {n.isPinned && <span className="text-[0.6rem] bg-yellow-400/15 text-yellow-400 px-1.5 py-0.5 rounded-full font-bold">PINNED</span>}
+                            </div>
+                            <div className="text-[0.75rem] text-ink-muted flex gap-2 mt-0.5">
+                              <span>{n.subject}</span>
+                              <span>·</span>
+                              <span>{new Date(n.updatedAt).toLocaleDateString()}</span>
+                            </div>
+                            <p className="text-xs text-ink-muted mt-2 line-clamp-2 leading-relaxed">{n.content?.slice(0, 200) || 'Empty note'}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              </>
             ) : (
               <div className="bg-card border border-line rounded-xl p-6 max-md:p-4 flex flex-col h-137.5 max-md:h-[min(65vh,520px)] min-h-90 shadow-lg animate-in fade-in duration-200">
                 <div className="flex justify-between items-center pb-3 border-b border-line mb-4 shrink-0 max-md:flex-col max-md:items-start max-md:gap-3">
@@ -1258,6 +1505,92 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
           </div>
         )}
 
+        {/* Share Note Modal */}
+        {isNoteShareModalOpen && (
+          <div className="fixed inset-0 bg-[rgba(5,5,5,0.7)] backdrop-blur-sm z-3000 flex items-center justify-center p-4">
+            <div className="bg-card border border-line rounded-2xl p-8 max-w-110 w-full shadow-lg">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-ink flex items-center gap-2">
+                  <Notebook size={20} className="text-primary" /> Share Note
+                </h3>
+                <button onClick={() => { setIsNoteShareModalOpen(false); setSelectedNoteId(null); }} className="bg-transparent border-0 text-ink-muted hover:text-ink cursor-pointer p-1">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-2 mb-6 text-left">
+                <label className="text-[0.9rem] font-semibold text-ink">Select Note to Share</label>
+                <select
+                  value={selectedNoteId ?? ''}
+                  onChange={(e) => setSelectedNoteId(e.target.value ? Number(e.target.value) : null)}
+                  disabled={isNoteSharing}
+                  className="w-full py-2 px-3 bg-input border border-line rounded-md text-ink text-sm outline-none focus:border-primary disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  <option value="">-- Choose note --</option>
+                  {notes
+                    .filter(n => !(activeGroup.notes || []).some(gn => gn.id === n.id))
+                    .map(n => (
+                      <option key={n.id} value={n.id}>{n.title}</option>
+                    ))
+                  }
+                </select>
+                {notes.filter(n => !(activeGroup.notes || []).some(gn => gn.id === n.id)).length === 0 && (
+                  <span className="text-xs text-ink-muted mt-1">No unshared notes available. Create a note first!</span>
+                )}
+              </div>
+
+              <div className="flex gap-4 justify-end">
+                <button
+                  type="button"
+                  onClick={() => { setIsNoteShareModalOpen(false); setSelectedNoteId(null); }}
+                  disabled={isNoteSharing}
+                  className="inline-flex items-center justify-center gap-2 py-2 px-4 rounded-md font-semibold text-xs transition-all duration-200 cursor-pointer bg-transparent border border-line text-ink hover:bg-input hover:border-line-strong disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleShareNote}
+                  disabled={isNoteSharing || selectedNoteId === null}
+                  className="inline-flex items-center justify-center gap-2 py-2 px-4 rounded-md font-semibold text-xs transition-all duration-200 cursor-pointer bg-primary text-ink-on-primary border border-primary hover:bg-primary-hover hover:border-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isNoteSharing ? 'Sharing...' : 'Share with Group'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* View Shared Note Modal */}
+        {viewingSharedNote && (
+          <div className="fixed inset-0 bg-[rgba(5,5,5,0.7)] backdrop-blur-sm z-3000 flex items-center justify-center p-4" onClick={() => setViewingSharedNote(null)}>
+            <div className="bg-card border border-line rounded-2xl p-8 max-w-150 w-full max-h-[80vh] overflow-y-auto shadow-lg" onClick={e => e.stopPropagation()}>
+              <div className="flex justify-between items-start mb-6 gap-4">
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-xl font-bold text-ink break-words">{viewingSharedNote.title}</h3>
+                  <div className="flex items-center gap-2 text-xs text-ink-muted mt-1">
+                    <span>{viewingSharedNote.subject}</span>
+                    <span>·</span>
+                    <span>Updated {new Date(viewingSharedNote.updatedAt).toLocaleDateString()}</span>
+                    {viewingSharedNote.isPinned && (
+                      <>
+                        <span>·</span>
+                        <span className="text-yellow-400 font-bold">PINNED</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <button onClick={() => setViewingSharedNote(null)} className="bg-transparent border-0 text-ink-muted hover:text-ink cursor-pointer p-1 shrink-0">
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="text-sm text-ink leading-relaxed whitespace-pre-wrap break-words">
+                {viewingSharedNote.content || 'Empty note'}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Remove Member Confirmation Modal */}
         {removeConfirmMember && (
           <div className="fixed inset-0 bg-[rgba(5,5,5,0.7)] backdrop-blur-sm z-3000 flex items-center justify-center p-4">
@@ -1350,6 +1683,145 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
             </div>
           </div>
         )}
+
+        {/* Group Members Modal */}
+        {isMembersModalOpen && (
+          <div className="fixed inset-0 bg-[rgba(5,5,5,0.7)] backdrop-blur-sm z-3000 flex items-center justify-center p-4">
+            <div className="bg-card border border-line rounded-2xl p-6 max-w-md w-full shadow-lg flex flex-col max-h-[85vh]">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold text-ink flex items-center gap-2">
+                  <Users size={18} className="text-primary" /> Group Members ({activeGroup.members.length})
+                </h3>
+                <button 
+                  onClick={() => setIsMembersModalOpen(false)} 
+                  className="bg-transparent border-0 text-ink-muted hover:text-ink cursor-pointer p-1"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="overflow-y-auto pr-1 flex flex-col gap-2 mt-2 max-h-[55vh]">
+                {/* Current user */}
+                <div className="flex items-center gap-3 py-2.5 px-3 bg-app border border-line rounded-lg">
+                  <div className="relative">
+                    {user.avatar ? (
+                      <img src={user.avatar} alt={user.name} referrerPolicy="no-referrer"
+                        className="w-8 h-8 rounded-full object-cover border-2 border-primary" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold bg-primary text-ink-on-primary border-2 border-primary">
+                        {user.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-app" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-ink truncate flex items-center gap-1.5 m-0 text-left">
+                      <span className="truncate">{user.name}</span>
+                      <span className="text-xs text-ink-muted font-normal shrink-0">(You)</span>
+                      {user.is_premium && (
+                        <span className="text-[0.6rem] font-extrabold bg-primary/20 text-primary border border-primary/30 px-1.5 py-0.5 rounded-full uppercase tracking-wider leading-none shrink-0">
+                          Pro
+                        </span>
+                      )}
+                      {isCurrentUserOwner && (
+                        <span className="text-[0.6rem] font-bold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded uppercase tracking-wider leading-none shrink-0">Owner</span>
+                      )}
+                    </p>
+                    <p className="text-xs text-ink-muted truncate m-0 text-left">{user.email}</p>
+                  </div>
+                </div>
+
+                {/* Other members */}
+                {activeGroup.members.filter(m => m.email !== user.email).map((m, idx) => (
+                  <div key={idx} className="flex items-center gap-3 py-2.5 px-3 bg-app border border-line rounded-lg">
+                    <div className="relative">
+                      {m.avatar ? (
+                        <img src={m.avatar} alt={m.name} referrerPolicy="no-referrer"
+                          className="w-8 h-8 rounded-full object-cover border-2 border-card" />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold bg-glass-strong border-2 border-card text-ink">
+                          {m.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-app ${
+                        m.online ? 'bg-emerald-400' : 'bg-zinc-500'
+                      }`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-ink truncate flex items-center gap-1.5 m-0 text-left">
+                        <span className="truncate">{m.name}</span>
+                        {m.is_premium && (
+                          <span className="text-[0.6rem] font-extrabold bg-primary/20 text-primary border border-primary/30 px-1.5 py-0.5 rounded-full uppercase tracking-wider leading-none shrink-0">
+                            Pro
+                          </span>
+                        )}
+                        {activeGroup.creator_id === m.id && (
+                          <span className="text-[0.6rem] font-bold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded uppercase tracking-wider leading-none shrink-0">Owner</span>
+                        )}
+                      </p>
+                      <p className="text-xs text-ink-muted truncate m-0 text-left">{m.email}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {isCurrentUserOwner && m.id && (
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenMenuMemberId(openMenuMemberId === m.id ? null : m.id ?? null);
+                            }}
+                            disabled={isRemovingMemberId === m.id}
+                            className="inline-flex items-center justify-center p-1.5 rounded hover:bg-glass text-ink-muted hover:text-ink transition-all cursor-pointer border border-line"
+                            title="More Options"
+                          >
+                            <MoreVertical size={16} />
+                          </button>
+                          {openMenuMemberId === m.id && (
+                            <div
+                              className="absolute right-0 top-full mt-1 w-44 bg-card border border-line rounded-lg shadow-lg py-1 z-20"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setTransferConfirmMember({ id: m.id!, name: m.name });
+                                  setOpenMenuMemberId(null);
+                                }}
+                                className="w-full text-left px-3 py-2 text-xs text-amber-400 hover:bg-amber-500/10 transition-colors font-semibold flex items-center gap-1.5 cursor-pointer border-b border-line"
+                              >
+                                <Crown size={12} /> Transfer Ownership
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setRemoveConfirmMember({ id: m.id!, name: m.name });
+                                  setOpenMenuMemberId(null);
+                                }}
+                                className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors font-semibold flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <Trash2 size={12} /> Remove Member
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-end mt-6 pt-4 border-t border-line">
+                <button
+                  type="button"
+                  onClick={() => setIsMembersModalOpen(false)}
+                  className="inline-flex items-center justify-center gap-2 py-2 px-4 rounded-md font-semibold text-xs transition-all duration-200 cursor-pointer bg-primary text-ink-on-primary border border-primary hover:bg-primary-hover hover:border-primary-hover"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -1425,6 +1897,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
           </div>
         </div>
       )}
+
       <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-6 max-md:grid-cols-1 max-md:gap-4">
         {groups.map((group) => (
           <div className="bg-card border border-line rounded-xl p-5 max-md:p-4 flex flex-col h-full" key={group.id}>
@@ -1478,6 +1951,56 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
           </div>
         ))}
       </div>
+
+      {publicGroups.length > 0 && (
+        <div className="mt-10">
+          <h4 className="text-[1rem] font-bold text-ink-muted uppercase tracking-wider mb-4 flex items-center gap-2">
+            <Users size={16} />
+            Public Groups
+            <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-primary-soft text-primary text-[0.65rem] font-bold">{publicGroups.length}</span>
+          </h4>
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-6 max-md:grid-cols-1 max-md:gap-4">
+            {publicGroups.map((group) => (
+              <div className="bg-card border border-line rounded-xl p-5 max-md:p-4 flex flex-col h-full" key={group.id}>
+                <h4 className="text-xl max-md:text-lg mb-2 text-left wrap-break-word">{group.name}</h4>
+                <span className="text-[0.85rem] text-ink-muted text-left">{group.members.length} Members | {group.modules.length} Shared Modules</span>
+
+                <div className="flex items-center mt-3">
+                  {group.members.slice(0, 5).map((m, idx) => (
+                    <div key={idx} className="relative -ml-2 first:ml-0">
+                      {m.avatar ? (
+                        <img src={m.avatar} alt={m.name} referrerPolicy="no-referrer"
+                          className={`w-8 h-8 rounded-full border-2 object-cover ${m.online ? 'border-primary' : 'border-card'}`}
+                          title={`${m.name} (${m.online ? 'Online' : 'Offline'})`} />
+                      ) : (
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold bg-glass-strong border-2 ${m.online ? 'border-primary text-primary' : 'border-card text-ink'}`}
+                          title={`${m.name} (${m.online ? 'Online' : 'Offline'})`}>
+                          {m.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {group.members.length > 5 && (
+                    <div className="relative -ml-2 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold bg-glass-strong border-2 border-card text-ink-muted">
+                      +{group.members.length - 5}
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-auto pt-4 flex justify-end max-md:justify-stretch">
+                  <button
+                    onClick={() => handleJoinPublicGroup(group.id)}
+                    disabled={isJoiningGroup === group.id}
+                    className="btn btn-primary inline-flex items-center gap-1 px-4 py-2 text-[0.85rem] max-md:w-full max-md:justify-center"
+                  >
+                    {isJoiningGroup === group.id ? 'Joining...' : 'Join Group'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

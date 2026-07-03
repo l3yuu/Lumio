@@ -1,98 +1,18 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Shield, Users, Layers, Activity, Search, Loader2, CheckCircle2, XCircle, Trash2, X, AlertTriangle, MessageSquare, Sparkles, Calendar } from 'lucide-react';
+import { Shield, Loader2, XCircle, X, AlertTriangle, MessageSquare, Sparkles, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { API_BASE_URL } from '../../config';
 import type { User, DashboardTab, Module, QuizQuestionResponse } from '../../types';
-
-const BAN_REASONS = [
-  "Inappropriate discussion or posts",
-  "Spamming or advertising",
-  "Harassment or user complaints",
-  "Sharing copyrighted exam answers"
-];
-
-const DELETE_REASONS = [
-  "Duplicate/Inactive study group",
-  "Severe violations of Terms of Service",
-  "Spam/Ad campaign circle",
-  "Requested by group creator"
-];
-
-interface HealthData {
-  status: string;
-  uptime_seconds: number;
-  database: {
-    status: string;
-    latency_ms: number;
-  };
-  counts: {
-    users: number;
-    modules: number;
-    groups: number;
-    exams: number;
-  };
-}
-
-interface AdminExam {
-  id: number;
-  title: string;
-  subject: string;
-  date: string;
-  priority: string;
-  completed: boolean;
-  score: string | null;
-  days_remaining: number;
-  owner_email: string;
-  owner_name: string;
-}
-
-interface AdminModule {
-  id: number;
-  name: string;
-  subject: string;
-  date: string;
-  owner_email: string;
-  owner_name: string;
-  questions_count: number;
-  difficulty: string;
-}
-
-interface AdminGroup {
-  id: number;
-  name: string;
-  creator_email: string;
-  creator_name: string;
-  members_count: number;
-  modules_count: number;
-  is_banned?: boolean;
-}
-
-interface GroupPost {
-  id: number;
-  group_id: number;
-  user_id: number | null;
-  user_name: string;
-  user_avatar?: string | null;
-  content: string;
-  created_at: string;
-  is_ai: boolean;
-}
-
-interface AdminSales {
-  mrr: number;
-  total_revenue: number;
-  premium_count: number;
-  churn_rate: number;
-  transactions: {
-    id: number;
-    user_name: string;
-    user_email: string;
-    plan: string;
-    amount: number;
-    date: string;
-    status: string;
-  }[];
-}
+import type { HealthData, AdminExam, AdminModule, AdminGroup, AdminSales, GroupPost } from './AdminPanel/types';
+import { BAN_REASONS, DELETE_REASONS } from './AdminPanel/types';
+import { AdminOverview } from './AdminPanel/AdminOverview';
+import { AdminUsers } from './AdminPanel/AdminUsers';
+import { AdminSalesView } from './AdminPanel/AdminSales';
+import { AdminModules } from './AdminPanel/AdminModules';
+import { AdminExams } from './AdminPanel/AdminExams';
+import { AdminGroups } from './AdminPanel/AdminGroups';
+import { AdminNotes } from './AdminPanel/AdminNotes';
+import { AdminAiUsage } from './AdminPanel/AdminAiUsage';
 
 interface AdminPanelProps {
   user: User;
@@ -110,6 +30,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
   const [deleteConfirmModule, setDeleteConfirmModule] = useState<AdminModule | null>(null);
   const [deleteConfirmExam, setDeleteConfirmExam] = useState<AdminExam | null>(null);
   const [activeManageGroup, setActiveManageGroup] = useState<AdminGroup | null>(null);
+  const [activeViewMembersGroup, setActiveViewMembersGroup] = useState<AdminGroup | null>(null);
   const [manageAction, setManageAction] = useState<'menu' | 'confirm-ban' | 'confirm-delete'>('menu');
   const [actionReason, setActionReason] = useState('');
   const [roleChangeTarget, setRoleChangeTarget] = useState<{ userId: number; targetRole: string; userName: string } | null>(null);
@@ -117,18 +38,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
   const [suspendConfirmTarget, setSuspendConfirmTarget] = useState<{ userId: number; isSuspended: boolean; userName: string } | null>(null);
   const [selectedViewModule, setSelectedViewModule] = useState<Module | null>(null);
   const [loadingModuleDetail, setLoadingModuleDetail] = useState(false);
-  const [moduleFileUrl, setModuleFileUrl] = useState<string | null>(null);
-  const [loadingFile, setLoadingFile] = useState(false);
-
-  // Cleanup object URL when modal closes
-  useEffect(() => {
-    return () => {
-      if (moduleFileUrl) {
-        URL.revokeObjectURL(moduleFileUrl);
-        setModuleFileUrl(null);
-      }
-    };
-  }, [moduleFileUrl]);
 
   const [selectedChatGroup, setSelectedChatGroup] = useState<AdminGroup | null>(null);
   const [chatMessages, setChatMessages] = useState<GroupPost[]>([]);
@@ -214,6 +123,39 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
     fetchAdminData();
     setSearchQuery('');
   }, [currentTab, fetchAdminData]);
+
+  // Live uptime increment and silent background sync for admin overview stats
+  useEffect(() => {
+    if (currentTab !== 'admin-overview') return;
+
+    const tickInterval = setInterval(() => {
+      setHealth(prev => prev ? {
+        ...prev,
+        uptime_seconds: prev.uptime_seconds + 1
+      } : null);
+    }, 1000);
+
+    const syncInterval = setInterval(async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      try {
+        const healthRes = await fetch(`${API_BASE_URL}/api/admin/health`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (healthRes.ok) {
+          const healthJson = await healthRes.json();
+          setHealth(healthJson);
+        }
+      } catch (err) {
+        console.error('Silent health poll failed:', err);
+      }
+    }, 30000);
+
+    return () => {
+      clearInterval(tickInterval);
+      clearInterval(syncInterval);
+    };
+  }, [currentTab]);
 
   const handleUpdateRole = async (userId: number, targetRole: string) => {
     if (userId === currentUser.id && targetRole !== 'superadmin') {
@@ -358,33 +300,123 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
           id: q.id,
           question: q.question,
           options: q.options,
-          correctAnswerIndex: q.correct_answer_index
+          correctAnswerIndex: q.correct_answer_index,
+          explanation: q.explanation,
+          hint: q.hint,
+          questionType: q.question_type,
+          reference: q.reference
         })),
         difficulty: moduleData.difficulty
       };
       setSelectedViewModule(mappedModule);
-        // Fetch the source file for preview
-        setLoadingFile(true);
-        try {
-          const token = localStorage.getItem('token');
-          const fileRes = await fetch(`${API_BASE_URL}/api/admin/modules/${moduleId}/file`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          if (fileRes.ok) {
-            const blob = await fileRes.blob();
-            const url = URL.createObjectURL(blob);
-            setModuleFileUrl(url);
-          }
-        } catch (e) {
-          console.error('Failed to load module file', e);
-        } finally {
-          setLoadingFile(false);
-        }
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Error fetching module details.');
     } finally {
       setLoadingModuleDetail(false);
     }
+  };
+
+  const handleOpenAdminSourceInNewTab = (m: AdminModule) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    const newTab = window.open('', '_blank');
+    if (newTab) {
+      newTab.document.write(`
+        <html>
+          <head>
+            <title>${m.name} - Source File</title>
+            <style>
+              body {
+                background: #181818;
+                color: #e0e0e0;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                margin: 0;
+                padding: 24px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                min-height: 100vh;
+              }
+              .container {
+                width: 100%;
+                max-width: 900px;
+                background: #202020;
+                border: 1px solid #333;
+                border-radius: 12px;
+                padding: 40px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+                box-sizing: border-box;
+              }
+              h1 {
+                font-size: 24px;
+                margin-top: 0;
+                margin-bottom: 8px;
+                color: #fff;
+              }
+              .filename {
+                font-size: 14px;
+                color: #888;
+                margin-bottom: 24px;
+              }
+              pre {
+                white-space: pre-wrap;
+                word-wrap: break-word;
+                font-size: 14px;
+                line-height: 1.6;
+                margin: 0;
+              }
+              .loading {
+                font-size: 16px;
+                color: #888;
+                margin-top: 40vh;
+              }
+            </style>
+          </head>
+          <body>
+            <div id="loader" class="loading">Loading source file content...</div>
+            <div id="content" class="container" style="display: none;">
+              <h1 id="title">${m.name}</h1>
+              <div class="filename">${m.name}</div>
+              <pre id="pre"></pre>
+            </div>
+          </body>
+        </html>
+      `);
+      newTab.document.close();
+    }
+
+    fetch(`${API_BASE_URL}/api/admin/modules/${m.id}/file`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    .then(async res => {
+      if (!res.ok) throw new Error('No source file associated with this module or not found');
+      const contentType = res.headers.get('content-type') || '';
+      
+      if (contentType.includes('pdf') || contentType.includes('image') || contentType.includes('text/html')) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        if (newTab) {
+          newTab.location.href = url;
+        }
+      } else {
+        const text = await res.text();
+        if (newTab) {
+          const loader = newTab.document.getElementById('loader');
+          const content = newTab.document.getElementById('content');
+          const pre = newTab.document.getElementById('pre');
+          if (loader) loader.style.display = 'none';
+          if (content) content.style.display = 'block';
+          if (pre) pre.textContent = text;
+        }
+      }
+    })
+    .catch((err) => {
+      console.error('Error fetching admin module source file:', err);
+      if (newTab) {
+        newTab.document.body.innerHTML = `<div style="color: #ef4444; font-family: sans-serif; text-align: center; margin-top: 40vh; padding: 20px;">Failed to load file. ${err.message || ''}</div>`;
+      }
+    });
   };
 
   const handleDeleteExam = async (examId: number) => {
@@ -496,17 +528,66 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
     }
   };
 
-  const formatUptime = (seconds: number) => {
-    const d = Math.floor(seconds / (3600 * 24));
-    const h = Math.floor((seconds % (3600 * 24)) / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
-    
-    const dDisplay = d > 0 ? `${d}d ` : "";
-    const hDisplay = h > 0 ? `${h}h ` : "";
-    const mDisplay = m > 0 ? `${m}m ` : "";
-    const sDisplay = `${s}s`;
-    return `${dDisplay}${hDisplay}${mDisplay}${sDisplay}`;
+  const renderSkeleton = () => {
+    if (currentTab === 'admin-overview') {
+      return (
+        <div className="flex flex-col gap-6 animate-pulse-soft">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="bg-card border border-line rounded-xl p-5 flex flex-col gap-4 h-[130px]">
+                <div className="h-4 bg-line rounded w-2/3" />
+                <div className="h-8 bg-line rounded w-1/2 mt-1" />
+                <div className="h-3 bg-line rounded w-3/4 mt-auto" />
+              </div>
+            ))}
+          </div>
+
+          <div className="bg-card border border-line rounded-xl p-6 flex flex-col gap-6">
+            <div className="h-4 bg-line rounded w-32 border-b border-line pb-2" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="bg-input/40 border border-line rounded-lg p-5 flex items-center gap-4 h-[86px]">
+                  <div className="w-11 h-11 rounded-full bg-line shrink-0" />
+                  <div className="flex-1 flex flex-col gap-2">
+                    <div className="h-3 bg-line rounded w-3/4" />
+                    <div className="h-6 bg-line rounded w-1/3" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex-1 flex flex-col bg-card border border-line rounded-xl overflow-hidden shadow-lg animate-pulse-soft">
+        <div className="p-4 border-b border-line bg-input/40 flex items-center h-[60px]">
+          <div className="h-8 bg-line rounded w-full max-w-[400px]" />
+        </div>
+        <div className="flex-1 overflow-auto p-4">
+          <div className="flex flex-col gap-4">
+            <div className="flex justify-between border-b border-line pb-3">
+              <div className="h-4 bg-line rounded w-1/4" />
+              <div className="h-4 bg-line rounded w-1/6" />
+              <div className="h-4 bg-line rounded w-1/6" />
+              <div className="h-4 bg-line rounded w-1/6" />
+            </div>
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className="flex justify-between items-center py-4 border-b border-line/40">
+                <div className="flex flex-col gap-2 w-1/4">
+                  <div className="h-4 bg-line rounded w-3/4" />
+                  <div className="h-3 bg-line rounded w-1/2" />
+                </div>
+                <div className="h-4 bg-line rounded w-1/6" />
+                <div className="h-4 bg-line rounded w-1/6" />
+                <div className="h-6 bg-line rounded w-[80px]" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -522,7 +603,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
               transition={{ type: 'spring', damping: 25, stiffness: 350 }}
               className="bg-card border border-line rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative"
             >
-              {/* Close icon button */}
               <button
                 type="button"
                 onClick={() => setRoleChangeTarget(null)}
@@ -579,7 +659,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
               transition={{ type: 'spring', damping: 25, stiffness: 350 }}
               className="bg-card border border-line rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative"
             >
-              {/* Close icon button */}
               <button
                 type="button"
                 onClick={() => setDeleteConfirmUser(null)}
@@ -637,7 +716,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
               transition={{ type: 'spring', damping: 25, stiffness: 350 }}
               className="bg-card border border-line rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative"
             >
-              {/* Close icon button */}
               <button
                 type="button"
                 onClick={() => setSuspendConfirmTarget(null)}
@@ -710,10 +788,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
               transition={{ type: 'spring', damping: 25, stiffness: 350 }}
               className="bg-card border border-line rounded-2xl p-6 sm:p-8 max-w-2xl w-full max-h-[85vh] overflow-y-auto shadow-2xl relative flex flex-col"
             >
-              {/* Close icon button */}
               <button
                 type="button"
-                onClick={() => { setSelectedViewModule(null); setModuleFileUrl(null); }}
+                onClick={() => { setSelectedViewModule(null); }}
                 className="absolute top-4 right-4 bg-transparent border-0 text-ink-muted hover:text-ink p-1 rounded-lg transition-colors cursor-pointer"
                 aria-label="Close"
               >
@@ -742,17 +819,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
               </div>
 
               <div className="flex-1 overflow-y-auto flex flex-col gap-6 pr-1">
-                  {loadingFile && (
-                    <div className="flex items-center justify-center mb-4">
-                      <Loader2 className="animate-spin text-primary" size={24} />
-                      <span className="text-xs text-ink-muted ml-2">Loading file...</span>
-                    </div>
-                  )}
-                  {moduleFileUrl && (
-                    <div className="mb-4">
-                      <iframe src={moduleFileUrl} className="w-full h-[60vh] border border-line rounded-xl" />
-                    </div>
-                  )}
                   {selectedViewModule.questions?.map((q, idx) => (
                     <div key={q.id || idx} className="bg-input/20 border border-line rounded-xl p-4 flex flex-col gap-3">
                       <div className="flex gap-2">
@@ -815,7 +881,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
               transition={{ type: 'spring', damping: 25, stiffness: 350 }}
               className="bg-card border border-line rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative"
             >
-              {/* Close icon button */}
               <button
                 type="button"
                 onClick={() => setDeleteConfirmModule(null)}
@@ -873,7 +938,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
               transition={{ type: 'spring', damping: 25, stiffness: 350 }}
               className="bg-card border border-line rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative"
             >
-              {/* Close icon button */}
               <button
                 type="button"
                 onClick={() => setDeleteConfirmExam(null)}
@@ -931,7 +995,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
               transition={{ type: 'spring', damping: 25, stiffness: 350 }}
               className="bg-card border border-line rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative text-left"
             >
-              {/* Close icon button */}
               <button
                 type="button"
                 onClick={() => setActiveManageGroup(null)}
@@ -950,8 +1013,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
                     </p>
                   </div>
 
+
                   <div className="flex flex-col gap-3">
-                    {/* Ban/Unban Option */}
                     <button
                       type="button"
                       onClick={() => setManageAction('confirm-ban')}
@@ -964,13 +1027,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
                       {activeManageGroup.is_banned ? 'Unban Study Group' : 'Ban Study Group'}
                     </button>
 
-                    {/* Delete Option */}
                     <button
                       type="button"
                       onClick={() => setManageAction('confirm-delete')}
                       className="w-full py-3 px-4 rounded-xl bg-red-600 hover:bg-red-500 text-white font-semibold text-sm transition cursor-pointer text-center flex items-center justify-center gap-2"
                     >
-                      <Trash2 size={16} />
                       <span>Delete Study Group</span>
                     </button>
                   </div>
@@ -1126,6 +1187,68 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
         )}
       </AnimatePresence>
 
+      {/* ─── Superadmin View Group Members Modal ─────────────────── */}
+      <AnimatePresence>
+        {activeViewMembersGroup && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-3000 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+              className="bg-card border border-line rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative text-left"
+            >
+              <button
+                type="button"
+                onClick={() => setActiveViewMembersGroup(null)}
+                className="absolute top-4 right-4 bg-transparent border-0 text-ink-muted hover:text-ink p-1 rounded-lg transition-colors cursor-pointer"
+                aria-label="Close"
+              >
+                <X size={20} />
+              </button>
+
+              <div className="border-b border-line pb-4 mb-4">
+                <h3 className="text-lg font-bold text-ink flex items-center gap-2">
+                  <Users size={20} className="text-primary" /> Group Members
+                </h3>
+                <p className="text-xs text-ink-muted mt-1 leading-relaxed">
+                  List of members currently registered in <span className="font-semibold text-ink">"{activeViewMembersGroup.name}"</span>.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto border border-line rounded-xl p-4 bg-input/15 mb-6">
+                <span className="text-xs font-bold text-ink-muted uppercase tracking-wider block mb-2">
+                  Active Members ({activeViewMembersGroup.members?.length || 0})
+                </span>
+                {activeViewMembersGroup.members && activeViewMembersGroup.members.length > 0 ? (
+                  activeViewMembersGroup.members.map((m) => (
+                    <div key={m.id} className="flex flex-col py-2 border-b border-line/40 last:border-0 text-xs gap-1">
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold text-ink text-sm">{m.name}</span>
+                        <span className="px-1.5 py-0.5 rounded text-[0.6rem] bg-input border border-line capitalize font-medium text-ink-muted">{m.role}</span>
+                      </div>
+                      <span className="text-[0.75rem] text-ink-muted">{m.email}</span>
+                    </div>
+                  ))
+                ) : (
+                  <span className="text-xs text-ink-muted italic">No active members in group.</span>
+                )}
+              </div>
+
+              <div className="flex gap-3 justify-end border-t border-line pt-4">
+                <button
+                  type="button"
+                  onClick={() => setActiveViewMembersGroup(null)}
+                  className="py-2 px-6 rounded-xl border border-line text-ink hover:bg-glass font-semibold text-sm transition cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* ─── Group Chat Viewer Modal ─────────────────── */}
       <AnimatePresence>
         {selectedChatGroup && (
@@ -1137,7 +1260,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
               transition={{ type: 'spring', damping: 25, stiffness: 350 }}
               className="bg-card border border-line rounded-2xl p-6 sm:p-8 max-w-2xl w-full h-[80vh] flex flex-col shadow-2xl relative"
             >
-              {/* Close icon button */}
               <button
                 type="button"
                 onClick={() => setSelectedChatGroup(null)}
@@ -1159,7 +1281,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
                 </div>
               </div>
 
-              {/* Chat Content Area */}
               <div className="flex-1 overflow-y-auto mb-4 space-y-4 pr-1 min-h-0">
                 {loadingChat ? (
                   <div className="flex flex-col items-center justify-center h-full text-ink-muted gap-2">
@@ -1261,6 +1382,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
               {currentTab === 'admin-modules' && 'Modules Generated'}
               {currentTab === 'admin-exams' && 'Scheduled Exams'}
               {currentTab === 'admin-groups' && 'Collaborative Circles'}
+              {currentTab === 'admin-notes' && 'User Notes'}
+              {currentTab === 'admin-ai-usage' && 'AI Usage Report'}
             </h2>
             <span className="text-xs text-ink-muted">
               {currentTab === 'admin-overview' && 'System statistics, database status, and API health metrics'}
@@ -1269,6 +1392,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
               {currentTab === 'admin-modules' && 'View all AI-generated module summaries created across the platform'}
               {currentTab === 'admin-exams' && 'Monitor exam schedules, priorities, due dates, and completion status'}
               {currentTab === 'admin-groups' && 'Monitor all collaborative circles, group sizes, and creators'}
+              {currentTab === 'admin-notes' && 'Browse and search all notes created by users across the platform'}
+              {currentTab === 'admin-ai-usage' && 'AI usage analytics, request volume, and feature breakdown'}
             </span>
           </div>
         </div>
@@ -1282,639 +1407,58 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
         </div>
       )}
 
-      {/* Loading State Overlay */}
-      {loading && (
-        <div className="flex-1 flex flex-col items-center justify-center gap-3 py-16">
-          <Loader2 size={36} className="animate-spin text-primary" />
-          <span className="text-sm text-ink-muted">Loading administration metrics...</span>
-        </div>
-      )}
+      {/* Loading State Skeleton */}
+      {loading && !error && renderSkeleton()}
 
       {/* Content Renderers */}
       {!loading && !error && (
         <div className="flex-1 flex flex-col min-h-0">
-          {/* TAB 1: OVERVIEW */}
-          {currentTab === 'admin-overview' && health && (
-            <div className="flex flex-col gap-6">
-              {/* Metric Row */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-card border border-line rounded-xl p-5 flex flex-col gap-4">
-                  <div className="flex justify-between items-start">
-                    <span className="text-xs text-ink-muted uppercase tracking-wider font-semibold">Database Response</span>
-                    <Activity size={18} className="text-primary" />
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-3xl font-extrabold tracking-tight">
-                      {health.database.latency_ms >= 0 ? `${health.database.latency_ms} ms` : 'Offline'}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs">
-                    <div className={`w-2.5 h-2.5 rounded-full ${health.database.status === 'connected' ? 'bg-success' : 'bg-danger'}`} />
-                    <span className="font-semibold uppercase text-ink-muted tracking-wide text-[0.7rem]">
-                      {health.database.status === 'connected' ? 'Connected' : 'Connection Error'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="bg-card border border-line rounded-xl p-5 flex flex-col gap-4">
-                  <div className="flex justify-between items-start">
-                    <span className="text-xs text-ink-muted uppercase tracking-wider font-semibold">Uptime Status</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-primary"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-3xl font-extrabold tracking-tight">
-                      {formatUptime(health.uptime_seconds)}
-                    </span>
-                  </div>
-                  <span className="text-xs text-ink-muted">FastAPI container server process running</span>
-                </div>
-
-                <div className="bg-card border border-line rounded-xl p-5 flex flex-col gap-4">
-                  <div className="flex justify-between items-start">
-                    <span className="text-xs text-ink-muted uppercase tracking-wider font-semibold">API Health Status</span>
-                    <CheckCircle2 size={18} className="text-primary" />
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-3xl font-extrabold tracking-tight">Active</span>
-                  </div>
-                  <span className="text-xs text-ink-muted">Responding to live HTTP & WebSocket requests</span>
-                </div>
-              </div>
-
-              {/* Records Dashboard Summary */}
-              <div className="bg-card border border-line rounded-xl p-6 flex flex-col gap-6">
-                <h3 className="text-sm font-bold text-ink uppercase tracking-wider border-b border-line pb-2">Platform Totals</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                  <div onClick={() => setDashboardTab('admin-users')} className="bg-input/40 border border-line rounded-lg p-5 flex items-center gap-4 cursor-pointer hover:bg-glass-strong transition-all duration-150">
-                    <div className="w-11 h-11 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                      <Users size={22} />
-                    </div>
-                    <div>
-                      <span className="text-xs text-ink-muted block font-medium">Registered Accounts</span>
-                      <span className="text-2xl font-extrabold">{health.counts.users}</span>
-                    </div>
-                  </div>
-
-                  <div onClick={() => {
-                    setDashboardTab('admin-modules');
-                  }} className="bg-input/40 border border-line rounded-lg p-5 flex items-center gap-4 cursor-pointer hover:bg-glass-strong transition-all duration-150">
-                    <div className="w-11 h-11 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                      <Layers size={22} />
-                    </div>
-                    <div>
-                      <span className="text-xs text-ink-muted block font-medium">AI Study Modules</span>
-                      <span className="text-2xl font-extrabold">{health.counts.modules}</span>
-                    </div>
-                  </div>
-
-                  <div onClick={() => {
-                    setDashboardTab('admin-exams');
-                  }} className="bg-input/40 border border-line rounded-lg p-5 flex items-center gap-4 cursor-pointer hover:bg-glass-strong transition-all duration-150">
-                    <div className="w-11 h-11 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                      <Calendar size={22} />
-                    </div>
-                    <div>
-                      <span className="text-xs text-ink-muted block font-medium">Scheduled Exams</span>
-                      <span className="text-2xl font-extrabold">{health.counts.exams || 0}</span>
-                    </div>
-                  </div>
-
-                  <div onClick={() => setDashboardTab('admin-groups')} className="bg-input/40 border border-line rounded-lg p-5 flex items-center gap-4 cursor-pointer hover:bg-glass-strong transition-all duration-150">
-                    <div className="w-11 h-11 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-                    </div>
-                    <div>
-                      <span className="text-xs text-ink-muted block font-medium">Study Circles Created</span>
-                      <span className="text-2xl font-extrabold">{health.counts.groups}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 2: USER MANAGEMENT */}
+          {currentTab === 'admin-overview' && <AdminOverview health={health} setDashboardTab={setDashboardTab} />}
           {currentTab === 'admin-users' && (
-            <div className="flex-1 flex flex-col bg-card border border-line rounded-xl overflow-hidden shadow-lg">
-              <div className="p-4 border-b border-line shrink-0 flex items-center bg-input/40 relative">
-                <Search size={16} className="absolute left-7 text-ink-muted" />
-                <input
-                  type="text"
-                  placeholder="Search accounts by name, username, or email..."
-                  className="w-full py-2.5 pl-11 pr-4 bg-input border border-line rounded-lg text-sm text-ink outline-none transition focus:border-primary focus:bg-app"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-
-              <div className="flex-1 overflow-auto">
-                <table className="w-full text-left border-collapse text-sm">
-                  <thead>
-                    <tr className="border-b border-line text-xs font-semibold text-ink-muted bg-input/20">
-                      <th className="p-4 pl-6">Account User</th>
-                      <th className="p-4">Email</th>
-                      <th className="p-4">Role Status</th>
-                      <th className="p-4 text-center">Score / Level</th>
-                      <th className="p-4 text-center">Active Streak</th>
-                      <th className="p-4 pr-6 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.filter(u => 
-                      !u.email.toLowerCase().endsWith('@example.com') && (
-                        u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        (u.username && u.username.toLowerCase().includes(searchQuery.toLowerCase()))
-                      )
-                    ).length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="p-8 text-center text-ink-muted text-sm">
-                          No users matched search criteria.
-                        </td>
-                      </tr>
-                    ) : (
-                      users.filter(u => 
-                        !u.email.toLowerCase().endsWith('@example.com') && (
-                          u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          (u.username && u.username.toLowerCase().includes(searchQuery.toLowerCase()))
-                        )
-                      ).map(item => (
-                        <tr key={item.id} className="border-b border-line/60 hover:bg-glass/5 transition-colors">
-                          <td className="p-4 pl-6 flex items-center gap-3">
-                            <img
-                              src={item.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&h=150&q=80'}
-                              alt="Avatar"
-                              className="w-8 h-8 rounded-full border border-line object-cover"
-                            />
-                            <div>
-                              <span className="font-semibold text-ink block">{item.name}</span>
-                              <span className="text-xs text-ink-muted block">@{item.username || 'user'}</span>
-                            </div>
-                          </td>
-                          <td className="p-4 text-ink-muted">{item.email}</td>
-                          <td className="p-4">
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <span className={`px-2 py-0.5 rounded text-[0.7rem] font-extrabold tracking-wide uppercase ${
-                                item.role === 'superadmin'
-                                  ? 'bg-primary/10 text-primary border border-primary/20'
-                                  : item.role === 'premium'
-                                  ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
-                                  : 'bg-line text-ink-muted'
-                              }`}>
-                                {item.role || 'user'}
-                              </span>
-                              {item.is_suspended && (
-                                <span className="px-2 py-0.5 rounded text-[0.7rem] font-extrabold tracking-wide uppercase bg-red-500/10 text-red-500 border border-red-500/20">
-                                  Suspended
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="p-4 text-center">
-                            <span className="font-bold">Lvl {item.level || 1}</span>
-                            <span className="text-[0.7rem] text-ink-muted block">{item.xp || 0} XP</span>
-                          </td>
-                          <td className="p-4 text-center font-bold text-orange-500">
-                            {item.streak || 0} 🔥
-                          </td>
-                          <td className="p-4 pr-6 text-right flex items-center justify-end gap-2.5">
-                            {/* Pro Status Toggle */}
-                            {item.role !== 'superadmin' && (
-                              <button
-                                disabled={submittingId === item.id}
-                                onClick={() => item.id && setRoleChangeTarget({ userId: item.id, targetRole: item.role === 'premium' ? 'user' : 'premium', userName: item.name })}
-                                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer disabled:opacity-40 ${
-                                  item.role === 'premium'
-                                    ? 'bg-transparent text-indigo-400 border-indigo-500/20 hover:bg-indigo-500/10'
-                                    : 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-500'
-                                }`}
-                              >
-                                {item.role === 'premium' ? 'Remove Pro' : 'Make Pro'}
-                              </button>
-                            )}
-
-                            {/* Admin Status Toggle */}
-                            <button
-                              disabled={submittingId === item.id || item.id === currentUser.id}
-                              onClick={() => item.id && setRoleChangeTarget({ userId: item.id, targetRole: item.role === 'superadmin' ? 'user' : 'superadmin', userName: item.name })}
-                              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer disabled:opacity-40 ${
-                                item.role === 'superadmin'
-                                  ? 'bg-transparent text-primary border-primary/20 hover:bg-primary-soft'
-                                  : 'bg-primary text-ink-on-primary border-primary hover:bg-primary-hover'
-                              }`}
-                            >
-                              {item.role === 'superadmin' ? 'Demote Admin' : 'Promote Admin'}
-                            </button>
-
-                            {/* Suspend Status Toggle */}
-                            {item.id !== currentUser.id && (
-                              <button
-                                disabled={submittingId === item.id}
-                                onClick={() => item.id && setSuspendConfirmTarget({ userId: item.id, isSuspended: !item.is_suspended, userName: item.name })}
-                                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer disabled:opacity-40 ${
-                                  item.is_suspended
-                                    ? 'bg-transparent text-amber-500 border-amber-500/20 hover:bg-amber-500/10'
-                                    : 'bg-amber-600 text-white border-amber-600 hover:bg-amber-500'
-                                }`}
-                                title={item.is_suspended ? 'Unsuspend User' : 'Suspend User'}
-                              >
-                                {item.is_suspended ? 'Unsuspend' : 'Suspend'}
-                              </button>
-                            )}
-
-                            {/* Delete User */}
-                            <button
-                              disabled={submittingId === item.id || item.id === currentUser.id}
-                              onClick={() => item.id && setDeleteConfirmUser(item)}
-                              className="p-1.5 rounded-lg border border-danger-line text-danger hover:bg-danger-soft transition cursor-pointer disabled:opacity-40"
-                              title="Delete User"
-                            >
-                              {submittingId === item.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <AdminUsers
+              users={users}
+              searchQuery={searchQuery}
+              submittingId={submittingId}
+              currentUser={currentUser}
+              onSearchChange={setSearchQuery}
+              onRoleChange={(userId, targetRole, userName) => setRoleChangeTarget({ userId, targetRole, userName })}
+              onDeleteUser={setDeleteConfirmUser}
+              onSuspend={(userId, isSuspended, userName) => setSuspendConfirmTarget({ userId, isSuspended, userName })}
+            />
           )}
-
-          {/* TAB 3: SALES & REVENUE */}
-          {currentTab === 'admin-sales' && sales && (
-            <div className="flex flex-col gap-6">
-              {/* Financial metric overview cards */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="bg-card border border-line rounded-xl p-5 flex flex-col gap-3">
-                  <span className="text-xs text-ink-muted uppercase tracking-wider font-semibold">Monthly Recurring Revenue</span>
-                  <span className="text-3xl font-extrabold tracking-tight text-primary">${sales.mrr.toLocaleString()}</span>
-                  <span className="text-xs text-ink-muted">Based on subscription plans</span>
-                </div>
-
-                <div className="bg-card border border-line rounded-xl p-5 flex flex-col gap-3">
-                  <span className="text-xs text-ink-muted uppercase tracking-wider font-semibold">Total Revenue Gained</span>
-                  <span className="text-3xl font-extrabold tracking-tight text-primary">${sales.total_revenue.toLocaleString()}</span>
-                  <span className="text-xs text-ink-muted">Historical cumulative sales</span>
-                </div>
-
-                <div className="bg-card border border-line rounded-xl p-5 flex flex-col gap-3">
-                  <span className="text-xs text-ink-muted uppercase tracking-wider font-semibold">Premium Subscribers</span>
-                  <span className="text-3xl font-extrabold tracking-tight text-primary">{sales.premium_count} Users</span>
-                  <span className="text-xs text-ink-muted">With active premium tiers</span>
-                </div>
-
-                <div className="bg-card border border-line rounded-xl p-5 flex flex-col gap-3">
-                  <span className="text-xs text-ink-muted uppercase tracking-wider font-semibold">User Churn Rate</span>
-                  <span className="text-3xl font-extrabold tracking-tight text-danger">{sales.churn_rate}%</span>
-                  <span className="text-xs text-ink-muted">Average cancellations monthly</span>
-                </div>
-              </div>
-
-              {/* Transactions logs table */}
-              <div className="bg-card border border-line rounded-xl overflow-hidden shadow-lg">
-                <div className="p-4 border-b border-line bg-input/20">
-                  <h3 className="text-sm font-bold uppercase tracking-wider">Recent Subscription Transactions</h3>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-sm">
-                    <thead>
-                      <tr className="border-b border-line text-xs font-semibold text-ink-muted bg-input/20">
-                        <th className="p-4 pl-6">Transaction ID</th>
-                        <th className="p-4">Subscriber User</th>
-                        <th className="p-4">Subscription Plan</th>
-                        <th className="p-4">Billing Date</th>
-                        <th className="p-4">Paid Amount</th>
-                        <th className="p-4 pr-6 text-right">Payment Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sales.transactions.map((tx) => (
-                        <tr key={tx.id} className="border-b border-line/60 hover:bg-glass/5 transition-colors">
-                          <td className="p-4 pl-6 font-bold text-ink-muted">#TXN{tx.id}</td>
-                          <td className="p-4">
-                            <span className="font-semibold block text-ink">{tx.user_name}</span>
-                            <span className="text-xs text-ink-muted block">{tx.user_email}</span>
-                          </td>
-                          <td className="p-4 font-medium">{tx.plan}</td>
-                          <td className="p-4 text-ink-muted">{tx.date}</td>
-                          <td className="p-4 font-bold text-primary">${tx.amount.toFixed(2)}</td>
-                          <td className="p-4 pr-6 text-right">
-                            <span className={`px-2 py-0.5 rounded text-[0.7rem] font-bold uppercase ${
-                              tx.status === 'completed'
-                                ? 'bg-success/15 text-success border border-success/20'
-                                : 'bg-danger/15 text-danger border border-danger/20'
-                            }`}>
-                              {tx.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 4: MODULES CREATED */}
+          {currentTab === 'admin-sales' && <AdminSalesView sales={sales} />}
           {currentTab === 'admin-modules' && (
-            <div className="flex-1 flex flex-col bg-card border border-line rounded-xl overflow-hidden shadow-lg">
-              <div className="p-4 border-b border-line shrink-0 flex items-center bg-input/40 relative">
-                <Search size={16} className="absolute left-7 text-ink-muted" />
-                <input
-                  type="text"
-                  placeholder="Filter generated modules by title, creator, difficulty, or subject..."
-                  className="w-full py-2.5 pl-11 pr-4 bg-input border border-line rounded-lg text-sm text-ink outline-none transition focus:border-primary focus:bg-app"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-
-              <div className="flex-1 overflow-auto">
-                <table className="w-full text-left border-collapse text-sm">
-                  <thead>
-                    <tr className="border-b border-line text-xs font-semibold text-ink-muted bg-input/20">
-                      <th className="p-4 pl-6">Module Title</th>
-                      <th className="p-4">Subject</th>
-                      <th className="p-4">Creator / Owner</th>
-                      <th className="p-4 text-center">Questions</th>
-                      <th className="p-4 text-center">Difficulty</th>
-                      <th className="p-4 pr-6 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {modules.filter(m =>
-                      m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                      m.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                      m.owner_email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                      m.owner_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                      m.difficulty.toLowerCase().includes(searchQuery.toLowerCase())
-                    ).length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="p-8 text-center text-ink-muted text-sm">
-                          No generated modules found.
-                        </td>
-                      </tr>
-                    ) : (
-                      modules.filter(m =>
-                        m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        m.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        m.owner_email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        m.owner_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        m.difficulty.toLowerCase().includes(searchQuery.toLowerCase())
-                      ).map((item) => (
-                        <tr
-                          key={item.id}
-                          onClick={() => handleViewModule(item.id)}
-                          className="border-b border-line/60 hover:bg-glass/5 transition-colors cursor-pointer"
-                        >
-                          <td className="p-4 pl-6">
-                            <span className="font-semibold text-ink block">{item.name}</span>
-                            <span className="text-xs text-ink-muted block">Created {item.date}</span>
-                          </td>
-                          <td className="p-4">
-                            <span className="px-2 py-0.5 rounded text-[0.7rem] font-bold bg-primary-soft text-primary border border-primary-line">
-                              {item.subject}
-                            </span>
-                          </td>
-                          <td className="p-4">
-                            <span className="font-semibold block text-ink">{item.owner_name}</span>
-                            <span className="text-xs text-ink-muted block">{item.owner_email}</span>
-                          </td>
-                          <td className="p-4 text-center font-bold">{item.questions_count} Qs</td>
-                          <td className="p-4 text-center">
-                            <span className={`px-2 py-0.5 rounded text-[0.7rem] font-bold uppercase ${
-                              item.difficulty === 'hard'
-                                ? 'bg-danger/10 text-danger'
-                                : item.difficulty === 'medium'
-                                ? 'bg-amber-500/10 text-amber-500'
-                                : 'bg-success/10 text-success'
-                            }`}>
-                              {item.difficulty}
-                            </span>
-                          </td>
-                          <td className="p-4 pr-6 text-right" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              disabled={submittingId === item.id}
-                              onClick={() => setDeleteConfirmModule(item)}
-                              className="p-1.5 rounded-lg border border-danger-line text-danger hover:bg-danger-soft transition cursor-pointer disabled:opacity-40"
-                              title="Delete Module"
-                            >
-                              {submittingId === item.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <AdminModules
+              modules={modules}
+              searchQuery={searchQuery}
+              submittingId={submittingId}
+              onSearchChange={setSearchQuery}
+              onViewModule={handleViewModule}
+              onDeleteModule={setDeleteConfirmModule}
+              onOpenSourceFile={handleOpenAdminSourceInNewTab}
+            />
           )}
-
-          {/* TAB 4b: SCHEDULED EXAMS */}
           {currentTab === 'admin-exams' && (
-            <div className="flex-1 flex flex-col bg-card border border-line rounded-xl overflow-hidden shadow-lg">
-              <div className="p-4 border-b border-line shrink-0 flex items-center bg-input/40 relative">
-                <Search size={16} className="absolute left-7 text-ink-muted" />
-                <input
-                  type="text"
-                  placeholder="Filter scheduled exams by title, creator, or subject..."
-                  className="w-full py-2.5 pl-11 pr-4 bg-input border border-line rounded-lg text-sm text-ink outline-none transition focus:border-primary focus:bg-app"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-
-              <div className="flex-1 overflow-auto">
-                <table className="w-full text-left border-collapse text-sm">
-                  <thead>
-                    <tr className="border-b border-line text-xs font-semibold text-ink-muted bg-input/20">
-                      <th className="p-4 pl-6">Exam Title</th>
-                      <th className="p-4">Subject</th>
-                      <th className="p-4">Creator / Owner</th>
-                      <th className="p-4 text-center">Remaining</th>
-                      <th className="p-4 text-center">Priority</th>
-                      <th className="p-4 text-center">Status</th>
-                      <th className="p-4 pr-6 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {exams.filter(e =>
-                      e.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                      e.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                      e.owner_email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                      e.owner_name.toLowerCase().includes(searchQuery.toLowerCase())
-                    ).length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="p-8 text-center text-ink-muted text-sm">
-                          No scheduled exams found.
-                        </td>
-                      </tr>
-                    ) : (
-                      exams.filter(e =>
-                        e.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        e.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        e.owner_email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        e.owner_name.toLowerCase().includes(searchQuery.toLowerCase())
-                      ).map((item) => (
-                        <tr key={item.id} className="border-b border-line/60 hover:bg-glass/5 transition-colors">
-                          <td className="p-4 pl-6">
-                            <span className="font-semibold text-ink block">{item.title}</span>
-                            <span className="text-xs text-ink-muted block">Due {item.date}</span>
-                          </td>
-                          <td className="p-4">
-                            <span className="px-2 py-0.5 rounded text-[0.7rem] font-bold bg-primary-soft text-primary border border-primary-line">
-                              {item.subject}
-                            </span>
-                          </td>
-                          <td className="p-4">
-                            <span className="font-semibold block text-ink">{item.owner_name}</span>
-                            <span className="text-xs text-ink-muted block">{item.owner_email}</span>
-                          </td>
-                          <td className="p-4 text-center font-bold">
-                            {item.completed ? (
-                              <span className="text-xs text-ink-muted">-</span>
-                            ) : (
-                              <span>{item.days_remaining} {item.days_remaining === 1 ? 'day' : 'days'}</span>
-                            )}
-                          </td>
-                          <td className="p-4 text-center">
-                            <span className={`px-2 py-0.5 rounded text-[0.7rem] font-bold uppercase ${
-                              item.priority === 'high'
-                                ? 'bg-danger/10 text-danger'
-                                : item.priority === 'medium'
-                                ? 'bg-amber-500/10 text-amber-500'
-                                : 'bg-primary-soft text-primary border border-primary-line'
-                            }`}>
-                              {item.priority}
-                            </span>
-                          </td>
-                          <td className="p-4 text-center">
-                            {item.completed ? (
-                              <span className="px-2 py-0.5 rounded text-[0.7rem] font-bold bg-success/10 text-success uppercase">
-                                Completed {item.score ? `(${item.score})` : ''}
-                              </span>
-                            ) : (
-                              <span className="px-2 py-0.5 rounded text-[0.7rem] font-bold bg-glass text-ink-muted uppercase">
-                                Active
-                              </span>
-                            )}
-                          </td>
-                          <td className="p-4 pr-6 text-right">
-                            <button
-                              disabled={submittingId === item.id}
-                              onClick={() => setDeleteConfirmExam(item)}
-                              className="p-1.5 rounded-lg border border-danger-line text-danger hover:bg-danger-soft transition cursor-pointer disabled:opacity-40"
-                              title="Delete Exam"
-                            >
-                              {submittingId === item.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <AdminExams
+              exams={exams}
+              searchQuery={searchQuery}
+              submittingId={submittingId}
+              onSearchChange={setSearchQuery}
+              onDeleteExam={setDeleteConfirmExam}
+            />
           )}
-
-          {/* TAB 5: GROUPS CREATED */}
           {currentTab === 'admin-groups' && (
-            <div className="flex-1 flex flex-col bg-card border border-line rounded-xl overflow-hidden shadow-lg">
-              <div className="p-4 border-b border-line shrink-0 flex items-center bg-input/40 relative">
-                <Search size={16} className="absolute left-7 text-ink-muted" />
-                <input
-                  type="text"
-                  placeholder="Filter collaborative circles by name, creator, or email..."
-                  className="w-full py-2.5 pl-11 pr-4 bg-input border border-line rounded-lg text-sm text-ink outline-none transition focus:border-primary focus:bg-app"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-
-              <div className="flex-1 overflow-auto">
-                <table className="w-full text-left border-collapse text-sm">
-                  <thead>
-                    <tr className="border-b border-line text-xs font-semibold text-ink-muted bg-input/20">
-                      <th className="p-4 pl-6">Group Name</th>
-                      <th className="p-4">Creator / Owner</th>
-                      <th className="p-4 text-center">Active Members</th>
-                      <th className="p-4 text-center">Linked Modules</th>
-                      <th className="p-4 pr-6 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {groups.filter(g =>
-                      g.creator_email !== "System/Unknown" &&
-                      !g.creator_email.toLowerCase().endsWith('@example.com') && (
-                        g.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        g.creator_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        g.creator_email.toLowerCase().includes(searchQuery.toLowerCase())
-                      )
-                    ).length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="p-8 text-center text-ink-muted text-sm">
-                          No collaborative study groups found.
-                        </td>
-                      </tr>
-                    ) : (
-                      groups.filter(g =>
-                        g.creator_email !== "System/Unknown" &&
-                        !g.creator_email.toLowerCase().endsWith('@example.com') && (
-                          g.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          g.creator_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          g.creator_email.toLowerCase().includes(searchQuery.toLowerCase())
-                        )
-                      ).map((item) => (
-                        <tr key={item.id} className="border-b border-line/60 hover:bg-glass/5 transition-colors">
-                          <td className="p-4 pl-6">
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-ink">{item.name}</span>
-                              {item.is_banned && (
-                                <span className="px-1.5 py-0.5 rounded text-[0.62rem] font-extrabold tracking-wide uppercase bg-danger/15 text-danger border border-danger-line/30">
-                                  Banned
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="p-4">
-                            <span className="font-semibold block text-ink">{item.creator_name}</span>
-                            <span className="text-xs text-ink-muted block">{item.creator_email}</span>
-                          </td>
-                          <td className="p-4 text-center font-bold">{item.members_count} Members</td>
-                          <td className="p-4 text-center font-bold">{item.modules_count} Modules</td>
-                          <td className="p-4 pr-6 text-right flex items-center justify-end gap-2.5">
-                            {/* Manage Button */}
-                            <button
-                              type="button"
-                              onClick={() => handleOpenManageGroup(item)}
-                              className="px-2.5 py-1.5 rounded-lg text-xs font-bold border border-line text-ink-muted hover:text-primary hover:bg-primary-soft transition cursor-pointer"
-                              title="Manage Study Group"
-                            >
-                              Manage
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleViewChat(item)}
-                              className="p-1.5 rounded-lg border border-line text-ink-muted hover:text-primary hover:bg-primary-soft transition cursor-pointer"
-                              title="View Group Chat"
-                            >
-                              <MessageSquare size={14} />
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <AdminGroups
+              groups={groups}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              onManageGroup={handleOpenManageGroup}
+              onViewChat={handleViewChat}
+              onViewMembers={setActiveViewMembersGroup}
+            />
           )}
+          {currentTab === 'admin-notes' && <AdminNotes />}
+          {currentTab === 'admin-ai-usage' && <AdminAiUsage />}
         </div>
       )}
     </div>

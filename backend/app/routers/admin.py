@@ -9,11 +9,14 @@ from ..email import (
     send_pro_status_email,
     send_admin_status_email,
     send_account_suspension_email,
-    send_account_deletion_email
+    send_account_deletion_email,
+    send_gemini_unhealthy_email
 )
+from ..config import settings
 from sqlalchemy import text
 from typing import List, Optional
 from pydantic import BaseModel
+from datetime import datetime, timedelta
 from ..database import get_db
 from .. import models, schemas, auth
 
@@ -21,6 +24,7 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 # Save startup time
 START_TIME = time.time()
+LAST_GEMINI_ALERT_TIME = 0.0
 
 # Security dependency for superadmins
 def get_current_superadmin(current_user: models.User = Depends(auth.get_current_user)) -> models.User:
@@ -41,11 +45,70 @@ class GroupBanUpdate(BaseModel):
     is_banned: bool
     reason: Optional[str] = None
 
-@router.get("/health")
-def get_admin_health(
+@router.get("/config", response_model=schemas.SystemConfigOut)
+def get_system_configurations(
     db: Session = Depends(get_db),
     current_admin: models.User = Depends(get_current_superadmin)
 ):
+    from ..system_config import get_all_system_configs
+    configs = get_all_system_configs(db)
+    
+    return schemas.SystemConfigOut(
+        allow_registrations=configs.get("allow_registrations") == "true",
+        require_email_verification=configs.get("require_email_verification") == "true",
+        allow_circle_creation=configs.get("allow_circle_creation") == "true",
+        default_llm_model=configs.get("default_llm_model"),
+        ai_temperature=float(configs.get("ai_temperature", "0.2")),
+        free_summaries_limit=int(configs.get("free_summaries_limit", "5")),
+        pro_summaries_limit=int(configs.get("pro_summaries_limit", "25")),
+        maintenance_mode=configs.get("maintenance_mode") == "true"
+    )
+
+@router.put("/config", response_model=schemas.SystemConfigOut)
+def update_system_configurations(
+    config_update: schemas.SystemConfigUpdate,
+    db: Session = Depends(get_db),
+    current_admin: models.User = Depends(get_current_superadmin)
+):
+    from ..system_config import set_system_config, get_all_system_configs
+    
+    if config_update.allow_registrations is not None:
+        set_system_config(db, "allow_registrations", "true" if config_update.allow_registrations else "false")
+    if config_update.require_email_verification is not None:
+        set_system_config(db, "require_email_verification", "true" if config_update.require_email_verification else "false")
+    if config_update.allow_circle_creation is not None:
+        set_system_config(db, "allow_circle_creation", "true" if config_update.allow_circle_creation else "false")
+    if config_update.default_llm_model is not None:
+        set_system_config(db, "default_llm_model", config_update.default_llm_model)
+    if config_update.ai_temperature is not None:
+        set_system_config(db, "ai_temperature", str(config_update.ai_temperature))
+    if config_update.free_summaries_limit is not None:
+        set_system_config(db, "free_summaries_limit", str(config_update.free_summaries_limit))
+    if config_update.pro_summaries_limit is not None:
+        set_system_config(db, "pro_summaries_limit", str(config_update.pro_summaries_limit))
+    if config_update.maintenance_mode is not None:
+        set_system_config(db, "maintenance_mode", "true" if config_update.maintenance_mode else "false")
+        
+    configs = get_all_system_configs(db)
+    return schemas.SystemConfigOut(
+        allow_registrations=configs.get("allow_registrations") == "true",
+        require_email_verification=configs.get("require_email_verification") == "true",
+        allow_circle_creation=configs.get("allow_circle_creation") == "true",
+        default_llm_model=configs.get("default_llm_model"),
+        ai_temperature=float(configs.get("ai_temperature", "0.2")),
+        free_summaries_limit=int(configs.get("free_summaries_limit", "5")),
+        pro_summaries_limit=int(configs.get("pro_summaries_limit", "25")),
+        maintenance_mode=configs.get("maintenance_mode") == "true"
+    )
+
+@router.get("/health")
+def get_admin_health(
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_admin: models.User = Depends(get_current_superadmin)
+):
+    global LAST_GEMINI_ALERT_TIME
+
     # Test DB connection and measure latency
     try:
         start_time = time.time()
@@ -56,6 +119,31 @@ def get_admin_health(
         db_latency = -1
         db_status = f"error: {str(e)}"
 
+    # Test Gemini connection
+    gemini_status = "healthy"
+    gemini_error = None
+    try:
+        api_key = settings.GEMINI_API_KEY
+        if not api_key or api_key == "YOUR_GEMINI_API_KEY":
+            raise ValueError("GEMINI_API_KEY is not set or configured.")
+        
+        from google import genai
+        client = genai.Client(api_key=api_key)
+        # Check connection by listing models, avoiding quota exhaustion of free tier generate_content
+        next(iter(client.models.list()))
+    except Exception as e:
+        gemini_status = "unhealthy"
+        gemini_error = str(e)
+
+        # Email the admin if Gemini health check fails, throttled to at most once per hour
+        current_time = time.time()
+        if current_time - LAST_GEMINI_ALERT_TIME > 3600:
+            try:
+                send_gemini_unhealthy_email(background_tasks, current_admin.email, current_admin.name, gemini_error)
+                LAST_GEMINI_ALERT_TIME = current_time
+            except Exception as mail_err:
+                print(f"[ERROR] Failed to send Gemini unhealthy alert email: {mail_err}")
+
     # Get system statistics (uptime and item counts)
     uptime_seconds = int(time.time() - START_TIME)
     
@@ -64,12 +152,20 @@ def get_admin_health(
     total_groups = db.query(models.StudyGroup).count()
     total_exams = db.query(models.ExamDeadline).count()
 
+    overall_status = "healthy"
+    if db_status != "connected" or gemini_status != "healthy":
+        overall_status = "unhealthy"
+
     return {
-        "status": "healthy",
+        "status": overall_status,
         "uptime_seconds": uptime_seconds,
         "database": {
             "status": db_status,
             "latency_ms": db_latency
+        },
+        "gemini": {
+            "status": gemini_status,
+            "error": gemini_error
         },
         "counts": {
             "users": total_users,
@@ -205,10 +301,11 @@ def list_admin_modules(
     db: Session = Depends(get_db),
     current_admin: models.User = Depends(get_current_superadmin)
 ):
-    modules = db.query(models.Module).order_by(models.Module.id.desc()).all()
+    results = db.query(models.Module, models.User).join(
+        models.User, models.Module.user_id == models.User.id, isouter=True
+    ).order_by(models.Module.id.desc()).all()
     result = []
-    for m in modules:
-        owner = db.query(models.User).filter(models.User.id == m.user_id).first()
+    for m, owner in results:
         result.append({
             "id": m.id,
             "name": m.name,
@@ -217,9 +314,11 @@ def list_admin_modules(
             "owner_email": owner.email if owner else "Unknown",
             "owner_name": owner.name if owner else "Unknown",
             "questions_count": len(m.questions) if m.questions else 0,
-            "difficulty": m.difficulty or "medium"
+            "difficulty": m.difficulty or "medium",
+            "has_source_file": m.has_source_file
         })
     return result
+
 
 @router.get("/exams")
 def list_admin_exams(
@@ -227,10 +326,11 @@ def list_admin_exams(
     current_admin: models.User = Depends(get_current_superadmin)
 ):
     from .exams import calculate_days_remaining
-    exams = db.query(models.ExamDeadline).order_by(models.ExamDeadline.id.desc()).all()
+    results = db.query(models.ExamDeadline, models.User).join(
+        models.User, models.ExamDeadline.user_id == models.User.id, isouter=True
+    ).order_by(models.ExamDeadline.id.desc()).all()
     result = []
-    for e in exams:
-        owner = db.query(models.User).filter(models.User.id == e.user_id).first()
+    for e, owner in results:
         result.append({
             "id": e.id,
             "title": e.title,
@@ -245,15 +345,17 @@ def list_admin_exams(
         })
     return result
 
+
 @router.get("/groups")
 def list_admin_groups(
     db: Session = Depends(get_db),
     current_admin: models.User = Depends(get_current_superadmin)
 ):
-    groups = db.query(models.StudyGroup).order_by(models.StudyGroup.id.desc()).all()
+    results = db.query(models.StudyGroup, models.User).join(
+        models.User, models.StudyGroup.creator_id == models.User.id, isouter=True
+    ).order_by(models.StudyGroup.id.desc()).all()
     result = []
-    for g in groups:
-        creator = db.query(models.User).filter(models.User.id == g.creator_id).first() if g.creator_id else None
+    for g, creator in results:
         if creator and not creator.email.endswith("@example.com"):
             result.append({
                 "id": g.id,
@@ -262,7 +364,8 @@ def list_admin_groups(
                 "creator_name": creator.name,
                 "members_count": len(g.members) if g.members else 0,
                 "modules_count": len(g.modules) if g.modules else 0,
-                "is_banned": g.is_banned
+                "is_banned": g.is_banned,
+                "members": [{"id": m.id, "name": m.name, "email": m.email, "role": m.role} for m in g.members] if g.members else []
             })
     return result
 
@@ -309,6 +412,33 @@ def get_admin_sales(
         "churn_rate": churn_rate,
         "transactions": recent_transactions
     }
+
+@router.get("/notes")
+def list_admin_notes(
+    db: Session = Depends(get_db),
+    current_admin: models.User = Depends(get_current_superadmin)
+):
+    results = db.query(models.Note, models.User).join(
+        models.User, models.Note.user_id == models.User.id
+    ).filter(
+        ~models.User.email.like("%@example.com")
+    ).order_by(models.Note.updated_at.desc()).all()
+    return [
+        {
+            "id": n.id,
+            "user_id": n.user_id,
+            "title": n.title,
+            "content": n.content,
+            "subject": n.subject,
+            "is_pinned": n.is_pinned,
+            "created_at": n.created_at.isoformat() if n.created_at else None,
+            "updated_at": n.updated_at.isoformat() if n.updated_at else None,
+            "owner_email": owner.email,
+            "owner_name": owner.name,
+        }
+        for n, owner in results
+    ]
+
 
 @router.delete("/users/{user_id}")
 def admin_delete_user(
@@ -521,3 +651,200 @@ def get_admin_group_discussion(
         )
     posts = db.query(models.GroupPost).filter(models.GroupPost.group_id == group_id).order_by(models.GroupPost.id.asc()).all()
     return posts
+
+
+class AiUsageSummary(BaseModel):
+    total_requests: int
+    requests_today: int
+    requests_this_week: int
+    requests_this_month: int
+    total_tokens_used: int
+    tokens_per_minute: float
+    by_feature: List[dict]
+    by_day: List[dict]
+    by_hour: List[dict]
+    top_users: List[dict]
+
+
+@router.get("/ai-usage", response_model=AiUsageSummary)
+def get_ai_usage(
+    db: Session = Depends(get_db),
+    current_admin: models.User = Depends(get_current_superadmin)
+):
+    now = datetime.utcnow()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = today_start - timedelta(days=today_start.weekday())
+    month_start = today_start.replace(day=1)
+
+    total = db.query(models.AiUsageLog).count()
+    today = db.query(models.AiUsageLog).filter(models.AiUsageLog.created_at >= today_start).count()
+    week = db.query(models.AiUsageLog).filter(models.AiUsageLog.created_at >= week_start).count()
+    month = db.query(models.AiUsageLog).filter(models.AiUsageLog.created_at >= month_start).count()
+
+    from sqlalchemy import func as sa_func
+
+    # --- Token stats ---
+    total_tokens_result = db.query(sa_func.sum(models.AiUsageLog.tokens_used)).scalar()
+    total_tokens_used = int(total_tokens_result or 0)
+
+    # Tokens per minute: sum of tokens in the last 60 minutes divided by 60
+    cutoff_60m = now - timedelta(minutes=60)
+    tokens_last_60m_result = db.query(
+        sa_func.sum(models.AiUsageLog.tokens_used)
+    ).filter(
+        models.AiUsageLog.created_at >= cutoff_60m,
+        models.AiUsageLog.tokens_used.isnot(None)
+    ).scalar()
+    tokens_per_minute = round((tokens_last_60m_result or 0) / 60, 2)
+
+    by_feature = db.query(
+        models.AiUsageLog.feature,
+        sa_func.count(models.AiUsageLog.id).label("count")
+    ).group_by(models.AiUsageLog.feature).order_by(sa_func.count(models.AiUsageLog.id).desc()).all()
+
+    cutoff_30d = today_start - timedelta(days=30)
+    all_30d = db.query(models.AiUsageLog).filter(models.AiUsageLog.created_at >= cutoff_30d).all()
+    day_map: dict[str, dict[str, int]] = {}
+    for log in all_30d:
+        d = log.created_at.strftime("%Y-%m-%d") if log.created_at else ""
+        if not d:
+            continue
+        if d not in day_map:
+            day_map[d] = {"date": d}
+        day_map[d][log.feature] = day_map[d].get(log.feature, 0) + 1
+        day_map[d]["total"] = day_map[d].get("total", 0) + 1
+    by_day = sorted(day_map.values(), key=lambda x: x["date"])
+
+    cutoff_7d = today_start - timedelta(days=7)
+    all_7d = db.query(models.AiUsageLog).filter(models.AiUsageLog.created_at >= cutoff_7d).all()
+    hour_map: dict[str, dict] = {}
+    for log in all_7d:
+        if not log.created_at:
+            continue
+        d = log.created_at.strftime("%Y-%m-%d")
+        h = log.created_at.strftime("%H")
+        key = f"{d}T{h}"
+        if key not in hour_map:
+            hour_map[key] = {"date": d, "hour": h, "count": 0}
+        hour_map[key]["count"] += 1
+    by_hour = sorted(hour_map.values(), key=lambda x: (x["date"], x["hour"]))
+
+    top_users_data = db.query(
+        models.AiUsageLog.user_id,
+        sa_func.count(models.AiUsageLog.id).label("count")
+    ).filter(
+        models.AiUsageLog.user_id.isnot(None)
+    ).group_by(
+        models.AiUsageLog.user_id
+    ).order_by(
+        sa_func.count(models.AiUsageLog.id).desc()
+    ).limit(10).all()
+
+    top_users = []
+    for u in top_users_data:
+        user_obj = db.query(models.User).filter(models.User.id == u.user_id).first()
+        top_users.append({
+            "user_id": u.user_id,
+            "name": user_obj.name if user_obj else "Unknown",
+            "email": user_obj.email if user_obj else "Unknown",
+        "count": u.count
+    })
+
+    return AiUsageSummary(
+        total_requests=total,
+        requests_today=today,
+        requests_this_week=week,
+        requests_this_month=month,
+        total_tokens_used=total_tokens_used,
+        tokens_per_minute=tokens_per_minute,
+        by_feature=[{"feature": f.feature, "count": f.count} for f in by_feature],
+        by_day=by_day,
+        by_hour=by_hour,
+        top_users=top_users
+    )
+
+
+class UserAiUsageDetail(BaseModel):
+    user_id: int
+    name: str
+    email: str
+    total_requests: int
+    requests_today: int
+    requests_this_week: int
+    requests_this_month: int
+    total_tokens_used: int
+    by_feature: List[dict]
+    by_day: List[dict]
+    recent_requests: List[dict]
+
+
+@router.get("/ai-usage/user/{user_id}", response_model=UserAiUsageDetail)
+def get_user_ai_usage(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_admin: models.User = Depends(get_current_superadmin)
+):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    now = datetime.utcnow()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = today_start - timedelta(days=today_start.weekday())
+    month_start = today_start.replace(day=1)
+
+    base = db.query(models.AiUsageLog).filter(models.AiUsageLog.user_id == user_id)
+
+    total = base.count()
+    today = base.filter(models.AiUsageLog.created_at >= today_start).count()
+    week = base.filter(models.AiUsageLog.created_at >= week_start).count()
+    month = base.filter(models.AiUsageLog.created_at >= month_start).count()
+
+    from sqlalchemy import func as sa_func
+    by_feature = base.with_entities(
+        models.AiUsageLog.feature,
+        sa_func.count(models.AiUsageLog.id).label("count")
+    ).group_by(models.AiUsageLog.feature).order_by(sa_func.count(models.AiUsageLog.id).desc()).all()
+
+    cutoff_30d = today_start - timedelta(days=30)
+    all_30d = base.filter(models.AiUsageLog.created_at >= cutoff_30d).all()
+    day_map: dict[str, dict[str, int]] = {}
+    for log in all_30d:
+        d = log.created_at.strftime("%Y-%m-%d") if log.created_at else ""
+        if not d:
+            continue
+        if d not in day_map:
+            day_map[d] = {"date": d}
+        day_map[d][log.feature] = day_map[d].get(log.feature, 0) + 1
+        day_map[d]["total"] = day_map[d].get("total", 0) + 1
+    by_day = sorted(day_map.values(), key=lambda x: x["date"])
+
+    recent = base.order_by(models.AiUsageLog.created_at.desc()).limit(50).all()
+    recent_requests = [
+        {
+            "id": r.id,
+            "feature": r.feature,
+            "model": r.model,
+            "prompt": r.prompt or "",
+            "response": r.response or "",
+            "tokens_used": r.tokens_used or 0,
+            "created_at": r.created_at.strftime("%Y-%m-%d %H:%M") if r.created_at else ""
+        }
+        for r in recent
+    ]
+
+    total_tokens_used = sum(r.tokens_used or 0 for r in base.all())
+
+    return UserAiUsageDetail(
+        user_id=user.id,
+        name=user.name or "Unknown",
+        email=user.email or "",
+        total_requests=total,
+        requests_today=today,
+        requests_this_week=week,
+        requests_this_month=month,
+        total_tokens_used=total_tokens_used,
+        by_feature=[{"feature": f.feature, "count": f.count} for f in by_feature],
+        by_day=by_day,
+        recent_requests=recent_requests
+    )

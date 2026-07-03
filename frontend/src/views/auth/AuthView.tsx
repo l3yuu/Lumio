@@ -76,7 +76,20 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
   const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
   const [cooldownLeft, setCooldownLeft] = useState(0);
   const googleInitialized = useRef(false);
+  const [googleReady, setGoogleReady] = useState(false);
+  const buttonRef = useRef<HTMLDivElement | null>(null);
 
+  interface GoogleWindow extends Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (options: { client_id: string; callback: (res: { credential: string }) => void }) => void;
+          renderButton: (element: HTMLElement, options: { theme?: string; size?: string; width?: number; type?: string; shape?: string; text?: string; logo_alignment?: string }) => void;
+          prompt: () => void;
+        };
+      };
+    };
+  }
 
   // Countdown timer for rate-limit cooldown
   useEffect(() => {
@@ -262,70 +275,82 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
     });
   }, [completeLogin]);
 
+  // Initialize Google Sign-In API once when the component mounts / SDK is loaded
   useEffect(() => {
-    if (screen !== 'login' && screen !== 'signup') return;
-    
-    interface GoogleWindow extends Window {
-      google?: {
-        accounts: {
-          id: {
-            initialize: (options: { client_id: string; callback: (res: { credential: string }) => void }) => void;
-            renderButton: (element: HTMLElement, options: { theme?: string; size?: string; width?: number; type?: string; shape?: string; text?: string; logo_alignment?: string }) => void;
-          };
-        };
-      };
-    }
-
-    const initializeGoogleSignIn = () => {
-      if (googleInitialized.current) return;
+    const checkAndInitializeGoogle = () => {
       const google = (window as GoogleWindow).google;
       if (google && google.accounts) {
+        if (googleInitialized.current) {
+          setGoogleReady(true);
+          return true;
+        }
         try {
           const client_id = import.meta.env.VITE_GOOGLE_CLIENT_ID;
           if (!client_id) {
             console.error("Missing VITE_GOOGLE_CLIENT_ID. Google Sign-In requires an OAuth Web client ID.");
-            return;
+            return true; // Stop trying
           }
           googleInitialized.current = true;
           google.accounts.id.initialize({
             client_id: client_id,
             callback: handleGoogleCredentialResponse,
           });
-          const btnElem = document.getElementById("google-signin-button");
-          if (btnElem) {
-            google.accounts.id.renderButton(btnElem, {
-              theme: "outline",
-              size: "large",
-              width: btnElem.clientWidth || 380,
-              type: "standard",
-              shape: "rectangular",
-              text: "continue_with",
-              logo_alignment: "left"
-            });
-          }
+          setGoogleReady(true);
+          return true;
         } catch (e) {
           googleInitialized.current = false;
           console.error("Failed to initialize Google Sign-In:", e);
         }
       }
+      return false;
     };
 
-    const google = (window as GoogleWindow).google;
-    if (google && google.accounts) {
-      initializeGoogleSignIn();
-      return;
-    }
+    if (checkAndInitializeGoogle()) return;
 
     const timer = setInterval(() => {
-      const g = (window as GoogleWindow).google;
-      if (g && g.accounts) {
+      if (checkAndInitializeGoogle()) {
         clearInterval(timer);
-        initializeGoogleSignIn();
       }
     }, 500);
 
     return () => clearInterval(timer);
-  }, [screen, handleGoogleCredentialResponse]);
+  }, [handleGoogleCredentialResponse]);
+
+  // Render the Google Sign-In button whenever we are on a login/signup screen and Google is ready.
+  // Polling handles waiting for Framer Motion's AnimatePresence exit animations to finish and mount the new button container.
+  useEffect(() => {
+    if (!googleReady) return;
+    if (screen !== 'login' && screen !== 'signup') return;
+
+    let active = true;
+    const renderWhenReady = () => {
+      if (!active) return;
+      const element = buttonRef.current;
+      if (element && element.offsetParent !== null) {
+        const google = (window as GoogleWindow).google;
+        if (google?.accounts) {
+          element.innerHTML = '';
+          google.accounts.id.renderButton(element, {
+            theme: "outline",
+            size: "large",
+            width: element.clientWidth || 380,
+            type: "standard",
+            shape: "rectangular",
+            text: "continue_with",
+            logo_alignment: "left"
+          });
+          return; // Success, stop polling
+        }
+      }
+      setTimeout(renderWhenReady, 50);
+    };
+
+    renderWhenReady();
+
+    return () => {
+      active = false;
+    };
+  }, [screen, googleReady]);
 
 
   const formContent = () => {
@@ -560,7 +585,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ authTab, setAuthTab, setView
           </p>
         </div>
 
-        <div id="google-signin-button" className="w-full flex justify-center mb-3"></div>
+        <div id="google-signin-button" ref={buttonRef} className="w-full flex justify-center mb-3"></div>
 
         <div className="flex items-center text-center text-ink-muted text-xs my-2 before:content-[''] before:flex-1 before:border-b before:border-line after:content-[''] after:flex-1 after:border-b after:border-line">
           <span className="px-3">or</span>

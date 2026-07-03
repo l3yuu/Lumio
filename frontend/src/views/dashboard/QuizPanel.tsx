@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Trophy, Clock, CheckCircle2, Timer, AlertTriangle } from 'lucide-react';
+import { Trophy, Clock, CheckCircle2, Timer, AlertTriangle, Lightbulb, BookOpen } from 'lucide-react';
 import type { Module, StudyGroup, GroupQuizSession, GroupQuizRank, GroupQuizRankResponse, ExamDeadline } from '../../types';
 import { WS_BASE_URL } from '../../config';
 
@@ -15,13 +15,13 @@ interface QuizPanelProps {
   activeQuizModule: Module;
   isGroupQuizMode: boolean;
   activeGroup: StudyGroup | undefined;
-  selectedAnswers: { [questionId: number]: number };
+  selectedAnswers: { [questionId: number]: number | string };
   showQuizResults: boolean;
   quizScore: number;
   activeQuizSession: GroupQuizSession | null;
   setActiveQuizModule: (mod: Module | null) => void;
   setIsGroupQuizMode: (v: boolean) => void;
-  handleSelectAnswer: (questionId: number, optionIndex: number) => void;
+  handleSelectAnswer: (questionId: number, optionIndex: number | string) => void;
   handleSubmitQuiz: () => void;
   startQuiz: (module: Module) => void;
   startGroupQuiz: (module: Module, groupId: number) => void;
@@ -63,6 +63,29 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({
   const [linkedExamId, setLinkedExamId] = useState<number | null>(null);
   const [timeLeft, setTimeLeft] = useState<number>(0); // in seconds
   const [timerActive, setTimerActive] = useState(false);
+
+  const [revealedHints, setRevealedHints] = useState<{ [questionId: number]: boolean }>({});
+  const [typedAnswers, setTypedAnswers] = useState<{ [questionId: number]: string }>({});
+
+  const toggleHint = (questionId: number) => {
+    setRevealedHints(prev => ({ ...prev, [questionId]: !prev[questionId] }));
+  };
+
+  const getQuestionTypeBadge = (type?: string) => {
+    const t = type || 'multiple_choice';
+    if (t === 'true_false') return 'bg-violet-500/10 text-violet-400 border-violet-500/20';
+    if (t === 'fill_in_blank') return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+    if (t === 'short_answer') return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+    return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+  };
+
+  const getQuestionTypeLabel = (type?: string) => {
+    const t = type || 'multiple_choice';
+    if (t === 'true_false') return 'True / False';
+    if (t === 'fill_in_blank') return 'Fill-in-the-Blank';
+    if (t === 'short_answer') return 'Short Answer';
+    return 'Multiple Choice';
+  };
 
   // WebSocket connection for real-time multiplayer group quiz
   useEffect(() => {
@@ -130,7 +153,18 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({
   const onSubmit = () => {
     let score = 0;
     activeQuizModule.questions.forEach((q) => {
-      if (selectedAnswers[q.id] === q.correctAnswerIndex) score += 1;
+      if (q.questionType === 'short_answer') {
+        const userAnswer = selectedAnswers[q.id];
+        const correctAnswer = q.options[q.correctAnswerIndex] || '';
+        if (
+          typeof userAnswer === 'string' &&
+          userAnswer.trim().toLowerCase() === correctAnswer.trim().toLowerCase()
+        ) {
+          score += 1;
+        }
+      } else {
+        if (selectedAnswers[q.id] === q.correctAnswerIndex) score += 1;
+      }
     });
 
     const percent = Math.round((score / activeQuizModule.questions.length) * 100);
@@ -321,6 +355,7 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({
               <button
                 onClick={() => {
                   setIsQuizStarted(true);
+                  setTypedAnswers({});
                   startTimeRef.current = Date.now();
                   if (timeLimit > 0) {
                     setTimeLeft(timeLimit * 60);
@@ -371,44 +406,151 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({
               </div>
             )}
 
-            {activeQuizModule.questions.map((q, index) => (
-              <div className="mb-10 text-left" key={q.id}>
-                <div className="text-xl leading-snug mb-5 font-bold">
-                  {index + 1}. {q.question}
-                </div>
-                <div className="flex flex-col gap-3">
-                  {q.options.map((option, optIdx) => {
-                    const selected = selectedAnswers[q.id];
-                    const isAnswered = selected !== undefined;
-                    const correct = q.correctAnswerIndex;
-                    
-                    let statusClass = '';
-                    if (isAnswered && !isMockMode) {
-                      if (optIdx === correct) {
-                        statusClass = '!border-primary !bg-primary/10 !text-primary';
-                      } else if (optIdx === selected && selected !== correct) {
-                        statusClass = '!border-danger !bg-danger/10 !text-danger';
-                      }
-                    } else {
-                      if (selected === optIdx) {
-                        statusClass = 'border-primary bg-primary/5';
-                      }
-                    }
-                    
-                    return (
+            {activeQuizModule.questions.map((q, index) => {
+              const selected = selectedAnswers[q.id];
+              const isAnswered = selected !== undefined;
+              const hasHint = q.hint && q.hint.trim().length > 0;
+
+              return (
+                <div className="mb-10 text-left bg-glass border border-line/55 rounded-2xl p-6 shadow-sm relative overflow-hidden" key={q.id}>
+                  {/* Metadata header row: Type badge, Section Reference, Hint button */}
+                  <div className="flex flex-wrap items-center justify-between gap-2.5 mb-4 border-b border-line/40 pb-3">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-[0.62rem] font-extrabold border px-2.5 py-0.5 rounded-full uppercase tracking-wider ${getQuestionTypeBadge(q.questionType)}`}>
+                        {getQuestionTypeLabel(q.questionType)}
+                      </span>
+                      {q.reference && (
+                        <span className="inline-flex items-center gap-1.5 text-[0.65rem] font-medium text-ink-muted bg-glass-strong border border-line/50 px-2.5 py-0.5 rounded-full select-none">
+                          <BookOpen size={10} className="text-primary/70 shrink-0" />
+                          Ref: {q.reference}
+                        </span>
+                      )}
+                    </div>
+                    {hasHint && !isMockMode && !isAnswered && (
                       <button
-                        key={optIdx}
-                        disabled={isAnswered && !isMockMode}
-                        className={`flex items-center py-4 px-5 rounded-lg border border-line bg-app text-ink cursor-pointer font-medium transition-all duration-150 text-left hover:border-primary hover:bg-glass ${statusClass} ${isAnswered && !isMockMode ? 'cursor-default' : ''}`}
-                        onClick={() => handleSelectAnswer(q.id, optIdx)}
+                        onClick={() => toggleHint(q.id)}
+                        className={`inline-flex items-center gap-1 text-[0.65rem] font-bold px-2.5 py-1 rounded-lg border transition-all cursor-pointer select-none ${
+                          revealedHints[q.id]
+                            ? 'bg-amber-500/10 text-amber-400 border-amber-500/25 shadow-sm'
+                            : 'bg-glass-strong text-ink-muted border-line hover:text-ink hover:bg-glass hover:border-line-strong'
+                        }`}
                       >
-                        {option}
+                        <Lightbulb size={11} className={revealedHints[q.id] ? 'animate-pulse' : ''} />
+                        {revealedHints[q.id] ? 'Hide Hint' : 'Show Hint'}
                       </button>
-                    );
-                  })}
+                    )}
+                  </div>
+
+                  {/* Question Text */}
+                  <div className="text-lg leading-snug mb-5 font-bold text-ink">
+                    {index + 1}. {q.question}
+                  </div>
+
+                  {/* Hint Content Bubble */}
+                  {revealedHints[q.id] && q.hint && !isMockMode && !isAnswered && (
+                    <div className="mb-4 text-[11px] leading-relaxed text-amber-400 bg-amber-500/5 border border-amber-500/15 p-3 rounded-xl flex items-start gap-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                      <Lightbulb size={13} className="shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold uppercase tracking-wider text-[9px] mr-1 bg-amber-500/10 px-1 py-0.2 rounded">Hint:</span>
+                        {q.hint}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Options List / Text Input */}
+                  {q.questionType === 'short_answer' ? (
+                    <div className="flex flex-col gap-3">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          disabled={isAnswered && !isMockMode}
+                          placeholder="Type your answer here..."
+                          value={typedAnswers[q.id] ?? ''}
+                          onChange={(e) => setTypedAnswers({ ...typedAnswers, [q.id]: e.target.value })}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !isAnswered) {
+                              e.preventDefault();
+                              if (typedAnswers[q.id]?.trim()) {
+                                handleSelectAnswer(q.id, typedAnswers[q.id].trim());
+                              }
+                            }
+                          }}
+                          className="flex-1 bg-input border border-line focus:border-primary focus:ring-1 focus:ring-primary rounded-xl py-3 px-4 text-sm text-ink placeholder-ink-muted transition-all outline-none"
+                        />
+                        {(!isAnswered || isMockMode) && (
+                          <button
+                            type="button"
+                            disabled={!(typedAnswers[q.id]?.trim()) || (isMockMode && typedAnswers[q.id]?.trim() === selected)}
+                            onClick={() => handleSelectAnswer(q.id, typedAnswers[q.id].trim())}
+                            className="btn btn-primary px-5 font-bold transition-all cursor-pointer"
+                          >
+                            {isMockMode ? (selected !== undefined ? 'Update' : 'Save Answer') : 'Submit'}
+                          </button>
+                        )}
+                      </div>
+                      
+                      {isAnswered && !isMockMode && (
+                        <div className="mt-2 text-xs flex flex-col gap-2 p-4 bg-app border border-line rounded-xl">
+                          <div className="flex justify-between items-center">
+                            <span className="text-ink-muted">Your Answer:</span>
+                            <span className={String(selected).trim().toLowerCase() === (q.options[q.correctAnswerIndex] || '').trim().toLowerCase() ? "text-primary font-bold" : "text-danger font-bold"}>
+                              {String(selected)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center border-t border-line/40 pt-2">
+                            <span className="text-ink-muted">Correct Answer:</span>
+                            <span className="text-primary font-bold">{q.options[q.correctAnswerIndex]}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2.5">
+                      {q.options.map((option, optIdx) => {
+                        const correct = q.correctAnswerIndex;
+                        
+                        let statusClass = '';
+                        if (isAnswered && !isMockMode) {
+                          if (optIdx === correct) {
+                            statusClass = '!border-primary !bg-primary/10 !text-primary font-bold';
+                          } else if (optIdx === selected && selected !== correct) {
+                            statusClass = '!border-danger !bg-danger/10 !text-danger font-bold';
+                          }
+                        } else {
+                          if (selected === optIdx) {
+                            statusClass = 'border-primary bg-primary/5';
+                          }
+                        }
+                        
+                        return (
+                          <button
+                            key={optIdx}
+                            disabled={isAnswered && !isMockMode}
+                            className={`flex items-center py-3.5 px-4.5 rounded-xl border border-line bg-app text-ink cursor-pointer font-semibold transition-all duration-150 text-left hover:border-primary hover:bg-glass ${statusClass} ${isAnswered && !isMockMode ? 'cursor-default' : ''}`}
+                            onClick={() => handleSelectAnswer(q.id, optIdx)}
+                          >
+                            {option}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* AI Explanation Card */}
+                  {isAnswered && !isMockMode && q.explanation && (
+                    <div className="mt-4 bg-primary-soft/30 border border-primary-line/45 rounded-xl p-4 animate-in fade-in slide-in-from-top-3 duration-250">
+                      <div className="flex items-center gap-2 mb-1.5 select-none">
+                        <Trophy size={13} className="text-primary" />
+                        <span className="text-[10px] font-extrabold text-primary uppercase tracking-widest">AI Explanation</span>
+                      </div>
+                      <p className="text-xs text-ink-muted leading-relaxed">
+                        {q.explanation}
+                      </p>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
             <button
               onClick={onSubmit}
               className="btn btn-primary w-full justify-center p-4 mt-4"
@@ -502,24 +644,96 @@ export const QuizPanel: React.FC<QuizPanelProps> = ({
               const selected = selectedAnswers[q.id];
               const correct = q.correctAnswerIndex;
               return (
-                <div className="mb-10" key={q.id}>
-                  <div className="text-xl leading-snug mb-5 font-bold text-[1.15rem]">
+                <div className="mb-10 text-left bg-glass border border-line/55 rounded-2xl p-6 shadow-sm" key={q.id}>
+                  {/* Metadata header row: Type badge & Section Reference */}
+                  <div className="flex flex-wrap items-center gap-2 mb-4 border-b border-line/40 pb-3 select-none">
+                    <span className={`text-[0.62rem] font-extrabold border px-2.5 py-0.5 rounded-full uppercase tracking-wider ${getQuestionTypeBadge(q.questionType)}`}>
+                      {getQuestionTypeLabel(q.questionType)}
+                    </span>
+                    {q.reference && (
+                      <span className="inline-flex items-center gap-1.5 text-[0.65rem] font-medium text-ink-muted bg-glass-strong border border-line/50 px-2.5 py-0.5 rounded-full">
+                        <BookOpen size={10} className="text-primary/70 shrink-0" />
+                        Ref: {q.reference}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Question Text */}
+                  <div className="text-lg leading-snug mb-5 font-bold text-ink">
                     {index + 1}. {q.question}
                   </div>
-                  <div className="flex flex-col gap-3">
-                    {q.options.map((option, optIdx) => {
-                      let statusClass = '';
-                      if (optIdx === correct) statusClass = '!border-primary !bg-primary/10 !text-primary';
-                      else if (optIdx === selected && selected !== correct) statusClass = '!border-danger !bg-danger/10 !text-danger';
-                      return (
-                        <div key={optIdx} className={`flex items-center py-4 px-5 rounded-lg border border-line bg-app text-ink font-medium transition-all duration-150 text-left ${statusClass}`} style={{ cursor: 'default' }}>
-                          {option}
-                          {optIdx === correct && ' (Correct Answer)'}
-                          {optIdx === selected && selected !== correct && ' (Your Choice)'}
+
+                  {/* Options List / Text Review */}
+                  {q.questionType === 'short_answer' ? (
+                    <div className="flex flex-col gap-2.5">
+                      <div className={`p-4 rounded-xl border flex items-center justify-between ${
+                        String(selected || '').trim().toLowerCase() === (q.options[q.correctAnswerIndex] || '').trim().toLowerCase()
+                          ? 'border-primary bg-primary/10 text-primary font-bold'
+                          : 'border-danger bg-danger/10 text-danger font-bold'
+                      }`}>
+                        <div className="flex-1">
+                          <div className="text-[10px] uppercase font-bold text-ink-muted mb-1 select-none">Your Answer</div>
+                          <div className="text-sm">{String(selected || '(No Answer)')}</div>
                         </div>
-                      );
-                    })}
-                  </div>
+                        <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded select-none ${
+                          String(selected || '').trim().toLowerCase() === (q.options[q.correctAnswerIndex] || '').trim().toLowerCase()
+                            ? 'bg-primary-soft/50 text-primary'
+                            : 'bg-danger-soft/50 text-danger'
+                        }`}>
+                          {String(selected || '').trim().toLowerCase() === (q.options[q.correctAnswerIndex] || '').trim().toLowerCase() ? 'Correct' : 'Incorrect'}
+                        </span>
+                      </div>
+                      
+                      <div className="p-4 rounded-xl border border-primary bg-primary/10 text-primary font-bold flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="text-[10px] uppercase font-bold text-ink-muted mb-1 select-none">Correct Answer</div>
+                          <div className="text-sm">{q.options[q.correctAnswerIndex]}</div>
+                        </div>
+                        <span className="text-[10px] uppercase font-bold text-primary bg-primary-soft/50 px-2 py-0.5 rounded select-none">
+                          Correct Answer
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2.5">
+                      {q.options.map((option, optIdx) => {
+                        let statusClass = '';
+                        if (optIdx === correct) {
+                          statusClass = '!border-primary !bg-primary/10 !text-primary font-bold';
+                        } else if (optIdx === selected && selected !== correct) {
+                          statusClass = '!border-danger !bg-danger/10 !text-danger font-bold';
+                        }
+                        return (
+                          <div key={optIdx} className={`flex items-center py-3.5 px-4.5 rounded-xl border border-line bg-app text-ink font-semibold transition-all duration-150 text-left ${statusClass}`} style={{ cursor: 'default' }}>
+                            <span className="flex-1">{option}</span>
+                            {optIdx === correct && (
+                              <span className="text-[10px] uppercase font-bold text-primary bg-primary-soft/50 px-2 py-0.5 rounded ml-2 select-none">
+                                Correct Answer
+                              </span>
+                            )}
+                            {optIdx === selected && selected !== correct && (
+                              <span className="text-[10px] uppercase font-bold text-danger bg-danger-soft/50 px-2 py-0.5 rounded ml-2 select-none">
+                                Your Choice
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* AI Explanation Card */}
+                  {q.explanation && (
+                    <div className="mt-4 bg-primary-soft/30 border border-primary-line/45 rounded-xl p-4">
+                      <div className="flex items-center gap-2 mb-1.5 select-none">
+                        <Trophy size={13} className="text-primary" />
+                        <span className="text-[10px] font-extrabold text-primary uppercase tracking-widest">AI Explanation</span>
+                      </div>
+                      <p className="text-xs text-ink-muted leading-relaxed">
+                        {q.explanation}
+                      </p>
+                    </div>
+                  )}
                 </div>
               );
             })}

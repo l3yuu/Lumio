@@ -16,7 +16,7 @@ export type View =
 
 export type AuthTab = 'login' | 'signup';
 
-export type DashboardTab = 'overview' | 'modules' | 'groups' | 'tools' | 'settings' | 'calendar' | 'notifications' | 'admin' | 'admin-overview' | 'admin-users' | 'admin-sales' | 'admin-modules' | 'admin-exams' | 'admin-groups' | 'tool-flashcards' | 'tool-essay' | 'tool-condenser' | 'tool-pomodoro';
+export type DashboardTab = 'overview' | 'modules' | 'groups' | 'tools' | 'settings' | 'calendar' | 'notifications' | 'history' | 'notes' | 'admin' | 'admin-overview' | 'admin-users' | 'admin-sales' | 'admin-modules' | 'admin-exams' | 'admin-groups' | 'admin-notes' | 'admin-ai-usage' | 'admin-settings' | 'tool-flashcards' | 'tool-essay' | 'tool-condenser' | 'tool-pomodoro' | 'public-explorer';
 
 export interface Notification {
   id: number;
@@ -87,6 +87,10 @@ export interface QuizQuestion {
   question: string;
   options: string[];
   correctAnswerIndex: number;
+  explanation?: string;
+  hint?: string;
+  questionType?: string;
+  reference?: string;
 }
 
 export interface Module {
@@ -101,6 +105,7 @@ export interface Module {
   hasSourceFile?: boolean;
   lastScore?: string;
   difficulty?: string;
+  isPublic?: boolean;
 }
 
 export interface GroupMember {
@@ -132,8 +137,10 @@ export interface StudyGroup {
   id: number;
   name: string;
   creator_id?: number;
+  isPublic: boolean;
   members: GroupMember[];
   modules: Module[];
+  notes: Note[];
   quizSessions: GroupQuizSession[];
 }
 
@@ -172,6 +179,10 @@ export interface QuizQuestionResponse {
   question: string;
   options: string[];
   correct_answer_index: number;
+  explanation?: string;
+  hint?: string;
+  question_type?: string;
+  reference?: string;
 }
 
 export interface ModuleResponse {
@@ -186,6 +197,7 @@ export interface ModuleResponse {
   questions?: QuizQuestionResponse[];
   last_score?: string;
   difficulty?: string;
+  is_public?: boolean;
 }
 
 export interface GroupQuizRankResponse {
@@ -208,8 +220,10 @@ export interface StudyGroupResponse {
   id: number;
   name: string;
   creator_id?: number;
+  is_public?: boolean;
   members: GroupMember[];
   modules?: ModuleResponse[];
+  notes?: { id: number; user_id: number; title: string; content: string; subject: string; is_pinned: boolean; created_at: string; updated_at: string }[];
   quiz_sessions?: GroupQuizSessionResponse[];
 }
 
@@ -289,4 +303,26 @@ export interface ChatSession {
   messages: ChatMessage[];
   timestamp: Date;
 }
+
+export interface QuizAttempt {
+  id: number;
+  userId: number;
+  title: string;
+  attemptType: 'study_module' | 'exam' | 'group_quiz';
+  score: string;
+  percentage: number;
+  date: string;
+}
+
+export interface Note {
+  id: number;
+  userId: number;
+  title: string;
+  content: string;
+  subject: string;
+  isPinned: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 

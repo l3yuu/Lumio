@@ -8,6 +8,7 @@ from .. import schemas, models, auth
 from ..database import get_db
 from ..quiz_generator import generate_flashcards
 from ..time_utils import today_ph_str
+from ..system_config import get_system_config
 
 logger = logging.getLogger("lumio.flashcards")
 
@@ -51,7 +52,28 @@ async def generate_flashcards_endpoint(
     try:
         # 2. Call Gemini API
         cards = generate_flashcards(body.text, body.count or 10)
-        
+
+        model_name = get_system_config(db, "default_llm_model") or "gemini-2.5-flash"
+        try:
+            prompt_text = body.text[:2000]
+            cards_preview = "\n".join(
+                f"Q: {c.get('front', '')} → A: {c.get('back', '')}"
+                for c in (cards or [])[:5]
+            )
+            if len(cards or []) > 5:
+                cards_preview += f"\n… (+{len(cards) - 5} more cards)"
+            db.add(models.AiUsageLog(
+                user_id=current_user.id,
+                feature="flashcard",
+                model=model_name,
+                prompt=prompt_text,
+                response=cards_preview[:3000] if cards_preview else None,
+                tokens_used=len(prompt_text) // 4
+            ))
+            db.commit()
+        except Exception:
+            db.rollback()
+
         # 3. Create database entry
         deck_title = body.title or f"Flashcards: {body.text[:30].strip()}..."
         db_deck = models.FlashcardDeck(

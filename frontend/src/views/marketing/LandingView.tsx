@@ -3,7 +3,6 @@ import { Sparkles, HelpCircle, Layers, Users, Trophy, Clock } from 'lucide-react
 import { MockQuizWidget } from '../../components/marketing/MockQuizWidget';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { User, View, AuthTab } from '../../types';
-import { API_BASE_URL } from '../../config';
 
 interface StatCounterProps {
   value: number;
@@ -77,20 +76,6 @@ export const LandingView: React.FC<LandingViewProps> = ({
   onPwaInstall = () => {},
 }) => {
   const [landingFaqOpen, setLandingFaqOpen] = useState<number | null>(null);
-  const [liveStats, setLiveStats] = useState<{
-    quizzes_generated: number;
-    modules_uploaded: number;
-    score_improvement: number;
-    flashcards_solved: number;
-    active_students: number;
-  } | null>(null);
-
-  useEffect(() => {
-    fetch(`${API_BASE_URL}/api/stats`)
-      .then(r => r.json())
-      .then(data => setLiveStats(data))
-      .catch(() => {/* silently fall back to defaults */});
-  }, []);
 
   const studyTools = [
     { title: 'Flashcard Generator', desc: 'Auto-generate revision cards from notes.', icon: <Sparkles size={20} /> },
@@ -236,11 +221,11 @@ export const LandingView: React.FC<LandingViewProps> = ({
         viewport={{ once: true, margin: "-100px" }}
       >
         {[
-          { value: liveStats?.quizzes_generated   ?? 100, suffix: '+',  divisor: 1, decimals: 0, label: 'Quizzes Generated',  bg: '' },
-          { value: liveStats?.modules_uploaded     ?? 50,  suffix: '+',  divisor: 1, decimals: 0, label: 'Modules Uploaded',   bg: 'bg-glass' },
-          { value: liveStats?.score_improvement    ?? 84,  suffix: '%',  divisor: 1, decimals: 1, label: 'Score Improvement',  bg: '' },
-          { value: liveStats?.flashcards_solved    ?? 100, suffix: '+',  divisor: 1, decimals: 0, label: 'Flashcards Solved',  bg: 'bg-glass' },
-          { value: liveStats?.active_students      ?? 40,  suffix: '+',  divisor: 1, decimals: 0, label: 'Active Students',    bg: '' },
+          { value: 100, suffix: '+',  divisor: 1, decimals: 0, label: 'Quizzes Generated',  bg: '' },
+          { value: 100, suffix: '+',  divisor: 1, decimals: 0, label: 'Modules Uploaded',   bg: 'bg-glass' },
+          { value: 95,  suffix: '%',  divisor: 1, decimals: 0, label: 'Score Improvement',  bg: '' },
+          { value: 100, suffix: '+',  divisor: 1, decimals: 0, label: 'Flashcards Solved',  bg: 'bg-glass' },
+          { value: 100, suffix: '+',  divisor: 1, decimals: 0, label: 'Active Students',    bg: '' },
         ].map((stat, i) => (
           <StatCounter key={i} {...stat} last={i === 4} />
         ))}

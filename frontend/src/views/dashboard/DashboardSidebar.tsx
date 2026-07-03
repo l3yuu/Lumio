@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Layers, FileText, Users, Sparkles, Calendar, Settings, Shield, ChevronDown, HelpCircle, Timer } from 'lucide-react';
+import { Layers, FileText, Users, Sparkles, Calendar, Settings, Shield, ChevronDown, HelpCircle, Timer, Notebook, Globe } from 'lucide-react';
 import type { User, Module, DashboardTab } from '../../types';
 
 interface DashboardSidebarProps {
@@ -48,9 +48,13 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
     { tab: 'admin-modules', icon: <FileText size={18} />, label: 'Modules Created', matches: (tab) => tab === 'admin-modules', badge: 0 },
     { tab: 'admin-exams', icon: <Calendar size={18} />, label: 'Exams Scheduled', matches: (tab) => tab === 'admin-exams', badge: 0 },
     { tab: 'admin-groups', icon: GroupListIcon, label: 'Groups Created', matches: (tab) => tab === 'admin-groups', badge: 0 },
+    { tab: 'admin-notes', icon: <Notebook size={18} />, label: 'User Notes', matches: (tab) => tab === 'admin-notes', badge: 0 },
+    { tab: 'admin-ai-usage', icon: <Sparkles size={18} />, label: 'AI Usage Report', matches: (tab) => tab === 'admin-ai-usage', badge: 0 },
   ] : [
     { tab: 'overview', icon: <Layers size={18} />, label: 'Overview Panels', matches: (tab, gid) => tab === 'overview' && gid === null, badge: 0 },
     { tab: 'modules', icon: <FileText size={18} />, label: 'My Study Modules', matches: (tab, gid) => tab === 'modules' && gid === null, badge: 0 },
+    { tab: 'public-explorer', icon: <Globe size={18} />, label: 'Public Explorer', matches: (tab, gid) => tab === 'public-explorer' && gid === null, badge: 0 },
+    { tab: 'notes', icon: <Notebook size={18} />, label: 'My Notes', matches: (tab, gid) => tab === 'notes' && gid === null, badge: 0 },
     { tab: 'groups', icon: <Users size={18} />, label: 'Collaborative Circles', matches: (tab, gid) => tab === 'groups' || gid !== null, badge: invitationCount },
     { tab: 'calendar', icon: <Calendar size={18} />, label: 'Exam Calendar', matches: (tab, gid) => tab === 'calendar' && gid === null, badge: 0 },
   ];
@@ -194,11 +198,11 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
       )}
 
       <button
-        className={`${btnClass(dashboardTab === 'settings' && selectedGroupId === null)} ${user.role === 'superadmin' ? '' : 'mt-auto max-md:mt-0'}`}
-        onClick={() => { setDashboardTab('settings'); setActiveQuizModule(null); setSelectedGroupId(null); completeQuest('view_settings'); }}
+        className={`${btnClass((dashboardTab === 'settings' || dashboardTab === 'admin-settings') && selectedGroupId === null)} ${user.role === 'superadmin' ? '' : 'mt-auto max-md:mt-0'}`}
+        onClick={() => { setDashboardTab(isAdminMode ? 'admin-settings' : 'settings'); setActiveQuizModule(null); setSelectedGroupId(null); completeQuest('view_settings'); }}
         title={isCollapsed ? 'Settings' : undefined}
       >
-        <div className={iconClass(dashboardTab === 'settings' && selectedGroupId === null)}>
+        <div className={iconClass((dashboardTab === 'settings' || dashboardTab === 'admin-settings') && selectedGroupId === null)}>
           <Settings size={18} />
         </div>
         <span className={labelClass()}>Settings</span>
