@@ -14,17 +14,30 @@ router = APIRouter(prefix="/api/groups", tags=["groups"])
 # --- REST ENDPOINTS ---
 
 @router.get("", response_model=List[schemas.StudyGroupOut])
-def get_groups(current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
-    # Returns groups that the current user is a member of
-    return [g for g in current_user.joined_groups if not g.is_banned]
+def get_groups(
+    skip: int = 0,
+    limit: int = 10,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    # Returns groups that the current user is a member of with pagination
+    return db.query(models.StudyGroup).filter(
+        models.StudyGroup.members.any(models.User.id == current_user.id),
+        models.StudyGroup.is_banned == False
+    ).order_by(models.StudyGroup.id.desc()).offset(skip).limit(limit).all()
 
 @router.get("/public", response_model=List[schemas.StudyGroupOut])
-def get_public_groups(current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+def get_public_groups(
+    skip: int = 0,
+    limit: int = 10,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
     return db.query(models.StudyGroup).filter(
         models.StudyGroup.is_public == True,
         models.StudyGroup.is_banned == False,
         ~models.StudyGroup.members.any(models.User.id == current_user.id)
-    ).all()
+    ).order_by(models.StudyGroup.id.desc()).offset(skip).limit(limit).all()
 
 @router.post("/{group_id}/join", response_model=schemas.StudyGroupOut)
 def join_public_group(group_id: int, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
@@ -931,15 +944,11 @@ async def post_to_group_discussion(
         if not query:
             query = "What is this module about?"
             
-        context_parts = []
-        for m in group.modules:
-            if m.source_content:
-                context_parts.append(m.source_content)
-        context = "\n\n".join(context_parts)
+        from .tutor import search_relevant_context, generate_mock_tutor_response
+        context = search_relevant_context(query, group.modules)
         
         api_key = settings.GEMINI_API_KEY
         if not api_key or api_key == "YOUR_GEMINI_API_KEY":
-            from .tutor import generate_mock_tutor_response
             ai_answer = generate_mock_tutor_response(query)
         else:
             try:
@@ -948,11 +957,16 @@ async def post_to_group_discussion(
                 prompt = f"""
 You are "Lumio", an expert academic tutor participating in a study group chat.
 Answer the student's question clearly, educationally, and concisely. Use bullet points or simple paragraphs.
-Use the group's shared study context provided below as your primary source of information.
+
+Instructions to reduce hallucinations:
+1. Use the provided Shared Study Context blocks below as your primary source of information.
+2. For every key fact, definition, or explanation you extract from a block, append its source document name as an inline citation at the end of the sentence or paragraph, e.g., `[Chapter 1 - Cell Biology]`.
+3. If the answer cannot be found or reasonably inferred from the provided Shared Study Context, explain it using general academic knowledge but explicitly prefix your response with a disclaimer like: "*(Note: This explanation is based on general knowledge as it was not found in your group's shared materials)*".
+4. Keep the explanation clear, educational, and structured using bullet points or simple paragraphs.
 
 Shared Study Context:
 ---
-{context[:12000]}
+{context}
 ---
 
 Student Question:
@@ -976,7 +990,6 @@ Student Question:
                 ai_answer = response.text if response.text else "I analyzed the shared materials but couldn't generate a clear explanation. Let's try another question!"
             except Exception as e:
                 print(f"Error querying Gemini inside group discussion: {e}")
-                from .tutor import generate_mock_tutor_response
                 ai_answer = generate_mock_tutor_response(query)
                 
         ai_post = models.GroupPost(

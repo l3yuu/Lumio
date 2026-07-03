@@ -15,6 +15,10 @@ UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.pat
 
 router = APIRouter(prefix="/api/modules", tags=["modules"])
 
+# In-memory global cache for public module source files and text content
+PUBLIC_SOURCE_CACHE = {}
+PUBLIC_FILE_CACHE = {}
+
 ALLOWED_EXTENSIONS = {"pdf", "txt", "docx"}
 ALLOWED_MIME_TYPES = {
     "application/pdf",
@@ -44,8 +48,20 @@ def get_source_media_type(filename: Optional[str]) -> str:
     }.get(ext, "application/octet-stream")
 
 @router.get("", response_model=List[schemas.ModuleOut])
-def get_modules(current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
-    return db.query(models.Module).filter(models.Module.user_id == current_user.id).order_by(models.Module.id.desc()).all()
+def get_modules(
+    search: Optional[str] = None,
+    subject: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 10,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    query = db.query(models.Module).filter(models.Module.user_id == current_user.id)
+    if search:
+        query = query.filter(models.Module.name.ilike(f"%{search}%"))
+    if subject:
+        query = query.filter(models.Module.subject.ilike(f"%{subject}%"))
+    return query.order_by(models.Module.id.desc()).offset(skip).limit(limit).all()
 
 @router.post("", response_model=schemas.ModuleOut)
 def create_module(
@@ -308,6 +324,8 @@ def delete_module(module_id: int, current_user: models.User = Depends(auth.get_c
         except Exception as e:
             print(f"Warning: Failed to delete source file: {e}")
 
+    PUBLIC_SOURCE_CACHE.pop(module_id, None)
+    PUBLIC_FILE_CACHE.pop(module_id, None)
     db.delete(module)
     db.commit()
     return {"message": "Module deleted successfully"}
@@ -319,14 +337,21 @@ def get_module_source(
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db)
 ):
+    if module_id in PUBLIC_SOURCE_CACHE:
+        return PUBLIC_SOURCE_CACHE[module_id]
+
     module = db.query(models.Module).filter(models.Module.id == module_id).first()
     if not module or (module.user_id != current_user.id and not module.is_public):
         raise HTTPException(status_code=404, detail="Module not found")
-    return schemas.ModuleSourceOut(
+        
+    res_obj = schemas.ModuleSourceOut(
         id=module.id,
         source_filename=module.source_filename,
         source_content=module.source_content
     )
+    if module.is_public:
+        PUBLIC_SOURCE_CACHE[module_id] = res_obj
+    return res_obj
 
 
 @router.get("/{module_id}/file")
@@ -335,29 +360,49 @@ def get_module_file(
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db)
 ):
+    if module_id in PUBLIC_FILE_CACHE:
+        content_bytes, media_type, filename = PUBLIC_FILE_CACHE[module_id]
+        return Response(
+            content=content_bytes,
+            media_type=media_type,
+            headers={"Content-Disposition": f'inline; filename="{filename}"'}
+        )
+
     module = db.query(models.Module).filter(models.Module.id == module_id).first()
     if not module or (module.user_id != current_user.id and not module.is_public):
         raise HTTPException(status_code=404, detail="Module not found")
-    if module.source_file_data:
-        return Response(
-            content=module.source_file_data,
-            media_type=module.source_file_mime or get_source_media_type(module.source_filename),
-            headers={"Content-Disposition": f'inline; filename="{module.source_filename or "file"}"'}
-        )
+        
+    content_bytes = None
+    media_type = module.source_file_mime or get_source_media_type(module.source_filename)
+    filename = module.source_filename or "file"
 
-    if not module.source_file_path or not os.path.exists(module.source_file_path):
+    if module.source_file_data:
+        content_bytes = module.source_file_data
+    elif module.source_file_path and os.path.exists(module.source_file_path):
+        try:
+            with open(module.source_file_path, "rb") as f:
+                content_bytes = f.read()
+        except Exception:
+            raise HTTPException(status_code=500, detail="Error reading file from storage")
+
+    if content_bytes is None:
         raise HTTPException(status_code=404, detail="Source file not available")
 
-    return FileResponse(
-        path=module.source_file_path,
-        filename=module.source_filename or "file",
-        media_type=module.source_file_mime or get_source_media_type(module.source_filename)
+    if module.is_public:
+        PUBLIC_FILE_CACHE[module_id] = (content_bytes, media_type, filename)
+
+    return Response(
+        content=content_bytes,
+        media_type=media_type,
+        headers={"Content-Disposition": f'inline; filename="{filename}"'}
     )
 
 
 @router.get("/public", response_model=List[schemas.ModuleOut])
 def get_public_modules(
     search: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 10,
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -369,7 +414,7 @@ def get_public_modules(
             (models.Module.name.ilike(f"%{search}%")) |
             (models.Module.subject.ilike(f"%{search}%"))
         )
-    return query.order_by(models.Module.id.desc()).all()
+    return query.order_by(models.Module.id.desc()).offset(skip).limit(limit).all()
 
 
 @router.post("/{module_id}/copy", response_model=schemas.ModuleOut)
@@ -440,6 +485,8 @@ def update_module(
         module.name = body.name
     if body.is_public is not None:
         module.is_public = body.is_public
+    PUBLIC_SOURCE_CACHE.pop(module_id, None)
+    PUBLIC_FILE_CACHE.pop(module_id, None)
     db.commit()
     db.refresh(module)
     return module

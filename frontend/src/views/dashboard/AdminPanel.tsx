@@ -49,14 +49,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
   const [error, setError] = useState<string | null>(null);
   const [submittingId, setSubmittingId] = useState<number | null>(null);
 
-  const fetchAdminData = useCallback(async () => {
-    setLoading(true);
+  // Superadmin pagination states and refs
+  const [hasMoreUsers, setHasMoreUsers] = useState(true);
+  const [hasMoreModules, setHasMoreModules] = useState(true);
+  const [hasMoreExams, setHasMoreExams] = useState(true);
+  const [hasMoreGroups, setHasMoreGroups] = useState(true);
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
+
+  const usersPageRef = React.useRef(0);
+  const modulesPageRef = React.useRef(0);
+  const examsPageRef = React.useRef(0);
+  const groupsPageRef = React.useRef(0);
+
+  const fetchAdminData = useCallback(async (pageNum: number = 0, append: boolean = false) => {
     setError(null);
     const token = localStorage.getItem('token');
     if (!token) return;
 
     try {
       if (currentTab === 'admin-overview') {
+        setLoading(true);
         const healthRes = await fetch(`${API_BASE_URL}/api/admin/health`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -66,15 +78,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
       }
 
       if (currentTab === 'admin-users') {
-        const usersRes = await fetch(`${API_BASE_URL}/api/admin/users`, {
+        const limit = 10;
+        const skip = pageNum * limit;
+        const usersRes = await fetch(`${API_BASE_URL}/api/admin/users?skip=${skip}&limit=${limit}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (!usersRes.ok) throw new Error('Failed to fetch user list.');
         const usersJson = await usersRes.json();
-        setUsers(usersJson);
+        if (append) {
+          setUsers(prev => {
+            const existingIds = new Set(prev.map(u => u.id));
+            return [...prev, ...usersJson.filter((u: any) => !existingIds.has(u.id))];
+          });
+        } else {
+          setUsers(usersJson);
+        }
+        setHasMoreUsers(usersJson.length === limit);
       }
 
       if (currentTab === 'admin-sales') {
+        setLoading(true);
         const salesRes = await fetch(`${API_BASE_URL}/api/admin/sales`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -84,30 +107,60 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
       }
 
       if (currentTab === 'admin-modules') {
-        const modulesRes = await fetch(`${API_BASE_URL}/api/admin/modules`, {
+        const limit = 10;
+        const skip = pageNum * limit;
+        const modulesRes = await fetch(`${API_BASE_URL}/api/admin/modules?skip=${skip}&limit=${limit}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (!modulesRes.ok) throw new Error('Failed to fetch modules list.');
         const modulesJson = await modulesRes.json();
-        setModules(modulesJson);
+        if (append) {
+          setModules(prev => {
+            const existingIds = new Set(prev.map(m => m.id));
+            return [...prev, ...modulesJson.filter((m: any) => !existingIds.has(m.id))];
+          });
+        } else {
+          setModules(modulesJson);
+        }
+        setHasMoreModules(modulesJson.length === limit);
       }
 
       if (currentTab === 'admin-exams') {
-        const examsRes = await fetch(`${API_BASE_URL}/api/admin/exams`, {
+        const limit = 10;
+        const skip = pageNum * limit;
+        const examsRes = await fetch(`${API_BASE_URL}/api/admin/exams?skip=${skip}&limit=${limit}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (!examsRes.ok) throw new Error('Failed to fetch exams list.');
         const examsJson = await examsRes.json();
-        setExams(examsJson);
+        if (append) {
+          setExams(prev => {
+            const existingIds = new Set(prev.map(e => e.id));
+            return [...prev, ...examsJson.filter((e: any) => !existingIds.has(e.id))];
+          });
+        } else {
+          setExams(examsJson);
+        }
+        setHasMoreExams(examsJson.length === limit);
       }
 
       if (currentTab === 'admin-groups') {
-        const groupsRes = await fetch(`${API_BASE_URL}/api/admin/groups`, {
+        const limit = 10;
+        const skip = pageNum * limit;
+        const groupsRes = await fetch(`${API_BASE_URL}/api/admin/groups?skip=${skip}&limit=${limit}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (!groupsRes.ok) throw new Error('Failed to fetch groups list.');
         const groupsJson = await groupsRes.json();
-        setGroups(groupsJson);
+        if (append) {
+          setGroups(prev => {
+            const existingIds = new Set(prev.map(g => g.id));
+            return [...prev, ...groupsJson.filter((g: any) => !existingIds.has(g.id))];
+          });
+        } else {
+          setGroups(groupsJson);
+        }
+        setHasMoreGroups(groupsJson.length === limit);
       }
 
     } catch (err: unknown) {
@@ -119,10 +172,49 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
   }, [currentTab]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchAdminData();
+    setLoading(true);
+    usersPageRef.current = 0;
+    modulesPageRef.current = 0;
+    examsPageRef.current = 0;
+    groupsPageRef.current = 0;
+    fetchAdminData(0, false);
     setSearchQuery('');
   }, [currentTab, fetchAdminData]);
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const container = e.currentTarget;
+    const threshold = 100;
+    const totalHeight = container.scrollHeight;
+    const scrollPosition = container.clientHeight + container.scrollTop;
+    
+    if (totalHeight - scrollPosition <= threshold) {
+      if (currentTab === 'admin-users') {
+        if (hasMoreUsers && !isFetchingMore) {
+          setIsFetchingMore(true);
+          usersPageRef.current += 1;
+          fetchAdminData(usersPageRef.current, true).finally(() => setIsFetchingMore(false));
+        }
+      } else if (currentTab === 'admin-modules') {
+        if (hasMoreModules && !isFetchingMore) {
+          setIsFetchingMore(true);
+          modulesPageRef.current += 1;
+          fetchAdminData(modulesPageRef.current, true).finally(() => setIsFetchingMore(false));
+        }
+      } else if (currentTab === 'admin-exams') {
+        if (hasMoreExams && !isFetchingMore) {
+          setIsFetchingMore(true);
+          examsPageRef.current += 1;
+          fetchAdminData(examsPageRef.current, true).finally(() => setIsFetchingMore(false));
+        }
+      } else if (currentTab === 'admin-groups') {
+        if (hasMoreGroups && !isFetchingMore) {
+          setIsFetchingMore(true);
+          groupsPageRef.current += 1;
+          fetchAdminData(groupsPageRef.current, true).finally(() => setIsFetchingMore(false));
+        }
+      }
+    }
+  };
 
   // Live uptime increment and silent background sync for admin overview stats
   useEffect(() => {
@@ -316,9 +408,84 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
     }
   };
 
+  // Cache for superadmin viewed source files: module.id -> cached object URL or text content
+  const adminFileCacheRef = React.useRef<{ [moduleId: number]: { blobUrl?: string; sourceContent?: string } }>({});
+
   const handleOpenAdminSourceInNewTab = (m: AdminModule) => {
     const token = localStorage.getItem('token');
     if (!token) return;
+
+    const cached = adminFileCacheRef.current[m.id];
+
+    // If cached PDF blob URL exists
+    if (cached?.blobUrl) {
+      window.open(cached.blobUrl, '_blank');
+      return;
+    }
+
+    // If cached text content exists
+    if (cached?.sourceContent) {
+      const newTab = window.open('', '_blank');
+      if (newTab) {
+        newTab.document.write(`
+          <html>
+            <head>
+              <title>${m.name} - Source File</title>
+              <style>
+                body {
+                  background: #181818;
+                  color: #e0e0e0;
+                  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                  margin: 0;
+                  padding: 24px;
+                  display: flex;
+                  flex-direction: column;
+                  align-items: center;
+                  min-height: 100vh;
+                }
+                .container {
+                  width: 100%;
+                  max-width: 900px;
+                  background: #202020;
+                  border: 1px solid #333;
+                  border-radius: 12px;
+                  padding: 40px;
+                  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+                  box-sizing: border-box;
+                }
+                h1 {
+                  font-size: 24px;
+                  margin-top: 0;
+                  margin-bottom: 8px;
+                  color: #fff;
+                }
+                .filename {
+                  font-size: 14px;
+                  color: #888;
+                  margin-bottom: 24px;
+                }
+                pre {
+                  white-space: pre-wrap;
+                  word-wrap: break-word;
+                  font-size: 14px;
+                  line-height: 1.6;
+                  margin: 0;
+                }
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <h1>${m.name}</h1>
+                <div class="filename">${m.name}</div>
+                <pre>${cached.sourceContent}</pre>
+              </div>
+            </body>
+          </html>
+        `);
+        newTab.document.close();
+      }
+      return;
+    }
 
     const newTab = window.open('', '_blank');
     if (newTab) {
@@ -396,11 +563,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
       if (contentType.includes('pdf') || contentType.includes('image') || contentType.includes('text/html')) {
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);
+        adminFileCacheRef.current[m.id] = { blobUrl: url };
         if (newTab) {
           newTab.location.href = url;
         }
       } else {
         const text = await res.text();
+        adminFileCacheRef.current[m.id] = { sourceContent: text };
         if (newTab) {
           const loader = newTab.document.getElementById('loader');
           const content = newTab.document.getElementById('content');
@@ -1424,6 +1593,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
               onRoleChange={(userId, targetRole, userName) => setRoleChangeTarget({ userId, targetRole, userName })}
               onDeleteUser={setDeleteConfirmUser}
               onSuspend={(userId, isSuspended, userName) => setSuspendConfirmTarget({ userId, isSuspended, userName })}
+              onScroll={handleScroll}
+              isFetchingMore={isFetchingMore}
             />
           )}
           {currentTab === 'admin-sales' && <AdminSalesView sales={sales} />}
@@ -1436,6 +1607,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
               onViewModule={handleViewModule}
               onDeleteModule={setDeleteConfirmModule}
               onOpenSourceFile={handleOpenAdminSourceInNewTab}
+              onScroll={handleScroll}
+              isFetchingMore={isFetchingMore}
             />
           )}
           {currentTab === 'admin-exams' && (
@@ -1445,6 +1618,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
               submittingId={submittingId}
               onSearchChange={setSearchQuery}
               onDeleteExam={setDeleteConfirmExam}
+              onScroll={handleScroll}
+              isFetchingMore={isFetchingMore}
             />
           )}
           {currentTab === 'admin-groups' && (
@@ -1455,6 +1630,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
               onManageGroup={handleOpenManageGroup}
               onViewChat={handleViewChat}
               onViewMembers={setActiveViewMembersGroup}
+              onScroll={handleScroll}
+              isFetchingMore={isFetchingMore}
             />
           )}
           {currentTab === 'admin-notes' && <AdminNotes />}

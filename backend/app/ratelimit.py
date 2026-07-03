@@ -37,4 +37,6 @@ resend_limiter = RateLimiter(max_attempts=3, window_seconds=600)      # 3 attemp
 forgot_limiter = RateLimiter(max_attempts=3, window_seconds=3600)    # 3 attempts / hour
 reset_limiter = RateLimiter(max_attempts=5, window_seconds=300)      # 5 attempts / 5 min
 modules_limiter = RateLimiter(max_attempts=10, window_seconds=60)    # 10 attempts / minute
+condenser_limiter = RateLimiter(max_attempts=10, window_seconds=60)  # 10 attempts / minute
+
 

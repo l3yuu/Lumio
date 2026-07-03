@@ -668,6 +668,101 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({
   // Live draft values updated on every keystroke from NoteEditor
   const [liveDraft, setLiveDraft] = useState<{ id: number; title: string; content: string; subject: string } | null>(null);
 
+  // Notes pagination states
+  const [paginatedNotes, setPaginatedNotes] = useState<Note[]>([]);
+  const notesPageRef = useRef(0);
+  const [hasMoreNotes, setHasMoreNotes] = useState(true);
+  const [isFetchingNotes, setIsFetchingNotes] = useState(false);
+  const listContainerRef = useRef<HTMLDivElement>(null);
+
+  const fetchNotes = React.useCallback((pageNum: number = 0, append: boolean = false) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    setIsFetchingNotes(true);
+    const limit = 10;
+    const skip = pageNum * limit;
+    
+    fetch(`${API_BASE_URL}/api/notes?skip=${skip}&limit=${limit}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    .then(res => res.ok ? res.json() : [])
+    .then((data) => {
+      const mapped: Note[] = (data as any[]).map(item => ({
+        id: item.id,
+        userId: item.user_id,
+        title: item.title,
+        content: item.content,
+        subject: item.subject,
+        isPinned: item.is_pinned,
+        createdAt: item.created_at,
+        updatedAt: item.updated_at
+      }));
+      
+      if (append) {
+        setPaginatedNotes(prev => {
+          const existingIds = new Set(prev.map(x => x.id));
+          const filtered = mapped.filter(x => !existingIds.has(x.id));
+          return [...prev, ...filtered];
+        });
+      } else {
+        setPaginatedNotes(mapped);
+      }
+      setHasMoreNotes(data.length === limit);
+      setIsFetchingNotes(false);
+    })
+    .catch(err => {
+      console.error('Error fetching notes:', err);
+      setIsFetchingNotes(false);
+    });
+  }, []);
+
+  // Initial load
+  useEffect(() => {
+    notesPageRef.current = 0;
+    fetchNotes(0, false);
+  }, [fetchNotes]);
+
+  // Sync edits/CRUD actions from parent notes state into paginated local state
+  useEffect(() => {
+    setPaginatedNotes(prev => {
+      const parentMap = new Map(notes.map(n => [n.id, n]));
+      
+      const updated = prev
+        .filter(n => parentMap.has(n.id))
+        .map(n => parentMap.get(n.id)!);
+        
+      const existingIds = new Set(prev.map(n => n.id));
+      const newlyAdded = notes.filter(n => !existingIds.has(n.id));
+      
+      if (newlyAdded.length > 0) {
+        return [...newlyAdded, ...updated];
+      }
+      return updated;
+    });
+  }, [notes]);
+
+  // Scroll listener for infinite scroll within listContainerRef
+  useEffect(() => {
+    const container = listContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const threshold = 50;
+      const totalHeight = container.scrollHeight;
+      const scrollPosition = container.clientHeight + container.scrollTop;
+      
+      if (totalHeight - scrollPosition <= threshold) {
+        if (hasMoreNotes && !isFetchingNotes) {
+          notesPageRef.current += 1;
+          fetchNotes(notesPageRef.current, true);
+        }
+      }
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [hasMoreNotes, isFetchingNotes, fetchNotes]);
+
   const activeNote = notes.find(n => n.id === selectedNoteId);
 
   // Reset live draft when switching notes
@@ -695,7 +790,7 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({
   };
 
   // Filter notes
-  const filteredNotes = notes.filter(note => {
+  const filteredNotes = paginatedNotes.filter(note => {
     const matchesSearch =
       note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       note.content.toLowerCase().includes(searchQuery.toLowerCase());
@@ -776,7 +871,7 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({
         </div>
 
         {/* Note List */}
-        <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-2 min-h-0">
+        <div ref={listContainerRef} className="flex-1 overflow-y-auto pr-1 flex flex-col gap-2 min-h-0">
           <AnimatePresence mode="popLayout">
             {sortedNotes.length === 0 ? (
               <motion.div
@@ -848,6 +943,11 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({
               })
             )}
           </AnimatePresence>
+          {isFetchingNotes && paginatedNotes.length > 0 && (
+            <div className="text-center py-4 text-xs text-ink-muted animate-pulse">
+              Loading more notes...
+            </div>
+          )}
         </div>
       </div>
 

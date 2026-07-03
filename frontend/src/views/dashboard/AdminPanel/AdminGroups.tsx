@@ -1,3 +1,4 @@
+import React from 'react';
 import { Search, MessageSquare } from 'lucide-react';
 import type { AdminGroup } from './types';
 
@@ -8,11 +9,14 @@ interface Props {
   onManageGroup: (g: AdminGroup) => void;
   onViewChat: (g: AdminGroup) => void;
   onViewMembers: (g: AdminGroup) => void;
+  onScroll?: (e: React.UIEvent<HTMLDivElement>) => void;
+  isFetchingMore?: boolean;
 }
 
 export const AdminGroups = ({
   groups, searchQuery,
-  onSearchChange, onManageGroup, onViewChat, onViewMembers
+  onSearchChange, onManageGroup, onViewChat, onViewMembers,
+  onScroll, isFetchingMore
 }: Props) => {
   const filtered = groups.filter(g =>
     g.creator_email !== "System/Unknown" &&
@@ -36,7 +40,7 @@ export const AdminGroups = ({
         />
       </div>
 
-      <div className="flex-1 overflow-auto">
+      <div onScroll={onScroll} className="flex-1 overflow-auto">
         <table className="w-full text-left border-collapse text-sm">
           <thead>
             <tr className="border-b border-line text-xs font-semibold text-ink-muted bg-input/20">
@@ -106,6 +110,11 @@ export const AdminGroups = ({
             )}
           </tbody>
         </table>
+        {isFetchingMore && (
+          <div className="text-center py-4 text-xs text-ink-muted animate-pulse">
+            Loading more groups...
+          </div>
+        )}
       </div>
     </div>
   );

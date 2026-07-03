@@ -66,6 +66,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
   const [discussionPosts, setDiscussionPosts] = useState<GroupPost[]>([]);
   const [newPostContent, setNewPostContent] = useState('');
   const [isPosting, setIsPosting] = useState(false);
+  const [isAiResponding, setIsAiResponding] = useState(false);
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);
   const postsEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<WebSocket | null>(null);
@@ -93,75 +94,189 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
     }
   }, [selectedGroupId, groups]);
 
-  const [publicGroups, setPublicGroups] = useState<StudyGroup[]>([]);
+  const mapStudyGroup = (g: StudyGroupResponse): StudyGroup => ({
+    id: g.id,
+    name: g.name,
+    creator_id: g.creator_id,
+    isPublic: g.is_public ?? false,
+    members: (g.members || []).map((m: GroupMember) => ({
+      id: m.id,
+      name: m.name,
+      email: m.email,
+      avatar: m.avatar,
+      online: m.online,
+      is_premium: m.is_premium,
+    })),
+    modules: g.modules ? g.modules.map((m: ModuleResponse) => ({
+      id: m.id,
+      name: m.name,
+      date: m.date,
+      size: m.size,
+      subject: m.subject || 'General',
+      questionsCount: m.questionsCount !== undefined ? m.questionsCount : (m.questions ? m.questions.length : 0),
+      questions: m.questions ? m.questions.map((q: QuizQuestionResponse) => ({
+        id: q.id,
+        question: q.question,
+        options: q.options,
+        correctAnswerIndex: q.correct_answer_index,
+        explanation: q.explanation,
+        hint: q.hint,
+        questionType: q.question_type,
+        reference: q.reference
+      })) : []
+    })) : [],
+    notes: g.notes ? g.notes.map((n: any) => ({
+      id: n.id,
+      userId: n.user_id,
+      title: n.title,
+      content: n.content,
+      subject: n.subject,
+      isPinned: n.is_pinned,
+      createdAt: n.created_at,
+      updatedAt: n.updated_at
+    })) : [],
+    quizSessions: g.quiz_sessions ? g.quiz_sessions.map((s: GroupQuizSessionResponse) => ({
+      id: s.id,
+      moduleName: s.module_name,
+      date: s.date,
+      avgScore: s.avg_score,
+      rankings: s.rankings ? s.rankings.map((r: GroupQuizRankResponse) => ({
+        name: r.name,
+        score: r.score,
+        percentage: r.percentage,
+        time: r.time,
+        isUser: r.is_user
+      })) : []
+    })) : []
+  });
 
-  useEffect(() => {
+  const [publicGroups, setPublicGroups] = useState<StudyGroup[]>([]);
+  const publicGroupsPageRef = useRef(0);
+  const [hasMorePublicGroups, setHasMorePublicGroups] = useState(true);
+  const [isFetchingPublicGroups, setIsFetchingPublicGroups] = useState(false);
+
+  const [userGroupsList, setUserGroupsList] = useState<StudyGroup[]>([]);
+  const userGroupsPageRef = useRef(0);
+  const [hasMoreUserGroups, setHasMoreUserGroups] = useState(true);
+  const [isFetchingUserGroups, setIsFetchingUserGroups] = useState(false);
+
+  const fetchPublicGroups = React.useCallback((pageNum: number = 0, append: boolean = false) => {
     const token = localStorage.getItem('token');
-    if (token) {
-      fetch(`${API_BASE_URL}/api/groups/public`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      .then(res => res.json())
-      .then(data => {
-        setPublicGroups(data.map((g: StudyGroupResponse) => ({
-          id: g.id,
-          name: g.name,
-          creator_id: g.creator_id,
-          isPublic: g.is_public ?? false,
-          members: (g.members || []).map((m: GroupMember) => ({
-            id: m.id,
-            name: m.name,
-            email: m.email,
-            avatar: m.avatar,
-            online: m.online,
-            is_premium: m.is_premium,
-          })),
-          modules: g.modules ? g.modules.map((m: ModuleResponse) => ({
-            id: m.id,
-            name: m.name,
-            date: m.date,
-            size: m.size,
-            subject: m.subject || 'General',
-            questionsCount: m.questionsCount !== undefined ? m.questionsCount : (m.questions ? m.questions.length : 0),
-            questions: m.questions ? m.questions.map((q: QuizQuestionResponse) => ({
-              id: q.id,
-              question: q.question,
-              options: q.options,
-              correctAnswerIndex: q.correct_answer_index,
-              explanation: q.explanation,
-              hint: q.hint,
-              questionType: q.question_type,
-              reference: q.reference
-            })) : []
-          })) : [],
-          notes: g.notes ? g.notes.map((n: { id: number; user_id: number; title: string; content: string; subject: string; is_pinned: boolean; created_at: string; updated_at: string }) => ({
-            id: n.id,
-            userId: n.user_id,
-            title: n.title,
-            content: n.content,
-            subject: n.subject,
-            isPinned: n.is_pinned,
-            createdAt: n.created_at,
-            updatedAt: n.updated_at
-          })) : [],
-          quizSessions: g.quiz_sessions ? g.quiz_sessions.map((s: GroupQuizSessionResponse) => ({
-            id: s.id,
-            moduleName: s.module_name,
-            date: s.date,
-            avgScore: s.avg_score,
-            rankings: s.rankings ? s.rankings.map((r: GroupQuizRankResponse) => ({
-              name: r.name,
-              score: r.score,
-              percentage: r.percentage,
-              time: r.time,
-              isUser: r.is_user
-            })) : []
-          })) : []
-        })));
-      })
-      .catch(() => {});
-    }
+    if (!token) return;
+    setIsFetchingPublicGroups(true);
+    const limit = 10;
+    const skip = pageNum * limit;
+    
+    fetch(`${API_BASE_URL}/api/groups/public?skip=${skip}&limit=${limit}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    .then(res => res.ok ? res.json() : [])
+    .then((data: StudyGroupResponse[]) => {
+      const mapped = data.map(mapStudyGroup);
+      if (append) {
+        setPublicGroups(prev => {
+          const existingIds = new Set(prev.map(x => x.id));
+          const filtered = mapped.filter(x => !existingIds.has(x.id));
+          return [...prev, ...filtered];
+        });
+      } else {
+        setPublicGroups(mapped);
+      }
+      setHasMorePublicGroups(data.length === limit);
+      setIsFetchingPublicGroups(false);
+    })
+    .catch(err => {
+      console.error('Error fetching public groups:', err);
+      setIsFetchingPublicGroups(false);
+    });
   }, []);
+
+  const fetchUserGroups = React.useCallback((pageNum: number = 0, append: boolean = false) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    setIsFetchingUserGroups(true);
+    const limit = 10;
+    const skip = pageNum * limit;
+    
+    fetch(`${API_BASE_URL}/api/groups?skip=${skip}&limit=${limit}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    .then(res => res.ok ? res.json() : [])
+    .then((data: StudyGroupResponse[]) => {
+      const mapped = data.map(mapStudyGroup);
+      if (append) {
+        setUserGroupsList(prev => {
+          const existingIds = new Set(prev.map(x => x.id));
+          const filtered = mapped.filter(x => !existingIds.has(x.id));
+          return [...prev, ...filtered];
+        });
+      } else {
+        setUserGroupsList(mapped);
+      }
+      setHasMoreUserGroups(data.length === limit);
+      setIsFetchingUserGroups(false);
+    })
+    .catch(err => {
+      console.error('Error fetching user groups:', err);
+      setIsFetchingUserGroups(false);
+    });
+  }, []);
+
+  // Initial loads
+  useEffect(() => {
+    publicGroupsPageRef.current = 0;
+    fetchPublicGroups(0, false);
+    
+    userGroupsPageRef.current = 0;
+    fetchUserGroups(0, false);
+  }, [fetchPublicGroups, fetchUserGroups]);
+
+  // Sync edits/CRUD actions from parent groups state into paginated local state
+  useEffect(() => {
+    setUserGroupsList(prev => {
+      const parentMap = new Map(groups.map(g => [g.id, g]));
+      
+      const updated = prev
+        .filter(g => parentMap.has(g.id))
+        .map(g => parentMap.get(g.id)!);
+        
+      const existingIds = new Set(prev.map(g => g.id));
+      const newlyAdded = groups.filter(g => !existingIds.has(g.id));
+      
+      if (newlyAdded.length > 0) {
+        return [...newlyAdded, ...updated];
+      }
+      return updated;
+    });
+  }, [groups]);
+
+  // Scroll listener for infinite scrolling
+  useEffect(() => {
+    const handleScroll = () => {
+      const threshold = 150;
+      const totalHeight = document.documentElement.scrollHeight;
+      const scrollPosition = window.innerHeight + window.scrollY;
+      
+      if (totalHeight - scrollPosition <= threshold) {
+        if (selectedGroupId === null) {
+          // Load public groups if they are visible
+          if (publicGroups.length > 0 && hasMorePublicGroups && !isFetchingPublicGroups) {
+            publicGroupsPageRef.current += 1;
+            fetchPublicGroups(publicGroupsPageRef.current, true);
+          }
+          
+          // Load user groups
+          if (hasMoreUserGroups && !isFetchingUserGroups) {
+            userGroupsPageRef.current += 1;
+            fetchUserGroups(userGroupsPageRef.current, true);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [selectedGroupId, publicGroups.length, hasMorePublicGroups, isFetchingPublicGroups, hasMoreUserGroups, isFetchingUserGroups, fetchPublicGroups, fetchUserGroups]);
 
   const handleJoinPublicGroup = (groupId: number) => {
     if (isJoiningGroup !== null) return;
@@ -346,7 +461,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
     if (activeTab === 'discussion') {
       postsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [discussionPosts, activeTab]);
+  }, [discussionPosts, activeTab, isAiResponding]);
 
   useEffect(() => {
     if (selectedGroupId !== null && activeTab === 'discussion') {
@@ -489,6 +604,10 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
 
     setIsPosting(true);
     const contentToSend = newPostContent;
+    const isAi = contentToSend.toLowerCase().includes('@ai') || contentToSend.toLowerCase().includes('@tutor');
+    if (isAi) {
+      setIsAiResponding(true);
+    }
     setNewPostContent('');
 
     fetch(`${API_BASE_URL}/api/groups/${selectedGroupId}/discussion`, {
@@ -519,6 +638,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
     })
     .finally(() => {
       setIsPosting(false);
+      setIsAiResponding(false);
       inputRef.current?.focus();
     });
   };
@@ -1414,6 +1534,32 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
                       );
                     })
                   )}
+
+                  {isAiResponding && (
+                    <div className="flex flex-col w-full items-start">
+                      <div className="flex items-start gap-3 p-3.5 max-md:p-3 rounded-xl bg-[linear-gradient(135deg,rgba(62,207,142,0.06),rgba(6,182,212,0.06))] border border-primary-line/45 shadow-sm max-w-[80%] max-md:max-w-[92%] select-none text-left">
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center bg-[linear-gradient(135deg,var(--primary),var(--accent-cyan))] text-ink-on-primary font-bold shadow-md shrink-0">
+                          <Sparkles size={16} className="animate-pulse" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-baseline mb-1 gap-2 flex-wrap justify-between">
+                            <span className="text-xs font-bold text-ink flex items-center gap-1.5 truncate">
+                              Lumio
+                              <span className="text-[0.62rem] font-bold bg-[linear-gradient(135deg,var(--primary),var(--accent-cyan))] text-ink-on-primary px-1.5 py-0.5 rounded-full uppercase tracking-wider scale-[0.9] origin-left animate-pulse">
+                                AI Tutor typing...
+                              </span>
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1 mt-2.5">
+                            <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                            <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                            <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <div ref={postsEndRef} />
                 </div>
 
@@ -1899,7 +2045,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
       )}
 
       <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-6 max-md:grid-cols-1 max-md:gap-4">
-        {groups.map((group) => (
+        {userGroupsList.map((group) => (
           <div className="bg-card border border-line rounded-xl p-5 max-md:p-4 flex flex-col h-full" key={group.id}>
             <h4 className="text-xl max-md:text-lg mb-2 text-left wrap-break-word">{group.name}</h4>
             <span className="text-[0.85rem] text-ink-muted text-left">{group.members.filter(m => m.email !== user.email).length + 1} Members | {group.modules.length} Shared Modules</span>
@@ -1951,6 +2097,11 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
           </div>
         ))}
       </div>
+      {isFetchingUserGroups && userGroupsList.length > 0 && (
+        <div className="text-center py-4 text-xs text-ink-muted animate-pulse">
+          Loading more study circles...
+        </div>
+      )}
 
       {publicGroups.length > 0 && (
         <div className="mt-10">
@@ -1999,6 +2150,11 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
               </div>
             ))}
           </div>
+          {isFetchingPublicGroups && publicGroups.length > 0 && (
+            <div className="text-center py-4 text-xs text-ink-muted animate-pulse">
+              Loading more public groups...
+            </div>
+          )}
         </div>
       )}
     </div>

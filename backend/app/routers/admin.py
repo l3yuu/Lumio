@@ -177,10 +177,12 @@ def get_admin_health(
 
 @router.get("/users", response_model=List[schemas.UserOut])
 def list_users(
+    skip: int = 0,
+    limit: int = 10,
     db: Session = Depends(get_db),
     current_admin: models.User = Depends(get_current_superadmin)
 ):
-    users = db.query(models.User).filter(~models.User.email.like("%@example.com")).order_by(models.User.id.desc()).all()
+    users = db.query(models.User).filter(~models.User.email.like("%@example.com")).order_by(models.User.id.desc()).offset(skip).limit(limit).all()
     return users
 
 @router.put("/users/{user_id}/role", response_model=schemas.UserOut)
@@ -298,12 +300,14 @@ def update_user_suspension(
 
 @router.get("/modules")
 def list_admin_modules(
+    skip: int = 0,
+    limit: int = 10,
     db: Session = Depends(get_db),
     current_admin: models.User = Depends(get_current_superadmin)
 ):
     results = db.query(models.Module, models.User).join(
         models.User, models.Module.user_id == models.User.id, isouter=True
-    ).order_by(models.Module.id.desc()).all()
+    ).order_by(models.Module.id.desc()).offset(skip).limit(limit).all()
     result = []
     for m, owner in results:
         result.append({
@@ -322,13 +326,15 @@ def list_admin_modules(
 
 @router.get("/exams")
 def list_admin_exams(
+    skip: int = 0,
+    limit: int = 10,
     db: Session = Depends(get_db),
     current_admin: models.User = Depends(get_current_superadmin)
 ):
     from .exams import calculate_days_remaining
     results = db.query(models.ExamDeadline, models.User).join(
         models.User, models.ExamDeadline.user_id == models.User.id, isouter=True
-    ).order_by(models.ExamDeadline.id.desc()).all()
+    ).order_by(models.ExamDeadline.id.desc()).offset(skip).limit(limit).all()
     result = []
     for e, owner in results:
         result.append({
@@ -348,12 +354,14 @@ def list_admin_exams(
 
 @router.get("/groups")
 def list_admin_groups(
+    skip: int = 0,
+    limit: int = 10,
     db: Session = Depends(get_db),
     current_admin: models.User = Depends(get_current_superadmin)
 ):
     results = db.query(models.StudyGroup, models.User).join(
         models.User, models.StudyGroup.creator_id == models.User.id, isouter=True
-    ).order_by(models.StudyGroup.id.desc()).all()
+    ).order_by(models.StudyGroup.id.desc()).offset(skip).limit(limit).all()
     result = []
     for g, creator in results:
         if creator and not creator.email.endswith("@example.com"):
@@ -415,6 +423,8 @@ def get_admin_sales(
 
 @router.get("/notes")
 def list_admin_notes(
+    skip: int = 0,
+    limit: int = 10,
     db: Session = Depends(get_db),
     current_admin: models.User = Depends(get_current_superadmin)
 ):
@@ -422,7 +432,7 @@ def list_admin_notes(
         models.User, models.Note.user_id == models.User.id
     ).filter(
         ~models.User.email.like("%@example.com")
-    ).order_by(models.Note.updated_at.desc()).all()
+    ).order_by(models.Note.updated_at.desc()).offset(skip).limit(limit).all()
     return [
         {
             "id": n.id,
