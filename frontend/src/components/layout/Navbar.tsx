@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sun, Moon, Menu, X, ChevronRight, Sparkles, Layers, Settings, Bell, FileText, Users, Calendar, Globe, Notebook, Shield } from 'lucide-react';
+import { Sun, Moon, Menu, X, ChevronRight, ChevronDown, Sparkles, Layers, Settings, Bell, FileText, Users, Calendar, Globe, Notebook, Shield, HelpCircle, Timer } from 'lucide-react';
 import type { User, View, AuthTab, DashboardTab, Module, Notification, GroupInvitation, StudyGroup } from '../../types';
 
 interface NavbarProps {
@@ -63,6 +63,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const [notifOpen, setNotifOpen] = React.useState(false);
   const [userMenuOpen, setUserMenuOpen] = React.useState(false);
+  const [mobileToolsOpen, setMobileToolsOpen] = React.useState(false);
 
   const notifRef = React.useRef<HTMLDivElement>(null);
   const userMenuRef = React.useRef<HTMLDivElement>(null);
@@ -492,7 +493,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                         { tab: 'public-explorer' as const, icon: <Globe size={18} />, label: 'Public Explorer' },
                         { tab: 'notes'    as const, icon: <Notebook size={18} />, label: 'My Notes' },
                         { tab: 'groups'   as const, icon: <Users size={18} />, label: 'Collaborative Circles' },
-                        { tab: 'tools'    as const, icon: <Sparkles size={18} />, label: 'Study Tools' },
                         { tab: 'calendar' as const, icon: <Calendar size={18} />, label: 'Exam Calendar' },
                       ]).map(item => {
                         const isActive = view === 'dashboard' && dashboardTab === item.tab;
@@ -511,6 +511,59 @@ export const Navbar: React.FC<NavbarProps> = ({
                           </button>
                         );
                       })}
+
+                      {/* Study Tools expandable */}
+                      {(() => {
+                        const isToolsActive = view === 'dashboard' && dashboardTab.startsWith('tool-');
+                        const toolsSubItems = [
+                          { tab: 'tool-flashcards' as const, icon: <Sparkles size={16} />, label: 'Flashcards' },
+                          { tab: 'tool-essay'      as const, icon: <HelpCircle size={16} />, label: 'Essay Grader' },
+                          { tab: 'tool-condenser'  as const, icon: <Layers size={16} />, label: 'Condenser' },
+                          { tab: 'tool-pomodoro'   as const, icon: <Timer size={16} />, label: 'Focus Timer' },
+                        ];
+                        return (
+                          <>
+                            <button
+                              onClick={() => setMobileToolsOpen(o => !o)}
+                              className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg border-0 cursor-pointer text-left text-[0.95rem] font-medium transition-all duration-150 border-l-2 ${
+                                isToolsActive
+                                  ? 'text-primary bg-primary/8 border-l-primary'
+                                  : 'text-ink-muted hover:text-ink hover:bg-glass border-l-transparent'
+                              }`}
+                            >
+                              <span className={isToolsActive ? 'text-primary' : 'text-ink-muted'}><Sparkles size={18} /></span>
+                              <span>Study Tools</span>
+                              <ChevronDown size={14} className={`ml-auto transition-transform duration-200 ${mobileToolsOpen ? 'rotate-180' : ''}`} />
+                            </button>
+                            <AnimatePresence>
+                              {mobileToolsOpen && (
+                                <motion.div
+                                  initial={{ height: 0, opacity: 0 }}
+                                  animate={{ height: 'auto', opacity: 1 }}
+                                  exit={{ height: 0, opacity: 0 }}
+                                  transition={{ duration: 0.2 }}
+                                  className="overflow-hidden"
+                                >
+                                  {toolsSubItems.map(sub => (
+                                    <button
+                                      key={sub.tab}
+                                      onClick={() => { setView('dashboard'); setDashboardTab(sub.tab); setActiveQuizModule(null); setSelectedGroupId(null); setMobileMenuOpen(false); }}
+                                      className={`w-full flex items-center gap-3 pl-10 pr-3 py-2.5 rounded-lg border-0 cursor-pointer text-left text-[0.88rem] font-medium transition-all duration-150 ${
+                                        view === 'dashboard' && dashboardTab === sub.tab
+                                          ? 'text-primary bg-primary/8'
+                                          : 'text-ink-muted hover:text-ink hover:bg-glass'
+                                      }`}
+                                    >
+                                      <span className={view === 'dashboard' && dashboardTab === sub.tab ? 'text-primary' : 'text-ink-muted'}>{sub.icon}</span>
+                                      <span>{sub.label}</span>
+                                    </button>
+                                  ))}
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </>
+                        );
+                      })()}
                     </nav>
 
                     {/* Settings pinned at bottom */}
