@@ -88,7 +88,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
         if (append) {
           setUsers(prev => {
             const existingIds = new Set(prev.map(u => u.id));
-            return [...prev, ...usersJson.filter((u: any) => !existingIds.has(u.id))];
+            return [...prev, ...usersJson.filter((u: User) => !existingIds.has(u.id))];
           });
         } else {
           setUsers(usersJson);
@@ -117,7 +117,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
         if (append) {
           setModules(prev => {
             const existingIds = new Set(prev.map(m => m.id));
-            return [...prev, ...modulesJson.filter((m: any) => !existingIds.has(m.id))];
+            return [...prev, ...modulesJson.filter((m: AdminModule) => !existingIds.has(m.id))];
           });
         } else {
           setModules(modulesJson);
@@ -136,7 +136,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
         if (append) {
           setExams(prev => {
             const existingIds = new Set(prev.map(e => e.id));
-            return [...prev, ...examsJson.filter((e: any) => !existingIds.has(e.id))];
+            return [...prev, ...examsJson.filter((e: AdminExam) => !existingIds.has(e.id))];
           });
         } else {
           setExams(examsJson);
@@ -155,7 +155,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
         if (append) {
           setGroups(prev => {
             const existingIds = new Set(prev.map(g => g.id));
-            return [...prev, ...groupsJson.filter((g: any) => !existingIds.has(g.id))];
+            return [...prev, ...groupsJson.filter((g: AdminGroup) => !existingIds.has(g.id))];
           });
         } else {
           setGroups(groupsJson);
@@ -172,13 +172,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
   }, [currentTab]);
 
   useEffect(() => {
-    setLoading(true);
+    setTimeout(() => {
+      setLoading(true);
+      setSearchQuery('');
+    }, 0);
     usersPageRef.current = 0;
     modulesPageRef.current = 0;
     examsPageRef.current = 0;
     groupsPageRef.current = 0;
     fetchAdminData(0, false);
-    setSearchQuery('');
   }, [currentTab, fetchAdminData]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {

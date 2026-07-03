@@ -46,7 +46,7 @@ export const AdminNotes = () => {
       if (append) {
         setNotes(prev => {
           const existingIds = new Set(prev.map(x => x.id));
-          return [...prev, ...data.filter((x: any) => !existingIds.has(x.id))];
+          return [...prev, ...data.filter((x: AdminNote) => !existingIds.has(x.id))];
         });
       } else {
         setNotes(data);
@@ -59,7 +59,9 @@ export const AdminNotes = () => {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
+    setTimeout(() => {
+      setLoading(true);
+    }, 0);
     notesPageRef.current = 0;
     
     fetchNotes(0, false).finally(() => {

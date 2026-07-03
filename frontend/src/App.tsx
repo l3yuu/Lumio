@@ -244,18 +244,17 @@ function App() {
 
   useEffect(() => {
     if (!isGeneratingQuiz) {
-      setQuizProgress(0);
+      setTimeout(() => {
+        setQuizProgress(0);
+      }, 0);
       return;
     }
 
     if (quizProgress >= 99) return;
 
-    let delay = 100;
-    if (quizProgress < 90) {
-      delay = Math.floor(Math.random() * 100) + 100;
-    } else {
-      delay = Math.floor(Math.random() * 1000) + 1000;
-    }
+    const delay = quizProgress < 90 
+      ? Math.floor(Math.random() * 100) + 100
+      : Math.floor(Math.random() * 1000) + 1000;
 
     const timer = setTimeout(() => {
       setQuizProgress((prev) => {
