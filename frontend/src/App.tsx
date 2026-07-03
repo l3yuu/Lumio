@@ -73,7 +73,11 @@ const mapModule = (m: ModuleResponse): Module => ({
     id: q.id,
     question: q.question,
     options: q.options,
-    correctAnswerIndex: q.correct_answer_index
+    correctAnswerIndex: q.correct_answer_index,
+    explanation: q.explanation,
+    hint: q.hint,
+    questionType: q.question_type,
+    reference: q.reference
   })) : [],
   lastScore: m.last_score,
   difficulty: m.difficulty,

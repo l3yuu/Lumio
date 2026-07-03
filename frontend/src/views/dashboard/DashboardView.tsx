@@ -365,6 +365,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         questsDate: data.quests_date,
         lastCheckIn: data.last_check_in,
         folders: data.folders,
+        role: data.role || 'user',
+        is_premium: data.is_premium,
+        is_suspended: data.is_suspended,
+        stripe_subscription_status: data.stripe_subscription_status,
+        premium_expires_at: data.premium_expires_at,
       });
     })
     .catch(err => console.error('Error syncing profile:', err));
