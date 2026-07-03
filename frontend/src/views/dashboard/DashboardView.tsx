@@ -1803,7 +1803,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const subjects = ['All', ...Array.from(new Set(modules.map(m => (m.subject || '').trim()).filter(Boolean))) as string[]];
 
   return (
-    <div className={`grid max-lg:grid-cols-1 max-lg:grid-rows-[auto_1fr] h-[calc(100vh-58px)] overflow-hidden transition-[grid-template-columns] duration-280 ease-in-out ${
+    <div className={`grid max-lg:grid-cols-1 max-lg:grid-rows-[auto_1fr] h-[calc(100dvh-58px)] overflow-hidden transition-[grid-template-columns] duration-280 ease-in-out ${
       isCollapsed ? 'lg:grid-cols-[68px_1fr]' : 'lg:grid-cols-[240px_1fr]'
     }`}>
       <div className="hidden lg:flex h-full min-h-0 overflow-y-auto">
