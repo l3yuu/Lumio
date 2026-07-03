@@ -175,12 +175,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
     setTimeout(() => {
       setLoading(true);
       setSearchQuery('');
+      fetchAdminData(0, false);
     }, 0);
     usersPageRef.current = 0;
     modulesPageRef.current = 0;
     examsPageRef.current = 0;
     groupsPageRef.current = 0;
-    fetchAdminData(0, false);
   }, [currentTab, fetchAdminData]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -705,7 +705,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
         <div className="flex flex-col gap-6 animate-pulse-soft">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="bg-card border border-line rounded-xl p-5 flex flex-col gap-4 h-[130px]">
+              <div key={i} className="bg-card border border-line rounded-xl p-5 flex flex-col gap-4 h-32.5">
                 <div className="h-4 bg-line rounded w-2/3" />
                 <div className="h-8 bg-line rounded w-1/2 mt-1" />
                 <div className="h-3 bg-line rounded w-3/4 mt-auto" />
@@ -717,7 +717,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
             <div className="h-4 bg-line rounded w-32 border-b border-line pb-2" />
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="bg-input/40 border border-line rounded-lg p-5 flex items-center gap-4 h-[86px]">
+                <div key={i} className="bg-input/40 border border-line rounded-lg p-5 flex items-center gap-4 h-21.5">
                   <div className="w-11 h-11 rounded-full bg-line shrink-0" />
                   <div className="flex-1 flex flex-col gap-2">
                     <div className="h-3 bg-line rounded w-3/4" />
@@ -733,8 +733,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
 
     return (
       <div className="flex-1 flex flex-col bg-card border border-line rounded-xl overflow-hidden shadow-lg animate-pulse-soft">
-        <div className="p-4 border-b border-line bg-input/40 flex items-center h-[60px]">
-          <div className="h-8 bg-line rounded w-full max-w-[400px]" />
+        <div className="p-4 border-b border-line bg-input/40 flex items-center h-15">
+          <div className="h-8 bg-line rounded w-full max-w-100" />
         </div>
         <div className="flex-1 overflow-auto p-4">
           <div className="flex flex-col gap-4">
@@ -752,7 +752,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
                 </div>
                 <div className="h-4 bg-line rounded w-1/6" />
                 <div className="h-4 bg-line rounded w-1/6" />
-                <div className="h-6 bg-line rounded w-[80px]" />
+                <div className="h-6 bg-line rounded w-20" />
               </div>
             ))}
           </div>
@@ -1251,7 +1251,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
                       value={actionReason}
                       onChange={(e) => setActionReason(e.target.value)}
                       placeholder="Add a reason to explain to members..."
-                      className="w-full min-h-[70px] py-2 px-3 bg-input border border-line rounded-lg text-xs text-ink outline-none focus:border-primary transition"
+                      className="w-full min-h-17.5 py-2 px-3 bg-input border border-line rounded-lg text-xs text-ink outline-none focus:border-primary transition"
                     />
                     <div className="flex flex-wrap gap-1.5 mt-1.5">
                       {BAN_REASONS.map((r) => (
@@ -1314,7 +1314,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
                       value={actionReason}
                       onChange={(e) => setActionReason(e.target.value)}
                       placeholder="Add a reason to explain to members..."
-                      className="w-full min-h-[70px] py-2 px-3 bg-input border border-line rounded-lg text-xs text-ink outline-none focus:border-primary transition"
+                      className="w-full min-h-17.5 py-2 px-3 bg-input border border-line rounded-lg text-xs text-ink outline-none focus:border-primary transition"
                     />
                     <div className="flex flex-wrap gap-1.5 mt-1.5">
                       {DELETE_REASONS.map((r) => (
@@ -1387,7 +1387,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
                 </p>
               </div>
 
-              <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto border border-line rounded-xl p-4 bg-input/15 mb-6">
+              <div className="flex flex-col gap-2 max-h-75 overflow-y-auto border border-line rounded-xl p-4 bg-input/15 mb-6">
                 <span className="text-xs font-bold text-ink-muted uppercase tracking-wider block mb-2">
                   Active Members ({activeViewMembersGroup.members?.length || 0})
                 </span>
@@ -1513,7 +1513,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ user: currentUser, curre
                                   {msg.created_at}
                                 </span>
                               </div>
-                              <p className="text-sm text-ink leading-relaxed whitespace-pre-wrap select-text selection:bg-primary-soft text-left break-words">
+                              <p className="text-sm text-ink leading-relaxed whitespace-pre-wrap select-text selection:bg-primary-soft text-left wrap-break-word">
                                 {msg.content}
                               </p>
                             </div>

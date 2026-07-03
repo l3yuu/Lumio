@@ -61,12 +61,12 @@ export const AdminNotes = () => {
     let cancelled = false;
     setTimeout(() => {
       setLoading(true);
+      fetchNotes(0, false).finally(() => {
+        if (!cancelled) setLoading(false);
+      });
     }, 0);
     notesPageRef.current = 0;
     
-    fetchNotes(0, false).finally(() => {
-      if (!cancelled) setLoading(false);
-    });
     return () => { cancelled = true; };
   }, [refreshKey, fetchNotes]);
 
