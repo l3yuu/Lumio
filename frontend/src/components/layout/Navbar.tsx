@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sun, Moon, Menu, X, ChevronRight, ChevronDown, Sparkles, Layers, Settings, Bell, FileText, Users, Calendar, Globe, Notebook, Shield, HelpCircle, Timer } from 'lucide-react';
 import type { User, View, AuthTab, DashboardTab, Module, Notification, GroupInvitation, StudyGroup } from '../../types';
