@@ -138,7 +138,7 @@ export const AiTutorSidebar: React.FC<AiTutorSidebarProps> = ({
         animate={{ x: 0, opacity: 1 }}
         exit={{ x: '100%', opacity: 0.8 }}
         transition={{ type: 'spring', damping: 28, stiffness: 240 }}
-        className="fixed top-14.5 right-0 bottom-0 h-[calc(100dvh-58px)] w-[85vw] sm:w-90 bg-card border-l border-line z-50 flex flex-col overflow-hidden shrink-0 shadow-xl"
+        className="fixed top-14.5 right-0 bottom-0 w-[85vw] sm:w-90 bg-card border-l border-line z-50 flex flex-col overflow-hidden shrink-0 shadow-xl"
       >
         <AnimatePresence mode="wait">
           {isHistoryViewOpen ? (
