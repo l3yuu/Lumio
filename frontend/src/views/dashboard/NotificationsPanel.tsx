@@ -19,6 +19,7 @@ const notifIcon = (type: string) => {
   switch (type) {
     case 'group_invite':
     case 'group_invite_accepted':
+    case 'group_member_joined':
       return <UserPlus size={16} className="text-blue-400" />;
     case 'module_shared':
       return <HelpCircle size={16} className="text-purple-400" />;
@@ -173,12 +174,15 @@ export const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
                   <p className="text-[0.65rem] text-ink-muted/60 mt-1">{timeAgo(n.created_at)}</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0 self-center">
-                  {(n.type === 'module_shared' || n.type === 'note_shared') && setSelectedGroupId && setDashboardTab && (() => {
+                  {(n.type === 'module_shared' || n.type === 'note_shared' || n.type === 'group_member_joined' || n.type === 'group_invite_accepted') && setSelectedGroupId && setDashboardTab && (() => {
                     const isModule = n.type === 'module_shared';
+                    const isNote = n.type === 'note_shared';
                     const group = groups.find(g =>
                       isModule
                         ? g.modules?.some(m => m.id === n.related_id)
-                        : g.notes?.some(nt => nt.id === n.related_id)
+                        : isNote
+                        ? g.notes?.some(nt => nt.id === n.related_id)
+                        : g.id === n.related_id
                     );
                     if (!group) return null;
                     return (
@@ -191,8 +195,8 @@ export const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
                         }}
                         className="inline-flex items-center gap-1 text-xs font-semibold bg-primary/10 text-primary border border-primary/20 px-2.5 py-1.5 rounded-lg cursor-pointer transition-all hover:bg-primary hover:text-ink-on-primary"
                       >
-                        <Share2 size={12} />
-                        {isModule ? 'Open Quiz' : 'Open Note'}
+                        {isModule && <Share2 size={12} />}
+                        {isModule ? 'Open Quiz' : isNote ? 'Open Note' : 'View Circle'}
                       </button>
                     );
                   })()}

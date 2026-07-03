@@ -99,6 +99,19 @@ def join_public_group(group_id: int, current_user: models.User = Depends(auth.ge
     if current_user in group.members:
         raise HTTPException(status_code=400, detail="You are already a member of this group")
     group.members.append(current_user)
+    
+    # Notify the group creator
+    if group.creator_id and group.creator_id != current_user.id:
+        notif = models.Notification(
+            user_id=group.creator_id,
+            type="group_member_joined",
+            title=f"New member in {group.name}",
+            message=f"{current_user.name} has joined your study group \"{group.name}\"",
+            related_id=group.id,
+            related_type="group"
+        )
+        db.add(notif)
+
     _invalidate_public_groups()
     db.commit()
     db.refresh(group)
@@ -267,6 +280,19 @@ async def join_group_via_link(
     is_new_member = current_user not in group.members
     if is_new_member:
         group.members.append(current_user)
+        
+        # Notify the group creator
+        if group.creator_id and group.creator_id != current_user.id:
+            notif = models.Notification(
+                user_id=group.creator_id,
+                type="group_member_joined",
+                title=f"New member in {group.name}",
+                message=f"{current_user.name} has joined your study group \"{group.name}\"",
+                related_id=group.id,
+                related_type="group"
+            )
+            db.add(notif)
+            
         _invalidate_public_groups()
         db.commit()
         db.refresh(group)
