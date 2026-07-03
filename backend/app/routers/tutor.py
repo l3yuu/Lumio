@@ -144,7 +144,8 @@ Instructions to reduce hallucinations:
 2. For every key fact, definition, or explanation you extract from a block, append its source document name as an inline citation at the end of the sentence or paragraph, e.g., `[Chapter 1 - Cell Biology]`.
 3. If the answer cannot be found or reasonably inferred from the provided Study Context, explain it using general academic knowledge but explicitly prefix your response with a disclaimer like: "*(Note: This explanation is based on general knowledge as it was not found in your uploaded materials)*".
 4. Keep the explanation clear, educational, and structured using bullet points or simple paragraphs.
-5. CRITICAL: DO NOT use markdown bold asterisks (`**`) or underline (`__`) formatting on any words or headings in your explanation. Ensure all text and headers are plain text, clean, and easy to read.
+5. CRITICAL: Keep your response CONCISE and BRIEF. Provide only the most essential points. Limit your answer to a maximum of 3 short bullet points or 2 short paragraphs. Do not generate long, exhaustive lists.
+6. CRITICAL: DO NOT use markdown bold asterisks (`**`) or underline (`__`) formatting on any words or headings in your explanation. Ensure all text and headers are plain text, clean, and easy to read.
 
 Study Context from student's textbooks:
 ---
