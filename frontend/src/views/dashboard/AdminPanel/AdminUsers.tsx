@@ -41,7 +41,8 @@ export const AdminUsers = ({
       </div>
 
       <div onScroll={onScroll} className="flex-1 overflow-auto">
-        <table className="w-full text-left border-collapse text-sm">
+        {/* Desktop View Table */}
+        <table className="hidden md:table w-full text-left border-collapse text-sm">
           <thead>
             <tr className="border-b border-line text-xs font-semibold text-ink-muted bg-input/20">
               <th className="p-4 pl-6">Account User</th>
@@ -155,6 +156,126 @@ export const AdminUsers = ({
             )}
           </tbody>
         </table>
+
+        {/* Mobile View Cards */}
+        <div className="md:hidden divide-y divide-line/60">
+          {filtered.length === 0 ? (
+            <div className="p-8 text-center text-ink-muted text-sm">
+              No users matched search criteria.
+            </div>
+          ) : (
+            filtered.map(item => (
+              <div key={item.id} className="p-4 flex flex-col gap-3 hover:bg-glass/5 transition-colors">
+                {/* User Header */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={item.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&h=150&q=80'}
+                      alt="Avatar"
+                      className="w-10 h-10 rounded-full border border-line object-cover"
+                    />
+                    <div>
+                      <span className="font-semibold text-ink block">{item.name}</span>
+                      <span className="text-xs text-ink-muted block">@{item.username || 'user'}</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <span className={`px-2 py-0.5 rounded text-[0.7rem] font-extrabold tracking-wide uppercase ${
+                      item.role === 'superadmin'
+                        ? 'bg-primary/10 text-primary border border-primary/20'
+                        : item.role === 'premium'
+                        ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+                        : 'bg-line text-ink-muted'
+                    }`}>
+                      {item.role || 'user'}
+                    </span>
+                    {item.is_suspended && (
+                      <span className="px-2 py-0.5 rounded text-[0.7rem] font-extrabold tracking-wide uppercase bg-red-500/10 text-red-500 border border-red-500/20">
+                        Suspended
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Email and Stats */}
+                <div className="flex flex-col gap-1.5 text-xs">
+                  <div className="flex flex-wrap gap-x-1">
+                    <span className="text-ink-muted">Email:</span>
+                    <span className="text-ink font-medium break-all">{item.email}</span>
+                  </div>
+                  <div className="flex items-center gap-4 mt-1">
+                    <div>
+                      <span className="text-ink-muted">Level: </span>
+                      <span className="font-bold text-ink">Lvl {item.level || 1}</span>
+                      <span className="text-[0.7rem] text-ink-muted ml-1">({item.xp || 0} XP)</span>
+                    </div>
+                    <div>
+                      <span className="text-ink-muted">Streak: </span>
+                      <span className="font-bold text-orange-500">{item.streak || 0} 🔥</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                {(item.role !== 'superadmin' || item.id !== currentUser.id) && (
+                  <div className="flex flex-wrap items-center gap-2 mt-1 pt-2 border-t border-line/40">
+                    {item.role !== 'superadmin' && (
+                      <button
+                        disabled={submittingId === item.id}
+                        onClick={() => item.id && onRoleChange(item.id, item.role === 'premium' ? 'user' : 'premium', item.name)}
+                        className={`flex-1 min-w-[90px] px-2.5 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer disabled:opacity-40 text-center ${
+                          item.role === 'premium'
+                            ? 'bg-transparent text-indigo-400 border-indigo-500/20 hover:bg-indigo-500/10'
+                            : 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-500'
+                        }`}
+                      >
+                        {item.role === 'premium' ? 'Remove Pro' : 'Make Pro'}
+                      </button>
+                    )}
+
+                    <button
+                      disabled={submittingId === item.id || item.id === currentUser.id}
+                      onClick={() => item.id && onRoleChange(item.id, item.role === 'superadmin' ? 'user' : 'superadmin', item.name)}
+                      className={`flex-1 min-w-[90px] px-2.5 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer disabled:opacity-40 text-center ${
+                        item.role === 'superadmin'
+                          ? 'bg-transparent text-primary border-primary/20 hover:bg-primary-soft'
+                          : 'bg-primary text-ink-on-primary border-primary hover:bg-primary-hover'
+                      }`}
+                    >
+                      {item.role === 'superadmin' ? 'Demote Admin' : 'Promote Admin'}
+                    </button>
+
+                    {item.id !== currentUser.id && (
+                      <button
+                        disabled={submittingId === item.id}
+                        onClick={() => item.id && onSuspend(item.id, !item.is_suspended, item.name)}
+                        className={`flex-1 min-w-[80px] px-2.5 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer disabled:opacity-40 text-center ${
+                          item.is_suspended
+                            ? 'bg-transparent text-amber-500 border-amber-500/20 hover:bg-amber-500/10'
+                            : 'bg-amber-600 text-white border-amber-600 hover:bg-amber-500'
+                        }`}
+                        title={item.is_suspended ? 'Unsuspend User' : 'Suspend User'}
+                      >
+                        {item.is_suspended ? 'Unsuspend' : 'Suspend'}
+                      </button>
+                    )}
+
+                    {item.id !== currentUser.id && (
+                      <button
+                        disabled={submittingId === item.id}
+                        onClick={() => item.id && onDeleteUser(item)}
+                        className="p-2 rounded-lg border border-danger-line text-danger hover:bg-danger-soft transition cursor-pointer disabled:opacity-40 flex items-center justify-center aspect-square"
+                        title="Delete User"
+                      >
+                        {submittingId === item.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
         {isFetchingMore && (
           <div className="text-center py-4 text-xs text-ink-muted animate-pulse">
             Loading more users...

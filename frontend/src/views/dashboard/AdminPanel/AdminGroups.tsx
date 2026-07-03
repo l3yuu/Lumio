@@ -41,7 +41,8 @@ export const AdminGroups = ({
       </div>
 
       <div onScroll={onScroll} className="flex-1 overflow-auto">
-        <table className="w-full text-left border-collapse text-sm">
+        {/* Desktop View Table */}
+        <table className="hidden md:table w-full text-left border-collapse text-sm">
           <thead>
             <tr className="border-b border-line text-xs font-semibold text-ink-muted bg-input/20">
               <th className="p-4 pl-6">Group Name</th>
@@ -110,6 +111,75 @@ export const AdminGroups = ({
             )}
           </tbody>
         </table>
+
+        {/* Mobile View Cards */}
+        <div className="md:hidden divide-y divide-line/60">
+          {filtered.length === 0 ? (
+            <div className="p-8 text-center text-ink-muted text-sm">
+              No collaborative study groups found.
+            </div>
+          ) : (
+            filtered.map((item) => (
+              <div key={item.id} className="p-4 flex flex-col gap-3 hover:bg-glass/5 transition-colors">
+                {/* Header */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-ink">{item.name}</span>
+                    {item.is_banned && (
+                      <span className="px-1.5 py-0.5 rounded text-[0.62rem] font-extrabold tracking-wide uppercase bg-danger/15 text-danger border border-danger-line/30">
+                        Banned
+                      </span>
+                    )}
+                  </div>
+                  <span className="shrink-0 text-xs font-bold text-ink-muted">{item.modules_count} Modules</span>
+                </div>
+
+                {/* Creator & Details */}
+                <div className="flex flex-col gap-2 text-xs">
+                  <div>
+                    <span className="text-ink-muted">Creator: </span>
+                    <span className="font-semibold text-ink">{item.creator_name}</span>
+                    <span className="text-ink-muted block">{item.creator_email}</span>
+                  </div>
+                  <div className="flex items-center gap-4 mt-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-ink-muted">Members:</span>
+                      <button
+                        type="button"
+                        onClick={() => onViewMembers(item)}
+                        className="px-2.5 py-1 rounded-lg text-xs font-bold border border-primary/20 bg-primary-soft text-primary hover:bg-primary hover:text-ink-on-primary transition cursor-pointer animate-none"
+                        title="View Group Members"
+                      >
+                        {item.members_count} Members
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center justify-end gap-2 mt-1 pt-2 border-t border-line/40">
+                  <button
+                    type="button"
+                    onClick={() => onManageGroup(item)}
+                    className="flex-1 px-2.5 py-1.5 rounded-lg text-xs font-bold border border-line text-ink-muted hover:text-primary hover:bg-primary-soft transition cursor-pointer text-center"
+                    title="Manage Study Group"
+                  >
+                    Manage
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onViewChat(item)}
+                    className="p-1.5 rounded-lg border border-line text-ink-muted hover:text-primary hover:bg-primary-soft transition cursor-pointer flex items-center justify-center aspect-square"
+                    title="View Group Chat"
+                  >
+                    <MessageSquare size={14} />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
         {isFetchingMore && (
           <div className="text-center py-4 text-xs text-ink-muted animate-pulse">
             Loading more groups...

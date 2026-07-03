@@ -326,25 +326,27 @@ const PromptHistoryTab = ({ requests }: { requests: RecentRequest[] }) => {
             >
               {/* Header row */}
               <div
-                className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-glass-strong transition-colors select-none"
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 px-4 py-3 cursor-pointer hover:bg-glass-strong transition-colors select-none"
                 onClick={() => setExpandedId(isExpanded ? null : r.id)}
               >
-                {/* Feature badge */}
-                <span
-                  className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[0.65rem] font-bold text-white"
-                  style={{ background: FEATURE_COLORS[r.feature] || '#6B7280' }}
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-white/50" />
-                  {FEATURE_LABELS[r.feature] || r.feature}
-                </span>
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  {/* Feature badge */}
+                  <span
+                    className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[0.65rem] font-bold text-white"
+                    style={{ background: FEATURE_COLORS[r.feature] || '#6B7280' }}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-white/50" />
+                    {FEATURE_LABELS[r.feature] || r.feature}
+                  </span>
 
-                {/* Prompt preview */}
-                <p className="flex-1 min-w-0 text-sm text-ink truncate">
-                  {r.prompt || <span className="text-ink-muted italic">No prompt recorded</span>}
-                </p>
+                  {/* Prompt preview */}
+                  <p className="flex-1 min-w-0 text-sm text-ink truncate">
+                    {r.prompt || <span className="text-ink-muted italic">No prompt recorded</span>}
+                  </p>
+                </div>
 
                 {/* Meta */}
-                <div className="flex items-center gap-3 shrink-0">
+                <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 mt-1 sm:mt-0">
                   {r.tokens_used > 0 && (
                     <span className="inline-flex items-center gap-1 text-xs text-amber-400 font-semibold">
                       <Zap size={10} />
@@ -352,7 +354,7 @@ const PromptHistoryTab = ({ requests }: { requests: RecentRequest[] }) => {
                     </span>
                   )}
                   <span className="text-xs text-ink-muted font-mono whitespace-nowrap">{r.created_at}</span>
-                  <span className="text-ink-muted">
+                  <span className="text-ink-muted ml-auto sm:ml-0">
                     {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                   </span>
                 </div>
@@ -583,7 +585,8 @@ const UserDetail = ({ userId, onBack }: { userId: number; onBack: () => void }) 
 
           <div className="bg-card border border-line rounded-xl p-6 flex flex-col gap-4">
             <h3 className="text-sm font-bold text-ink uppercase tracking-wider">Recent Requests</h3>
-            <div className="overflow-x-auto">
+            {/* Desktop View Table */}
+            <div className="hidden sm:block overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-line text-ink-muted uppercase tracking-wider font-semibold">
@@ -621,6 +624,36 @@ const UserDetail = ({ userId, onBack }: { userId: number; onBack: () => void }) 
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile View List */}
+            <div className="sm:hidden flex flex-col divide-y divide-line/50">
+              {detail.recent_requests.length === 0 ? (
+                <div className="py-4 text-center text-ink-muted text-xs">No requests recorded.</div>
+              ) : (
+                detail.recent_requests.slice(0, 10).map(r => (
+                  <div key={r.id} className="py-2.5 flex flex-col gap-1 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="inline-flex items-center gap-1.5 font-medium text-ink">
+                        <span className="w-2 h-2 rounded-full" style={{ background: FEATURE_COLORS[r.feature] || '#6B7280' }} />
+                        {FEATURE_LABELS[r.feature] || r.feature}
+                      </span>
+                      <span className="text-[0.65rem] text-ink-muted">{r.created_at}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-ink-muted">
+                      <span className="font-mono">{r.model}</span>
+                      {r.tokens_used > 0 ? (
+                        <span className="inline-flex items-center gap-1 text-amber-400 font-semibold">
+                          <Zap size={10} />
+                          {r.tokens_used.toLocaleString()}
+                        </span>
+                      ) : (
+                        <span>—</span>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

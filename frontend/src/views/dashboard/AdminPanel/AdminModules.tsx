@@ -41,7 +41,8 @@ export const AdminModules = ({
       </div>
 
       <div onScroll={onScroll} className="flex-1 overflow-auto">
-        <table className="w-full text-left border-collapse text-sm">
+        {/* Desktop View Table */}
+        <table className="hidden md:table w-full text-left border-collapse text-sm">
           <thead>
             <tr className="border-b border-line text-xs font-semibold text-ink-muted bg-input/20">
               <th className="p-4 pl-6">Module Title</th>
@@ -117,6 +118,82 @@ export const AdminModules = ({
             )}
           </tbody>
         </table>
+
+        {/* Mobile View Cards */}
+        <div className="md:hidden divide-y divide-line/60">
+          {filtered.length === 0 ? (
+            <div className="p-8 text-center text-ink-muted text-sm">
+              No generated modules found.
+            </div>
+          ) : (
+            filtered.map((item) => (
+              <div
+                key={item.id}
+                onClick={() => onViewModule(item.id)}
+                className="p-4 flex flex-col gap-3 hover:bg-glass/5 transition-colors cursor-pointer"
+              >
+                {/* Header */}
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <span className="font-semibold text-ink block">{item.name}</span>
+                    <span className="text-xs text-ink-muted block">Created {item.date}</span>
+                  </div>
+                  <span className="shrink-0 px-2 py-0.5 rounded text-[0.7rem] font-bold bg-primary-soft text-primary border border-primary-line">
+                    {item.subject}
+                  </span>
+                </div>
+
+                {/* Creator & Details */}
+                <div className="flex flex-col gap-1.5 text-xs">
+                  <div>
+                    <span className="text-ink-muted">Creator: </span>
+                    <span className="font-semibold text-ink">{item.owner_name}</span>
+                    <span className="text-ink-muted block">{item.owner_email}</span>
+                  </div>
+                  <div className="flex items-center gap-4 mt-1">
+                    <div>
+                      <span className="text-ink-muted">Questions: </span>
+                      <span className="font-bold text-ink">{item.questions_count} Qs</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-ink-muted">Difficulty: </span>
+                      <span className={`px-2 py-0.5 rounded text-[0.7rem] font-bold uppercase ${
+                        item.difficulty === 'hard'
+                          ? 'bg-danger/10 text-danger'
+                          : item.difficulty === 'medium'
+                          ? 'bg-amber-500/10 text-amber-500'
+                          : 'bg-success/10 text-success'
+                      }`}>
+                        {item.difficulty}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center justify-end gap-2.5 mt-1 pt-2 border-t border-line/40" onClick={(e) => e.stopPropagation()}>
+                  {item.has_source_file && (
+                    <button
+                      onClick={() => onOpenSourceFile(item)}
+                      className="p-2 rounded-lg border border-primary-line text-primary hover:bg-primary-soft/20 transition cursor-pointer"
+                      title="View Source File"
+                    >
+                      <FileText size={14} />
+                    </button>
+                  )}
+                  <button
+                    disabled={submittingId === item.id}
+                    onClick={() => onDeleteModule(item)}
+                    className="p-2 rounded-lg border border-danger-line text-danger hover:bg-danger-soft transition cursor-pointer disabled:opacity-40"
+                    title="Delete Module"
+                  >
+                    {submittingId === item.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
         {isFetchingMore && (
           <div className="text-center py-4 text-xs text-ink-muted animate-pulse">
             Loading more modules...

@@ -487,83 +487,117 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                     {/* Nav items */}
                     <nav className="flex flex-col px-3 py-3 gap-0.5">
-                      {([
-                        { tab: 'overview' as const, icon: <Layers size={18} />, label: 'Overview Panels' },
-                        { tab: 'modules'  as const, icon: <FileText size={18} />, label: 'My Study Modules' },
-                        { tab: 'public-explorer' as const, icon: <Globe size={18} />, label: 'Public Explorer' },
-                        { tab: 'notes'    as const, icon: <Notebook size={18} />, label: 'My Notes' },
-                        { tab: 'groups'   as const, icon: <Users size={18} />, label: 'Collaborative Circles' },
-                        { tab: 'calendar' as const, icon: <Calendar size={18} />, label: 'Exam Calendar' },
-                      ]).map(item => {
-                        const isActive = view === 'dashboard' && dashboardTab === item.tab;
-                        return (
-                          <button
-                            key={item.tab}
-                            onClick={() => { setView('dashboard'); setDashboardTab(item.tab); setActiveQuizModule(null); setSelectedGroupId(null); setMobileMenuOpen(false); }}
-                            className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg border-0 cursor-pointer text-left text-[0.95rem] font-medium transition-all duration-150 border-l-2 ${
-                              isActive
-                                ? 'text-primary bg-primary/8 border-l-primary'
-                                : 'text-ink-muted hover:text-ink hover:bg-glass border-l-transparent'
-                            }`}
-                          >
-                            <span className={isActive ? 'text-primary' : 'text-ink-muted'}>{item.icon}</span>
-                            <span>{item.label}</span>
-                          </button>
-                        );
-                      })}
+                      {dashboardTab.startsWith('admin') ? (
+                        // Admin nav items
+                        <>
+                          {([
+                            { tab: 'admin-overview'  as const, icon: <Layers size={18} />,   label: 'Overview Panels' },
+                            { tab: 'admin-users'     as const, icon: <Users size={18} />,    label: 'User Management' },
+                            { tab: 'admin-modules'   as const, icon: <FileText size={18} />, label: 'Modules Created' },
+                            { tab: 'admin-exams'     as const, icon: <Calendar size={18} />, label: 'Exams Scheduled' },
+                            { tab: 'admin-groups'    as const, icon: <Users size={18} />,    label: 'Groups Created' },
+                            { tab: 'admin-notes'     as const, icon: <Notebook size={18} />, label: 'User Notes' },
+                            { tab: 'admin-ai-usage'  as const, icon: <Sparkles size={18} />, label: 'AI Usage Report' },
+                          ]).map(item => {
+                            const isActive = view === 'dashboard' && dashboardTab === item.tab;
+                            return (
+                              <button
+                                key={item.tab}
+                                onClick={() => { setView('dashboard'); setDashboardTab(item.tab); setActiveQuizModule(null); setSelectedGroupId(null); setMobileMenuOpen(false); }}
+                                className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg border-0 cursor-pointer text-left text-[0.95rem] font-medium transition-all duration-150 border-l-2 ${
+                                  isActive
+                                    ? 'text-primary bg-primary/8 border-l-primary'
+                                    : 'text-ink-muted hover:text-ink hover:bg-glass border-l-transparent'
+                                }`}
+                              >
+                                <span className={isActive ? 'text-primary' : 'text-ink-muted'}>{item.icon}</span>
+                                <span>{item.label}</span>
+                              </button>
+                            );
+                          })}
+                        </>
+                      ) : (
+                        // Student nav items
+                        <>
+                          {([
+                            { tab: 'overview'        as const, icon: <Layers size={18} />,   label: 'Overview Panels' },
+                            { tab: 'modules'         as const, icon: <FileText size={18} />, label: 'My Study Modules' },
+                            { tab: 'public-explorer' as const, icon: <Globe size={18} />,    label: 'Public Explorer' },
+                            { tab: 'notes'           as const, icon: <Notebook size={18} />, label: 'My Notes' },
+                            { tab: 'groups'          as const, icon: <Users size={18} />,    label: 'Collaborative Circles' },
+                            { tab: 'calendar'        as const, icon: <Calendar size={18} />, label: 'Exam Calendar' },
+                          ]).map(item => {
+                            const isActive = view === 'dashboard' && dashboardTab === item.tab;
+                            return (
+                              <button
+                                key={item.tab}
+                                onClick={() => { setView('dashboard'); setDashboardTab(item.tab); setActiveQuizModule(null); setSelectedGroupId(null); setMobileMenuOpen(false); }}
+                                className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg border-0 cursor-pointer text-left text-[0.95rem] font-medium transition-all duration-150 border-l-2 ${
+                                  isActive
+                                    ? 'text-primary bg-primary/8 border-l-primary'
+                                    : 'text-ink-muted hover:text-ink hover:bg-glass border-l-transparent'
+                                }`}
+                              >
+                                <span className={isActive ? 'text-primary' : 'text-ink-muted'}>{item.icon}</span>
+                                <span>{item.label}</span>
+                              </button>
+                            );
+                          })}
 
-                      {/* Study Tools expandable */}
-                      {(() => {
-                        const isToolsActive = view === 'dashboard' && dashboardTab.startsWith('tool-');
-                        const toolsSubItems = [
-                          { tab: 'tool-flashcards' as const, icon: <Sparkles size={16} />, label: 'Flashcards' },
-                          { tab: 'tool-essay'      as const, icon: <HelpCircle size={16} />, label: 'Essay Grader' },
-                          { tab: 'tool-condenser'  as const, icon: <Layers size={16} />, label: 'Condenser' },
-                          { tab: 'tool-pomodoro'   as const, icon: <Timer size={16} />, label: 'Focus Timer' },
-                        ];
-                        return (
-                          <>
-                            <button
-                              onClick={() => setMobileToolsOpen(o => !o)}
-                              className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg border-0 cursor-pointer text-left text-[0.95rem] font-medium transition-all duration-150 border-l-2 ${
-                                isToolsActive
-                                  ? 'text-primary bg-primary/8 border-l-primary'
-                                  : 'text-ink-muted hover:text-ink hover:bg-glass border-l-transparent'
-                              }`}
-                            >
-                              <span className={isToolsActive ? 'text-primary' : 'text-ink-muted'}><Sparkles size={18} /></span>
-                              <span>Study Tools</span>
-                              <ChevronDown size={14} className={`ml-auto transition-transform duration-200 ${mobileToolsOpen ? 'rotate-180' : ''}`} />
-                            </button>
-                            <AnimatePresence>
-                              {mobileToolsOpen && (
-                                <motion.div
-                                  initial={{ height: 0, opacity: 0 }}
-                                  animate={{ height: 'auto', opacity: 1 }}
-                                  exit={{ height: 0, opacity: 0 }}
-                                  transition={{ duration: 0.2 }}
-                                  className="overflow-hidden"
+                          {/* Study Tools expandable */}
+                          {(() => {
+                            const isToolsActive = view === 'dashboard' && dashboardTab.startsWith('tool-');
+                            const toolsSubItems = [
+                              { tab: 'tool-flashcards' as const, icon: <Sparkles size={16} />,   label: 'Flashcards' },
+                              { tab: 'tool-essay'      as const, icon: <HelpCircle size={16} />, label: 'Essay Grader' },
+                              { tab: 'tool-condenser'  as const, icon: <Layers size={16} />,     label: 'Condenser' },
+                              { tab: 'tool-pomodoro'   as const, icon: <Timer size={16} />,      label: 'Focus Timer' },
+                            ];
+                            return (
+                              <>
+                                <button
+                                  onClick={() => setMobileToolsOpen(o => !o)}
+                                  className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg border-0 cursor-pointer text-left text-[0.95rem] font-medium transition-all duration-150 border-l-2 ${
+                                    isToolsActive
+                                      ? 'text-primary bg-primary/8 border-l-primary'
+                                      : 'text-ink-muted hover:text-ink hover:bg-glass border-l-transparent'
+                                  }`}
                                 >
-                                  {toolsSubItems.map(sub => (
-                                    <button
-                                      key={sub.tab}
-                                      onClick={() => { setView('dashboard'); setDashboardTab(sub.tab); setActiveQuizModule(null); setSelectedGroupId(null); setMobileMenuOpen(false); }}
-                                      className={`w-full flex items-center gap-3 pl-10 pr-3 py-2.5 rounded-lg border-0 cursor-pointer text-left text-[0.88rem] font-medium transition-all duration-150 ${
-                                        view === 'dashboard' && dashboardTab === sub.tab
-                                          ? 'text-primary bg-primary/8'
-                                          : 'text-ink-muted hover:text-ink hover:bg-glass'
-                                      }`}
+                                  <span className={isToolsActive ? 'text-primary' : 'text-ink-muted'}><Sparkles size={18} /></span>
+                                  <span>Study Tools</span>
+                                  <ChevronDown size={14} className={`ml-auto transition-transform duration-200 ${mobileToolsOpen ? 'rotate-180' : ''}`} />
+                                </button>
+                                <AnimatePresence>
+                                  {mobileToolsOpen && (
+                                    <motion.div
+                                      initial={{ height: 0, opacity: 0 }}
+                                      animate={{ height: 'auto', opacity: 1 }}
+                                      exit={{ height: 0, opacity: 0 }}
+                                      transition={{ duration: 0.2 }}
+                                      className="overflow-hidden"
                                     >
-                                      <span className={view === 'dashboard' && dashboardTab === sub.tab ? 'text-primary' : 'text-ink-muted'}>{sub.icon}</span>
-                                      <span>{sub.label}</span>
-                                    </button>
-                                  ))}
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
-                          </>
-                        );
-                      })()}
+                                      {toolsSubItems.map(sub => (
+                                        <button
+                                          key={sub.tab}
+                                          onClick={() => { setView('dashboard'); setDashboardTab(sub.tab); setActiveQuizModule(null); setSelectedGroupId(null); setMobileMenuOpen(false); }}
+                                          className={`w-full flex items-center gap-3 pl-10 pr-3 py-2.5 rounded-lg border-0 cursor-pointer text-left text-[0.88rem] font-medium transition-all duration-150 ${
+                                            view === 'dashboard' && dashboardTab === sub.tab
+                                              ? 'text-primary bg-primary/8'
+                                              : 'text-ink-muted hover:text-ink hover:bg-glass'
+                                          }`}
+                                        >
+                                          <span className={view === 'dashboard' && dashboardTab === sub.tab ? 'text-primary' : 'text-ink-muted'}>{sub.icon}</span>
+                                          <span>{sub.label}</span>
+                                        </button>
+                                      ))}
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
+                              </>
+                            );
+                          })()}
+                        </>
+                      )}
                     </nav>
 
                     {/* Settings pinned at bottom */}
@@ -585,14 +619,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                         </button>
                       )}
                       <button
-                        onClick={() => { setView('dashboard'); setDashboardTab('settings'); setActiveQuizModule(null); setSelectedGroupId(null); setMobileMenuOpen(false); }}
+                        onClick={() => { setView('dashboard'); setDashboardTab(dashboardTab.startsWith('admin') ? 'admin-settings' : 'settings'); setActiveQuizModule(null); setSelectedGroupId(null); setMobileMenuOpen(false); }}
                         className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg border-0 cursor-pointer text-left text-[0.95rem] font-medium transition-all duration-150 border-l-2 ${
-                          view === 'dashboard' && dashboardTab === 'settings'
+                          view === 'dashboard' && (dashboardTab === 'settings' || dashboardTab === 'admin-settings')
                             ? 'text-primary bg-primary/8 border-l-primary'
                             : 'text-ink-muted hover:text-ink hover:bg-glass border-l-transparent'
                         }`}
                       >
-                        <Settings size={18} className={view === 'dashboard' && dashboardTab === 'settings' ? 'text-primary' : 'text-ink-muted'} />
+                        <Settings size={18} className={view === 'dashboard' && (dashboardTab === 'settings' || dashboardTab === 'admin-settings') ? 'text-primary' : 'text-ink-muted'} />
                         <span>Settings</span>
                       </button>
                       <button

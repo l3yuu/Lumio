@@ -195,13 +195,13 @@ export const AdminNotes = () => {
                     {note.owner_name?.charAt(0) || '?'}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-ink truncate">{note.title}</span>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-sm font-semibold text-ink truncate flex-1 min-w-0">{note.title}</span>
                       {note.is_pinned && (
-                        <span className="text-[0.6rem] bg-yellow-400/15 text-yellow-400 px-1.5 py-0.5 rounded-full font-bold">PINNED</span>
+                        <span className="text-[0.6rem] bg-yellow-400/15 text-yellow-400 px-1.5 py-0.5 rounded-full font-bold shrink-0">PINNED</span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-ink-muted mt-0.5">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-ink-muted mt-0.5">
                       <span className="font-medium">{note.owner_name}</span>
                       <span>·</span>
                       <span>{note.subject}</span>
@@ -223,7 +223,7 @@ export const AdminNotes = () => {
                     <div className="mt-3 p-3 bg-app rounded-lg">
                       <pre className="text-sm text-ink whitespace-pre-wrap font-sans leading-relaxed m-0">{note.content || <span className="italic text-ink-muted">No content</span>}</pre>
                     </div>
-                    <div className="flex items-center justify-between mt-2 text-xs text-ink-muted">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 mt-2 text-xs text-ink-muted">
                       <span>User: {note.owner_name} ({note.owner_email})</span>
                       <span>Created: {new Date(note.created_at).toLocaleString()}</span>
                     </div>
