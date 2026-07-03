@@ -245,6 +245,10 @@ class StudyGroupOut(BaseModel):
     class Config:
         from_attributes = True
 
+class PublicGroupsOut(BaseModel):
+    results: List[StudyGroupOut]
+    total: int
+
 class GroupInviteRequest(BaseModel):
     email: str
 

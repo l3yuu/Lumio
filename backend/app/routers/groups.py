@@ -6,108 +6,22 @@ import jwt
 from datetime import datetime
 from pydantic import BaseModel
 from ..database import get_db
-from .. import models, schemas, auth
+from ..email import send_group_invite_email
 from ..config import settings
 from ..time_utils import now_ph, now_ph_naive
+from ..redis_client import cache_get, cache_set, cache_delete, cache_delete_pattern
+from .. import models, schemas, auth
 
 router = APIRouter(prefix="/api/groups", tags=["groups"])
 
-PUBLIC_GROUPS_CACHE = {}
+# Cache migrated to Redis under groups:public:listings:*
 
 def _invalidate_public_groups():
-    PUBLIC_GROUPS_CACHE.clear()
-
-def _serialize_group(group, db: Session) -> dict:
-    """Serialize a group ORM object to dict with shared_by_name on each module."""
-    # Build user_id -> name cache from members + module owners
-    user_ids = {m.user_id for m in group.modules if m.user_id}
-    user_ids.update({mem.id for mem in group.members})
-    users = {}
-    if user_ids:
-        for u in db.query(models.User).filter(models.User.id.in_(user_ids)).all():
-            users[u.id] = u.name
-
-    def _dt(val):
-        if val is None:
-            return None
-        return val.isoformat() if hasattr(val, 'isoformat') else str(val)
-
-    modules_data = []
-    for m in group.modules:
-        modules_data.append({
-            "id": m.id,
-            "name": m.name,
-            "date": m.date,
-            "size": m.size,
-            "subject": m.subject,
-            "is_public": m.is_public,
-            "user_id": m.user_id,
-            "shared_by_name": users.get(m.user_id) if m.user_id else None,
-            "source_filename": m.source_filename,
-            "has_source_file": bool(m.source_filename),
-            "last_score": m.last_score,
-            "difficulty": m.difficulty,
-            "questions": [
-                {
-                    "id": q.id,
-                    "module_id": q.module_id,
-                    "question": q.question,
-                    "options": q.options,
-                    "correct_answer_index": q.correct_answer_index,
-                    "explanation": q.explanation,
-                    "hint": q.hint,
-                    "question_type": q.question_type,
-                    "reference": q.reference,
-                }
-                for q in m.questions
-            ],
-        })
-
-    return {
-        "id": group.id,
-        "name": group.name,
-        "creator_id": group.creator_id,
-        "is_public": group.is_public,
-        "members": [
-            {
-                "id": mem.id,
-                "name": mem.name,
-                "email": mem.email,
-                "avatar": mem.avatar,
-                "online": getattr(mem, 'online', False),
-                "is_premium": getattr(mem, 'is_premium', False),
-            }
-            for mem in group.members
-        ],
-        "modules": modules_data,
-        "notes": [
-            {
-                "id": n.id,
-                "user_id": n.user_id,
-                "title": n.title,
-                "content": n.content,
-                "subject": n.subject,
-                "is_pinned": n.is_pinned,
-                "created_at": _dt(n.created_at),
-                "updated_at": _dt(n.updated_at),
-            }
-            for n in group.notes
-        ],
-        "quiz_sessions": [
-            {
-                "id": s.id,
-                "module_name": s.module_name,
-                "date": s.date,
-                "avg_score": s.avg_score,
-                "rankings": s.rankings or [],
-            }
-            for s in group.quiz_sessions
-        ],
-    }
+    cache_delete_pattern("groups:public:listings:*")
 
 # --- REST ENDPOINTS ---
 
-@router.get("", response_model=None)
+@router.get("", response_model=List[schemas.StudyGroupOut])
 def get_groups(
     skip: int = 0,
     limit: int = 10,
@@ -115,30 +29,56 @@ def get_groups(
     db: Session = Depends(get_db)
 ):
     # Returns groups that the current user is a member of with pagination
-    groups = db.query(models.StudyGroup).filter(
+    return db.query(models.StudyGroup).filter(
         models.StudyGroup.members.any(models.User.id == current_user.id),
         models.StudyGroup.is_banned == False
     ).order_by(models.StudyGroup.id.desc()).offset(skip).limit(limit).all()
-    return [_serialize_group(g, db) for g in groups]
 
-@router.get("/public", response_model=List[schemas.StudyGroupOut])
+@router.get("/public", response_model=schemas.PublicGroupsOut)
 def get_public_groups(
     skip: int = 0,
     limit: int = 10,
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db)
 ):
-    key = (skip, limit)
-    if key in PUBLIC_GROUPS_CACHE:
-        return PUBLIC_GROUPS_CACHE[key]
+    cache_key = f"groups:public:listings:{current_user.id}:{skip}:{limit}"
+    cached_groups = cache_get(cache_key)
+    if cached_groups is not None:
+        if isinstance(cached_groups, dict) and "results" in cached_groups:
+            return cached_groups
+        else:
+            cache_delete(cache_key)
 
-    results = db.query(models.StudyGroup).filter(
+    base_query = db.query(models.StudyGroup).filter(
         models.StudyGroup.is_public == True,
         models.StudyGroup.is_banned == False,
         ~models.StudyGroup.members.any(models.User.id == current_user.id)
-    ).order_by(models.StudyGroup.id.desc()).offset(skip).limit(limit).all()
-    PUBLIC_GROUPS_CACHE[key] = results
-    return results
+    )
+
+    total = base_query.count()
+
+    results = base_query.order_by(models.StudyGroup.id.desc()).offset(skip).limit(limit).all()
+    
+    try:
+        serialized_results = []
+        for g in results:
+            if hasattr(schemas.StudyGroupOut, "model_validate"):
+                serialized_results.append(schemas.StudyGroupOut.model_validate(g).model_dump())
+            else:
+                serialized_results.append(schemas.StudyGroupOut.from_orm(g).dict())
+        
+        response_data = {
+            "results": serialized_results,
+            "total": total
+        }
+        cache_set(cache_key, response_data, expire_seconds=3600)
+    except Exception:
+        response_data = {
+            "results": results,
+            "total": total
+        }
+        
+    return response_data
 
 @router.post("/{group_id}/join", response_model=schemas.StudyGroupOut)
 def join_public_group(group_id: int, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
@@ -422,7 +362,7 @@ async def update_group(
     return group
 
 
-@router.get("/{group_id}", response_model=None)
+@router.get("/{group_id}", response_model=schemas.StudyGroupOut)
 def get_group(group_id: int, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     group = db.query(models.StudyGroup).filter(models.StudyGroup.id == group_id).first()
     if not group:
@@ -432,7 +372,7 @@ def get_group(group_id: int, current_user: models.User = Depends(auth.get_curren
     # Verify membership
     if current_user not in group.members:
         raise HTTPException(status_code=403, detail="Not a member of this study group")
-    return _serialize_group(group, db)
+    return group
 
 @router.post("/{group_id}/invite", status_code=201)
 def invite_member(

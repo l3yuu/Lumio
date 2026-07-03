@@ -28,6 +28,7 @@ class Settings(BaseSettings):
 
     # General Settings
     FRONTEND_URL: str = "http://localhost:5173"
+    REDIS_URL: str = "redis://localhost:6379/0"
 
     class Config:
         env_file = ".env"

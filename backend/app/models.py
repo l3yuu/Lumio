@@ -135,6 +135,10 @@ class Module(Base):
     def has_source_file(self) -> bool:
         return bool(self.source_file_data) or (bool(self.source_file_path) and os.path.exists(self.source_file_path))
 
+    @property
+    def shared_by_name(self) -> Optional[str]:
+        return self.owner.name if self.owner else None
+
     owner = relationship("User", back_populates="modules")
     questions = relationship("QuizQuestion", back_populates="module", cascade="all, delete-orphan")
     groups = relationship("StudyGroup", secondary=group_modules, back_populates="modules")

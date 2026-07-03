@@ -96,7 +96,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
     }
   }, [selectedGroupId, groups]);
 
-  const mapStudyGroup = (g: StudyGroupResponse): StudyGroup => ({
+  const mapStudyGroup = React.useCallback((g: StudyGroupResponse): StudyGroup => ({
     id: g.id,
     name: g.name,
     creator_id: g.creator_id,
@@ -129,7 +129,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
         reference: q.reference
       })) : []
     })) : [],
-    notes: g.notes ? g.notes.map((n: any) => ({
+    notes: g.notes ? g.notes.map((n: { id: number; user_id: number; title: string; content: string; subject: string; is_pinned: boolean; created_at: string; updated_at: string }) => ({
       id: n.id,
       userId: n.user_id,
       title: n.title,
@@ -152,9 +152,10 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
         isUser: r.is_user
       })) : []
     })) : []
-  });
+  }), []);
 
   const [publicGroups, setPublicGroups] = useState<StudyGroup[]>([]);
+  const [publicGroupsTotal, setPublicGroupsTotal] = useState(0);
   const publicGroupsPageRef = useRef(0);
   const [hasMorePublicGroups, setHasMorePublicGroups] = useState(true);
   const [isFetchingPublicGroups, setIsFetchingPublicGroups] = useState(false);
@@ -175,9 +176,11 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
       headers: { 'Authorization': `Bearer ${token}` },
       cache: 'no-store'
     })
-    .then(res => res.ok ? res.json() : [])
-    .then((data: StudyGroupResponse[]) => {
-      const mapped = data.map(mapStudyGroup);
+    .then(res => res.ok ? res.json() : { results: [], total: 0 })
+    .then((data: { results: StudyGroupResponse[], total: number }) => {
+      const results = data.results || [];
+      const total = data.total || 0;
+      const mapped = results.map(mapStudyGroup);
       if (append) {
         setPublicGroups(prev => {
           const existingIds = new Set(prev.map(x => x.id));
@@ -187,14 +190,15 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
       } else {
         setPublicGroups(mapped);
       }
-      setHasMorePublicGroups(data.length === limit);
+      setPublicGroupsTotal(total);
+      setHasMorePublicGroups(results.length === limit);
       setIsFetchingPublicGroups(false);
     })
     .catch(err => {
       console.error('Error fetching public groups:', err);
       setIsFetchingPublicGroups(false);
     });
-  }, []);
+  }, [mapStudyGroup]);
 
   const fetchUserGroups = React.useCallback((pageNum: number = 0, append: boolean = false) => {
     const token = localStorage.getItem('token');
@@ -226,7 +230,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
       console.error('Error fetching user groups:', err);
       setIsFetchingUserGroups(false);
     });
-  }, []);
+  }, [mapStudyGroup]);
 
   // Re-fetch a single group from server and sync into parent state
   const fetchGroupById = React.useCallback((groupId: number) => {
@@ -248,39 +252,55 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
   // Initial loads
   useEffect(() => {
     publicGroupsPageRef.current = 0;
-    fetchPublicGroups(0, false);
+    setTimeout(() => {
+      fetchPublicGroups(0, false);
+    }, 0);
     
     userGroupsPageRef.current = 0;
-    fetchUserGroups(0, false);
+    setTimeout(() => {
+      fetchUserGroups(0, false);
+    }, 0);
   }, [fetchPublicGroups, fetchUserGroups]);
 
   // Sync edits/CRUD actions from parent groups state into paginated local state
   useEffect(() => {
-    setUserGroupsList(prev => {
-      const parentMap = new Map(groups.map(g => [g.id, g]));
-      
-      const updated = prev
-        .filter(g => parentMap.has(g.id))
-        .map(g => parentMap.get(g.id)!);
+    setTimeout(() => {
+      setUserGroupsList(prev => {
+        const parentMap = new Map(groups.map(g => [g.id, g]));
         
-      const existingIds = new Set(prev.map(g => g.id));
-      const newlyAdded = groups.filter(g => !existingIds.has(g.id));
-      
-      if (newlyAdded.length > 0) {
-        return [...newlyAdded, ...updated];
-      }
-      return updated;
-    });
+        const updated = prev
+          .filter(g => parentMap.has(g.id))
+          .map(g => parentMap.get(g.id)!);
+          
+        const existingIds = new Set(prev.map(g => g.id));
+        const newlyAdded = groups.filter(g => !existingIds.has(g.id));
+        
+        if (newlyAdded.length > 0) {
+          return [...newlyAdded, ...updated];
+        }
+        return updated;
+      });
+    }, 0);
   }, [groups]);
 
   // Scroll listener for infinite scrolling
   useEffect(() => {
-    const handleScroll = () => {
+    const handleScroll = (e: Event) => {
+      const target = e.target;
+      if (!target) return;
+
+      const element = target as HTMLElement;
+      const isMainContainer = target === document || 
+                              target === document.documentElement || 
+                              (element.classList && element.classList.contains('overflow-y-auto') && !element.classList.contains('flex-1'));
+      if (!isMainContainer) return;
+
       const threshold = 150;
-      const totalHeight = document.documentElement.scrollHeight;
-      const scrollPosition = window.innerHeight + window.scrollY;
+      const scrollHeight = element.scrollHeight || document.documentElement.scrollHeight;
+      const scrollTop = element.scrollTop !== undefined ? element.scrollTop : window.scrollY;
+      const clientHeight = element.clientHeight || window.innerHeight;
       
-      if (totalHeight - scrollPosition <= threshold) {
+      if (scrollHeight - (scrollTop + clientHeight) <= threshold) {
         if (selectedGroupId === null) {
           // Load public groups if they are visible
           if (publicGroups.length > 0 && hasMorePublicGroups && !isFetchingPublicGroups) {
@@ -297,8 +317,8 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
       }
     };
 
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, { capture: true });
+    return () => window.removeEventListener('scroll', handleScroll, { capture: true });
   }, [selectedGroupId, publicGroups.length, hasMorePublicGroups, isFetchingPublicGroups, hasMoreUserGroups, isFetchingUserGroups, fetchPublicGroups, fetchUserGroups]);
 
   const handleJoinPublicGroup = (groupId: number) => {
@@ -1545,7 +1565,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
             <div className="bg-card border border-line rounded-2xl p-8 max-w-150 w-full max-h-[80vh] overflow-y-auto shadow-lg" onClick={e => e.stopPropagation()}>
               <div className="flex justify-between items-start mb-6 gap-4">
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-xl font-bold text-ink break-words">{viewingSharedNote.title}</h3>
+                  <h3 className="text-xl font-bold text-ink wrap-break-word">{viewingSharedNote.title}</h3>
                   <div className="flex items-center gap-2 text-xs text-ink-muted mt-1">
                     <span>{viewingSharedNote.subject}</span>
                     <span>·</span>
@@ -1562,7 +1582,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
                   <X size={20} />
                 </button>
               </div>
-              <div className="text-sm text-ink leading-relaxed whitespace-pre-wrap break-words">
+              <div className="text-sm text-ink leading-relaxed whitespace-pre-wrap wrap-break-word">
                 {viewingSharedNote.content || 'Empty note'}
               </div>
             </div>
@@ -1935,17 +1955,38 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
         </div>
       )}
 
-      {publicGroups.length > 0 && (
+      {(publicGroupsTotal > 0 || isFetchingPublicGroups) && (
         <div className="mt-10">
           <h4 className="text-[1rem] font-bold text-ink-muted uppercase tracking-wider mb-4 flex items-center gap-2">
             <Users size={16} />
             Public Groups
-            <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-primary-soft text-primary text-[0.65rem] font-bold">{publicGroups.length}</span>
+            {publicGroupsTotal > 0 && (
+              <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-primary-soft text-primary text-[0.65rem] font-bold">{publicGroupsTotal}</span>
+            )}
           </h4>
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-6 max-md:grid-cols-1 max-md:gap-4">
-            {publicGroups.map((group) => (
-              <div className="bg-card border border-line rounded-xl p-5 max-md:p-4 flex flex-col h-full" key={group.id}>
-                <h4 className="text-xl max-md:text-lg mb-2 text-left wrap-break-word">{group.name}</h4>
+
+          {isFetchingPublicGroups && publicGroups.length === 0 ? (
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-6 max-md:grid-cols-1 max-md:gap-4">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div key={`skeleton-group-${index}`} className="bg-card border border-line rounded-xl p-5 max-md:p-4 flex flex-col h-full animate-pulse select-none pointer-events-none">
+                  <div className="h-5 bg-line/25 rounded w-2/3 mb-3 text-left" />
+                  <div className="h-3.5 bg-line/10 rounded w-1/2 mb-4 text-left" />
+                  <div className="flex items-center mt-3 mb-6">
+                    {Array.from({ length: 4 }).map((_, aIdx) => (
+                      <div key={aIdx} className="w-8 h-8 rounded-full bg-line/15 border-2 border-card -ml-2 first:ml-0" />
+                    ))}
+                  </div>
+                  <div className="mt-auto pt-4 flex justify-end">
+                    <div className="h-8 bg-line/20 rounded w-24" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-6 max-md:grid-cols-1 max-md:gap-4">
+              {publicGroups.map((group) => (
+                <div className="bg-card border border-line rounded-xl p-5 max-md:p-4 flex flex-col h-full" key={group.id}>
+                  <h4 className="text-xl max-md:text-lg mb-2 text-left wrap-break-word">{group.name}</h4>
                 <span className="text-[0.85rem] text-ink-muted text-left">{group.members.length} Members | {group.modules.length} Shared Modules</span>
 
                 <div className="flex items-center mt-3">
@@ -1982,6 +2023,7 @@ export const GroupsPanel: React.FC<GroupsPanelProps> = ({
               </div>
             ))}
           </div>
+          )}
           {isFetchingPublicGroups && publicGroups.length > 0 && (
             <div className="text-center py-4 text-xs text-ink-muted animate-pulse">
               Loading more public groups...

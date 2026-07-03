@@ -10,18 +10,17 @@ from ..quiz_generator import generate_quiz_questions
 from ..ratelimit import modules_limiter
 from ..time_utils import now_ph, today_ph_str
 import re
+import base64
+from ..redis_client import cache_get, cache_set, cache_delete, cache_delete_pattern
 
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "uploads")
 
 router = APIRouter(prefix="/api/modules", tags=["modules"])
 
-# In-memory global cache for public module source files and text content
-PUBLIC_SOURCE_CACHE = {}
-PUBLIC_FILE_CACHE = {}
-PUBLIC_LISTINGS_CACHE = {}
+# Caches migrated to Redis (modules:public:listings:*, modules:public:source:*, modules:public:file:*)
 
 def _invalidate_public_listings():
-    PUBLIC_LISTINGS_CACHE.clear()
+    cache_delete_pattern("modules:public:listings:*")
 
 ALLOWED_EXTENSIONS = {"pdf", "txt", "docx"}
 ALLOWED_MIME_TYPES = {
@@ -330,8 +329,8 @@ def delete_module(module_id: int, current_user: models.User = Depends(auth.get_c
         except Exception as e:
             print(f"Warning: Failed to delete source file: {e}")
 
-    PUBLIC_SOURCE_CACHE.pop(module_id, None)
-    PUBLIC_FILE_CACHE.pop(module_id, None)
+    cache_delete(f"modules:public:source:{module_id}")
+    cache_delete(f"modules:public:file:{module_id}")
     _invalidate_public_listings()
     db.delete(module)
     db.commit()
@@ -344,8 +343,10 @@ def get_module_source(
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db)
 ):
-    if module_id in PUBLIC_SOURCE_CACHE:
-        return PUBLIC_SOURCE_CACHE[module_id]
+    cache_key = f"modules:public:source:{module_id}"
+    cached_source = cache_get(cache_key)
+    if cached_source is not None:
+        return cached_source
 
     module = db.query(models.Module).filter(models.Module.id == module_id).first()
     if not module or (module.user_id != current_user.id and not module.is_public):
@@ -357,7 +358,7 @@ def get_module_source(
         source_content=module.source_content
     )
     if module.is_public:
-        PUBLIC_SOURCE_CACHE[module_id] = res_obj
+        cache_set(cache_key, res_obj.model_dump() if hasattr(res_obj, "model_dump") else res_obj.dict(), expire_seconds=86400)
     return res_obj
 
 
@@ -367,13 +368,23 @@ def get_module_file(
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db)
 ):
-    if module_id in PUBLIC_FILE_CACHE:
-        content_bytes, media_type, filename = PUBLIC_FILE_CACHE[module_id]
-        return Response(
-            content=content_bytes,
-            media_type=media_type,
-            headers={"Content-Disposition": f'inline; filename="{filename}"'}
-        )
+    cache_key = f"modules:public:file:{module_id}"
+    cached_file = cache_get(cache_key)
+    if cached_file is not None and isinstance(cached_file, dict):
+        try:
+            content_bytes = base64.b64decode(cached_file["content_b64"])
+            media_type = cached_file["media_type"]
+            filename = cached_file["filename"]
+            return Response(
+                content=content_bytes,
+                media_type=media_type,
+                headers={
+                    "Content-Disposition": f'inline; filename="{filename}"',
+                    "Cache-Control": "public, max-age=31536000"
+                }
+            )
+        except Exception:
+            pass
 
     module = db.query(models.Module).filter(models.Module.id == module_id).first()
     if not module or (module.user_id != current_user.id and not module.is_public):
@@ -396,12 +407,23 @@ def get_module_file(
         raise HTTPException(status_code=404, detail="Source file not available")
 
     if module.is_public:
-        PUBLIC_FILE_CACHE[module_id] = (content_bytes, media_type, filename)
+        try:
+            b64_content = base64.b64encode(content_bytes).decode("utf-8")
+            cache_set(cache_key, {
+                "content_b64": b64_content,
+                "media_type": media_type,
+                "filename": filename
+            }, expire_seconds=86400)
+        except Exception:
+            pass
 
     return Response(
         content=content_bytes,
         media_type=media_type,
-        headers={"Content-Disposition": f'inline; filename="{filename}"'}
+        headers={
+            "Content-Disposition": f'inline; filename="{filename}"',
+            "Cache-Control": "public, max-age=31536000"
+        }
     )
 
 
@@ -413,9 +435,10 @@ def get_public_modules(
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db)
 ):
-    key = (search, skip, limit)
-    if key in PUBLIC_LISTINGS_CACHE:
-        return PUBLIC_LISTINGS_CACHE[key]
+    cache_key = f"modules:public:listings:{search or ''}:{skip}:{limit}"
+    cached_listings = cache_get(cache_key)
+    if cached_listings is not None:
+        return cached_listings
 
     query = db.query(models.Module).filter(
         models.Module.is_public == True
@@ -426,7 +449,18 @@ def get_public_modules(
             (models.Module.subject.ilike(f"%{search}%"))
         )
     results = query.order_by(models.Module.id.desc()).offset(skip).limit(limit).all()
-    PUBLIC_LISTINGS_CACHE[key] = results
+    
+    try:
+        serialized = []
+        for m in results:
+            if hasattr(schemas.ModuleOut, "model_validate"):
+                serialized.append(schemas.ModuleOut.model_validate(m).model_dump())
+            else:
+                serialized.append(schemas.ModuleOut.from_orm(m).dict())
+        cache_set(cache_key, serialized, expire_seconds=3600)
+    except Exception:
+        pass
+
     return results
 
 

@@ -115,11 +115,20 @@ from app import models
 
 @app.on_event("startup")
 async def start_scheduler():
+    from app.redis_client import init_redis
+    init_redis()
     asyncio.create_task(exam_reminder_scheduler())
 
 @app.get("/api/stats")
 def get_public_stats(db: Session = Depends(get_db)):
     """Public endpoint — returns real counts from the database for the landing page."""
+    from app.redis_client import cache_get, cache_set
+    
+    cache_key = "api:stats"
+    cached_data = cache_get(cache_key)
+    if cached_data is not None and isinstance(cached_data, dict):
+        return cached_data
+
     total_quizzes   = db.query(models.Module).count()
     total_modules   = db.query(models.Module).count()
     total_flashcard_decks = db.query(models.FlashcardDeck).count()
@@ -137,13 +146,16 @@ def get_public_stats(db: Session = Depends(get_db)):
                     scores.append(entry["score"])
     avg_score = round(sum(scores) / len(scores), 1) if scores else 0
 
-    return {
+    res_data = {
         "quizzes_generated": total_quizzes,
         "modules_uploaded":  total_modules,
         "score_improvement": avg_score,
         "flashcards_solved": total_flashcard_decks,
         "active_students":   total_users,
     }
+
+    cache_set(cache_key, res_data, expire_seconds=60)
+    return res_data
 
 
 @app.get("/")
@@ -152,10 +164,12 @@ async def root():
 
 @app.get("/api/health")
 async def health_check():
+    from app.redis_client import is_redis_available
     return {
         "status": "healthy",
         "version": "1.0.0",
-        "maintenance_mode": get_system_config_global("maintenance_mode") == "true"
+        "maintenance_mode": get_system_config_global("maintenance_mode") == "true",
+        "redis_connected": is_redis_available()
     }
 
 if __name__ == "__main__":

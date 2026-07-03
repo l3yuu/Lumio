@@ -28,6 +28,64 @@ const mapModule = (m: ModuleResponse): Module => ({
   isPublic: m.is_public || false
 });
 
+// Persistent client-side IndexedDB cache for PDF thumbnails
+class ThumbnailDB {
+  private dbName = 'LumioThumbnails';
+  private storeName = 'thumbnails';
+  private db: IDBDatabase | null = null;
+
+  async init(): Promise<IDBDatabase> {
+    if (this.db) return this.db;
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(this.dbName, 1);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains(this.storeName)) {
+          db.createObjectStore(this.storeName);
+        }
+      };
+      request.onsuccess = () => {
+        this.db = request.result;
+        resolve(this.db);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async get(key: number): Promise<string | null> {
+    try {
+      const db = await this.init();
+      return new Promise((resolve) => {
+        const transaction = db.transaction(this.storeName, 'readonly');
+        const store = transaction.objectStore(this.storeName);
+        const request = store.get(key);
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = () => resolve(null);
+      });
+    } catch {
+      return null;
+    }
+  }
+
+  async set(key: number, val: string): Promise<void> {
+    try {
+      const db = await this.init();
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction(this.storeName, 'readwrite');
+        const store = transaction.objectStore(this.storeName);
+        const request = store.put(val, key);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      });
+    } catch {
+      // Ignore errors (e.g. if IndexedDB is disabled/blocked in private browsing)
+    }
+  }
+}
+
+const thumbnailDB = new ThumbnailDB();
+const globalPdfThumbnailCache: { [moduleId: number]: string } = {};
+
 interface ModulesPanelProps {
   modules: Module[];
   user: User;
@@ -90,7 +148,9 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
   const [publicModules, setPublicModules] = useState<Module[]>([]);
   const [publicSearchQuery, setPublicSearchQuery] = useState('');
   const [isFetchingPublic, setIsFetchingPublic] = useState(false);
-  const [pdfThumbnails, setPdfThumbnails] = useState<{ [moduleId: number]: string }>({});
+  const [pdfThumbnails, setPdfThumbnails] = useState<{ [moduleId: number]: string }>(() => ({
+    ...globalPdfThumbnailCache
+  }));
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
 
   // User modules pagination state
@@ -129,6 +189,12 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
   };
 
   const generatePdfThumbnail = React.useCallback(async (moduleId: number): Promise<string> => {
+    // 1. Check persistent IndexedDB cache first
+    const cached = await thumbnailDB.get(moduleId);
+    if (cached) {
+      return cached;
+    }
+
     const token = localStorage.getItem('token');
     if (!token) throw new Error('Unauthorized');
 
@@ -156,6 +222,9 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
     const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
 
     pdf.destroy();
+
+    // 2. Save to persistent IndexedDB cache
+    await thumbnailDB.set(moduleId, dataUrl);
     return dataUrl;
   }, []);
 
@@ -167,14 +236,21 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
     if (viewMode === 'public') {
       publicModules.forEach((m) => {
         const isPdf = m.sourceFilename?.toLowerCase().endsWith('.pdf');
-        if (isPdf && !pdfThumbnails[m.id]) {
-          generatePdfThumbnail(m.id)
-            .then((dataUrl) => {
-              setPdfThumbnails((prev) => ({ ...prev, [m.id]: dataUrl }));
-            })
-            .catch((err) => {
-              console.error(`Failed to generate thumbnail for module ${m.id}:`, err);
-            });
+        if (isPdf) {
+          if (globalPdfThumbnailCache[m.id]) {
+            if (!pdfThumbnails[m.id]) {
+              setPdfThumbnails((prev) => ({ ...prev, [m.id]: globalPdfThumbnailCache[m.id] }));
+            }
+          } else if (!pdfThumbnails[m.id]) {
+            generatePdfThumbnail(m.id)
+              .then((dataUrl) => {
+                globalPdfThumbnailCache[m.id] = dataUrl;
+                setPdfThumbnails((prev) => ({ ...prev, [m.id]: dataUrl }));
+              })
+              .catch((err) => {
+                console.error(`Failed to generate thumbnail for module ${m.id}:`, err);
+              });
+          }
         }
       });
     }
@@ -307,56 +383,79 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
   React.useEffect(() => {
     if (viewMode === 'public') {
       publicPageRef.current = 0;
-      fetchPublicModules(publicSearchQuery, 0, false);
+      setTimeout(() => {
+        fetchPublicModules(publicSearchQuery, 0, false);
+      }, 0);
     } else {
       userPageRef.current = 0;
-      fetchUserModules(0, false, searchQuery, selectedSubject);
+      setTimeout(() => {
+        fetchUserModules(0, false, searchQuery, selectedSubject);
+      }, 0);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewMode, fetchUserModules, fetchPublicModules]);
 
   // Reset/fetch user modules when search or subject filters change
   React.useEffect(() => {
     if (viewMode !== 'public') {
       userPageRef.current = 0;
-      fetchUserModules(0, false, searchQuery, selectedSubject);
+      setTimeout(() => {
+        fetchUserModules(0, false, searchQuery, selectedSubject);
+      }, 0);
     }
-  }, [searchQuery, selectedSubject, viewMode]);
+
+  }, [searchQuery, selectedSubject, viewMode, fetchUserModules]);
 
   // Reset/fetch public modules when publicSearchQuery changes
   React.useEffect(() => {
     if (viewMode === 'public') {
       publicPageRef.current = 0;
-      fetchPublicModules(publicSearchQuery, 0, false);
+      setTimeout(() => {
+        fetchPublicModules(publicSearchQuery, 0, false);
+      }, 0);
     }
-  }, [publicSearchQuery, viewMode]);
+
+  }, [publicSearchQuery, viewMode, fetchPublicModules]);
 
   // Sync edits/CRUD actions from parent modules state into paginated local state
   React.useEffect(() => {
-    setUserModulesList(prev => {
-      const parentMap = new Map(modules.map(m => [m.id, m]));
-      
-      const updated = prev
-        .filter(m => parentMap.has(m.id))
-        .map(m => parentMap.get(m.id)!);
+    setTimeout(() => {
+      setUserModulesList(prev => {
+        const parentMap = new Map(modules.map(m => [m.id, m]));
         
-      const existingIds = new Set(prev.map(m => m.id));
-      const newlyAdded = modules.filter(m => !existingIds.has(m.id));
-      
-      if (newlyAdded.length > 0) {
-        return [...newlyAdded, ...updated];
-      }
-      return updated;
-    });
+        const updated = prev
+          .filter(m => parentMap.has(m.id))
+          .map(m => parentMap.get(m.id)!);
+          
+        const existingIds = new Set(prev.map(m => m.id));
+        const newlyAdded = modules.filter(m => !existingIds.has(m.id));
+        
+        if (newlyAdded.length > 0) {
+          return [...newlyAdded, ...updated];
+        }
+        return updated;
+      });
+    }, 0);
   }, [modules]);
 
   // Scroll event listener for infinite scrolling
   React.useEffect(() => {
-    const handleScroll = () => {
+    const handleScroll = (e: Event) => {
+      const target = e.target;
+      if (!target) return;
+
+      const element = target as HTMLElement;
+      const isMainContainer = target === document || 
+                              target === document.documentElement || 
+                              (element.classList && element.classList.contains('overflow-y-auto') && !element.classList.contains('flex-1'));
+      if (!isMainContainer) return;
+
       const threshold = 150;
-      const totalHeight = document.documentElement.scrollHeight;
-      const scrollPosition = window.innerHeight + window.scrollY;
+      const scrollHeight = element.scrollHeight || document.documentElement.scrollHeight;
+      const scrollTop = element.scrollTop !== undefined ? element.scrollTop : window.scrollY;
+      const clientHeight = element.clientHeight || window.innerHeight;
       
-      if (totalHeight - scrollPosition <= threshold) {
+      if (scrollHeight - (scrollTop + clientHeight) <= threshold) {
         if (viewMode === 'public') {
           if (hasMorePublic && !isFetchingPublic) {
             publicPageRef.current += 1;
@@ -371,8 +470,8 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
       }
     };
 
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, { capture: true });
+    return () => window.removeEventListener('scroll', handleScroll, { capture: true });
   }, [viewMode, hasMorePublic, isFetchingPublic, publicSearchQuery, hasMoreUser, isFetchingUser, searchQuery, selectedSubject, fetchUserModules, fetchPublicModules]);
 
   // Daily exam generation limit tracking
@@ -924,7 +1023,7 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
       {viewMode === 'public' ? (
         <div className="flex flex-col gap-5 mt-4">
           <div className="flex flex-col gap-2 bg-app/20 border border-line rounded-xl p-4">
-            <div className="relative w-full max-w-[400px]">
+            <div className="relative w-full max-w-100">
               <input
                 type="text"
                 placeholder="Search public modules..."
@@ -938,8 +1037,38 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
           </div>
 
           {isFetchingPublic ? (
-            <div className="text-center p-8 text-ink-muted">
-              <span className="inline-block animate-pulse">Loading public modules...</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mt-4">
+              {Array.from({ length: 8 }).map((_, index) => (
+                <div key={`skeleton-${index}`} className="flex flex-col bg-card border border-line rounded-2xl overflow-hidden animate-pulse select-none pointer-events-none">
+                  {/* Cover Area Skeleton */}
+                  <div className="relative aspect-4/3 w-full bg-app overflow-hidden border-b border-line flex items-center justify-center p-4">
+                    <div className="w-[70%] h-[85%] bg-white/5 dark:bg-black/10 rounded border border-line/20 p-3.5 flex flex-col justify-between text-left">
+                      <div className="flex flex-col gap-1.5">
+                        <div className="w-3/4 h-2.5 bg-line/30 rounded-sm" />
+                        <div className="w-full h-1 bg-line/10 rounded-sm" />
+                        <div className="w-4/5 h-1 bg-line/10 rounded-sm" />
+                        <div className="w-11/12 h-1 bg-line/10 rounded-sm" />
+                      </div>
+                      <div className="flex justify-between items-center mt-auto">
+                        <div className="w-1/3 h-1.5 bg-line/10 rounded-sm" />
+                        <div className="w-4 h-4 rounded-full bg-line/20" />
+                      </div>
+                    </div>
+                  </div>
+                  {/* Card Content Skeleton */}
+                  <div className="p-4 flex flex-col gap-2.5 flex-1 text-left">
+                    <div className="h-3.5 bg-line/25 rounded w-3/4" />
+                    <div className="flex flex-col gap-1.5">
+                      <div className="h-2.5 bg-line/10 rounded w-full" />
+                      <div className="h-2.5 bg-line/10 rounded w-5/6" />
+                    </div>
+                    <div className="flex justify-between items-center mt-auto pt-2 border-t border-line/20">
+                      <div className="h-2.5 bg-line/10 rounded w-1/4" />
+                      <div className="h-4 bg-line/15 rounded-full w-12" />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : publicModules.length === 0 ? (
             <div className="text-center p-12 text-ink-muted bg-app/20 border border-dashed border-line rounded-xl">
@@ -973,7 +1102,7 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
                     }}
                   >
                     {/* Cover Preview Area */}
-                    <div className="relative aspect-[4/3] w-full bg-app overflow-hidden border-b border-line flex items-center justify-center select-none">
+                    <div className="relative aspect-4/3 w-full bg-app overflow-hidden border-b border-line flex items-center justify-center select-none">
                       {pdfThumbnails[m.id] ? (
                         <img 
                           src={pdfThumbnails[m.id]} 
@@ -1001,7 +1130,7 @@ export const ModulesPanel: React.FC<ModulesPanelProps> = ({
                         </div>
                       ) : (
                         /* Vibrant Gradient Cover preview */
-                        <div className={`w-full h-full bg-gradient-to-br ${gradientClass} flex flex-col p-4 justify-between text-left relative overflow-hidden`}>
+                        <div className={`w-full h-full bg-linear-to-br ${gradientClass} flex flex-col p-4 justify-between text-left relative overflow-hidden`}>
                           <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full blur-xl transform translate-x-4 -translate-y-4" />
                           <div className="text-white font-black text-sm line-clamp-4 leading-snug font-sans tracking-wide">
                             {m.name}
